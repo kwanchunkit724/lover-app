@@ -78,13 +78,13 @@ This lets Codemagic upload to TestFlight without your password.
 
 ### 4. Add credentials to Codemagic
 - In Codemagic, go to **Teams** → your team → **Integrations** → **Developer Portal** → **App Store Connect** → **Add key**
-- Name: `lover-app-asc-key`
+- **Name: `lover_app_store`** ⚠️ exact name matters — it's referenced by `codemagic.yaml` (`integrations.app_store_connect: lover_app_store`)
 - Issuer ID: paste from step 3
 - Key ID: paste from step 3
 - API key: upload the .p8 file
 - Save
 
-Then: **Apps** → `lover-app` → **Settings** → **Environment variables** → **Add group** → name it `app_store_credentials`. Codemagic will auto-link the key when the workflow references this group (it's already wired in `codemagic.yaml`).
+Then enable the integration on the app: **Apps** → `lover-app` → **Settings** → **Integrations** → **App Store Connect** → toggle `lover_app_store` ON.
 
 ### 5. Set up signing
 - Codemagic dashboard → your app → **iOS code signing** → **Automatic** → pick the App Store Connect key from step 4.
