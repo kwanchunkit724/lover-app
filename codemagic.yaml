@@ -63,7 +63,7 @@ workflows:
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
             -sdk iphonesimulator \
-            -destination "platform=iOS Simulator,name=iPhone 15 Pro,OS=latest" \
+            -destination "platform=iOS Simulator,name=iPhone 17 Pro,OS=latest" \
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
             | xcbeautify
@@ -74,7 +74,7 @@ workflows:
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
             -sdk iphonesimulator \
-            -destination "platform=iOS Simulator,name=iPhone 15 Pro,OS=latest" \
+            -destination "platform=iOS Simulator,name=iPhone 17 Pro,OS=latest" \
             -derivedDataPath build \
             -resultBundlePath build/TestResults.xcresult \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
