@@ -112,6 +112,12 @@ workflows:
     name: TestFlight Release
     instance_type: mac_mini_m2
     max_build_duration: 60
+    # `integrations` is a top-level workflow field (sibling of `environment`).
+    # The integration name MUST match the one you created in
+    # Codemagic UI → Teams → Integrations → App Store Connect
+    # — docs/CODEMAGIC_SETUP.md tells you to name it "lover_app_store".
+    integrations:
+      app_store_connect: lover_app_store
     triggering:
       events:
         - tag
@@ -122,11 +128,6 @@ workflows:
       <<: *shared_env
       groups:
         - app_store_credentials
-      integrations:
-        # The integration name MUST match the one you created in
-        # Codemagic UI → Teams → Integrations → App Store Connect.
-        # docs/CODEMAGIC_SETUP.md tells you to name it "lover_app_store".
-        app_store_connect: lover_app_store
       ios_signing:
         distribution_type: app_store
         bundle_identifier: app.lover.LoverApp
