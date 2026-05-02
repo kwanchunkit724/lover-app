@@ -16,7 +16,7 @@ definitions:
     vars:
       XCODE_PROJECT: LoverApp.xcodeproj
       XCODE_SCHEME: LoverApp
-      BUNDLE_ID: app.lover.LoverApp
+      BUNDLE_ID: michel.kit.us
 
   shared_scripts:
     install_xcodegen: &install_xcodegen
@@ -95,7 +95,7 @@ workflows:
     artifacts:
       - screenshots/*.png
       - build/TestResults.xcresult
-      - build/Build/Products/Debug-iphonesimulator/Lover.app
+      - build/Build/Products/Debug-iphonesimulator/Us.app
     publishing:
       email:
         recipients:
@@ -130,7 +130,7 @@ workflows:
         - app_store_credentials
       ios_signing:
         distribution_type: app_store
-        bundle_identifier: app.lover.LoverApp
+        bundle_identifier: michel.kit.us
     scripts:
       - *install_xcodegen
       - *generate_project

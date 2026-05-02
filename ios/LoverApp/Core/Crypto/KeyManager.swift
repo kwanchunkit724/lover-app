@@ -7,9 +7,9 @@ import Security
 actor KeyManager {
     static let shared = KeyManager()
 
-    private let identityKeyTag = "app.lover.identity.x25519.private"
-    private let coupleKeyTag = "app.lover.couple.symmetric"
-    private let coupleKeyAccessGroup = "group.app.lover.shared"
+    private let identityKeyTag = "michel.kit.us.identity.x25519.private"
+    private let coupleKeyTag = "michel.kit.us.couple.symmetric"
+    private let coupleKeyAccessGroup = "group.michel.kit.us.shared"
 
     private init() {}
 

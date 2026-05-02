@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-    Hardcoded Info.plist for the LoverApp target.
+    Hardcoded Info.plist for the LoverApp target (user-facing product: "Us").
     Values mirror project.yml settings — keep them in sync if you change one:
-        CFBundleIdentifier          ↔ PRODUCT_BUNDLE_IDENTIFIER
-        CFBundleExecutable          ↔ PRODUCT_NAME (= "Lover")
-        CFBundleName                ↔ PRODUCT_NAME
+        CFBundleIdentifier          ↔ PRODUCT_BUNDLE_IDENTIFIER  (= michel.kit.us)
+        CFBundleExecutable          ↔ PRODUCT_NAME               (= "Us")
+        CFBundleName                ↔ PRODUCT_NAME               (= "Us")
         CFBundleShortVersionString  ↔ MARKETING_VERSION
         CFBundleVersion             ↔ CURRENT_PROJECT_VERSION
     No $(VAR) substitutions — Xcode 26 + XcodeGen pipeline doesn't reliably expand them.
@@ -15,15 +15,15 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>zh-Hant</string>
     <key>CFBundleDisplayName</key>
-    <string>Lover</string>
+    <string>Us</string>
     <key>CFBundleExecutable</key>
-    <string>Lover</string>
+    <string>Us</string>
     <key>CFBundleIdentifier</key>
-    <string>app.lover.LoverApp</string>
+    <string>michel.kit.us</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>Lover</string>
+    <string>Us</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
