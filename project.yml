@@ -96,6 +96,11 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: michel.kit.us.tests
         BUNDLE_LOADER: $(TEST_HOST)
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/Us.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Us
+        GENERATE_INFOPLIST_FILE: 'YES'
+    info:
+      path: ios/LoverAppTests/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
 
   # ───── UI tests (snapshot capture for Windows-only dev) ─────
   LoverAppUITests:
@@ -109,6 +114,11 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: michel.kit.us.uitests
         TEST_TARGET_NAME: LoverApp
+        GENERATE_INFOPLIST_FILE: 'YES'
+    info:
+      path: ios/LoverAppUITests/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
 
 schemes:
   LoverApp:
