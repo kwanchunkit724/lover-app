@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Hardcoded Info.plist for the LoverApp target.
+    Values mirror project.yml settings — keep them in sync if you change one:
+        CFBundleIdentifier          ↔ PRODUCT_BUNDLE_IDENTIFIER
+        CFBundleExecutable          ↔ PRODUCT_NAME (= "Lover")
+        CFBundleName                ↔ PRODUCT_NAME
+        CFBundleShortVersionString  ↔ MARKETING_VERSION
+        CFBundleVersion             ↔ CURRENT_PROJECT_VERSION
+    No $(VAR) substitutions — Xcode 26 + XcodeGen pipeline doesn't reliably expand them.
+-->
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
@@ -7,19 +17,19 @@
     <key>CFBundleDisplayName</key>
     <string>Lover</string>
     <key>CFBundleExecutable</key>
-    <string>$(EXECUTABLE_NAME)</string>
+    <string>Lover</string>
     <key>CFBundleIdentifier</key>
-    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <string>app.lover.LoverApp</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>$(PRODUCT_NAME)</string>
+    <string>Lover</string>
     <key>CFBundlePackageType</key>
-    <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+    <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>$(MARKETING_VERSION)</string>
+    <string>0.1.0</string>
     <key>CFBundleVersion</key>
-    <string>$(CURRENT_PROJECT_VERSION)</string>
+    <string>1</string>
     <key>CFBundleLocalizations</key>
     <array>
         <string>zh-Hant</string>
