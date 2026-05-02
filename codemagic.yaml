@@ -65,7 +65,7 @@ workflows:
             -sdk iphonesimulator \
             -destination "platform=iOS Simulator,name=iPhone 17 Pro,OS=latest" \
             -derivedDataPath build \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES \
             ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO \
             | xcbeautify
       - name: ASSERT bundle ID exists in Us.app
@@ -151,6 +151,14 @@ workflows:
           echo "-- CFBundleIdentifier directly:"
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INFO" 2>&1
           echo ""
+          echo "-- Architecture + signing diagnostic:"
+          lipo -info "$APP_PATH/Us" 2>&1 || echo "(lipo failed)"
+          codesign -dvvv "$APP_PATH" 2>&1 | head -20 || echo "(codesign read failed)"
+          echo ""
+          echo "-- Strip extended attributes (potential install blocker):"
+          xattr -cr "$APP_PATH" 2>&1
+          xattr -lr "$APP_PATH" 2>&1 | head -10
+          echo ""
           echo "-- Try simctl install directly (clearer error than xcodebuild test):"
           DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 17 Pro" | head -1 | grep -oE "\([A-F0-9-]+\)" | tr -d '()')
           echo "Booting device $DEVICE_ID"
@@ -169,7 +177,7 @@ workflows:
             -destination "platform=iOS Simulator,name=iPhone 17 Pro,OS=latest" \
             -derivedDataPath build \
             -resultBundlePath build/TestResults.xcresult \
-            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES \
             ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO \
             | xcbeautify
       - name: Extract screenshots from xcresult
