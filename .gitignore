@@ -1,0 +1,47 @@
+# Generated Xcode project (we use XcodeGen — never commit the .xcodeproj)
+*.xcodeproj/
+*.xcworkspace/
+
+# Xcode build output
+build/
+DerivedData/
+*.xcarchive
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# macOS metadata
+.DS_Store
+
+# CI artefacts
+captures/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Codemagic local cache
+.codemagic_cache/
+
+# Secrets — anything ending in .secret or under secrets/
+*.secret
+secrets/
+
+# IDE
+.vscode/launch.json
+.idea/
+
+# Node (in case of tooling)
+node_modules/
+
+# Test outputs
+*.xcresult
+TestResults/
+
+# Snapshot screenshots committed to repo go in docs/snapshots/, but local CI runs go to:
+SnapshotArtifacts/

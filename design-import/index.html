@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kit & Michel — 情侶 App · 日系奶油</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <style>
+    html, body { margin: 0; padding: 0; }
+    body { background: #F5E9DE; font-family: "Zen Maru Gothic", "Noto Sans TC", system-ui, sans-serif; min-height: 100vh; }
+    @keyframes kit-bounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+      30% { transform: translateY(-4px); opacity: 1; }
+    }
+    @keyframes kit-pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.5; }
+    }
+    @keyframes float-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .stage {
+      min-height: 100vh; padding: 50px 20px;
+      display: flex; flex-direction: column; align-items: center; gap: 24px;
+      background:
+        radial-gradient(circle at 20% 10%, #F8DDD7 0%, transparent 40%),
+        radial-gradient(circle at 80% 80%, #E5EBDB 0%, transparent 40%),
+        #FBF4EE;
+    }
+    .header {
+      max-width: 540px; text-align: center; animation: float-in .6s ease;
+    }
+    .header h1 {
+      font-family: "Klee One", "Noto Sans TC", serif;
+      font-size: 36px; font-weight: 600; color: #3D2E27;
+      margin: 0 0 8px; letter-spacing: -0.5px;
+    }
+    .header .kao {
+      font-family: "DM Mono", monospace;
+      font-size: 18px; color: #D88B82; margin-bottom: 12px;
+    }
+    .header p {
+      font-size: 14px; color: #7A6259; margin: 0; line-height: 1.6;
+    }
+    .header .meta {
+      font-family: "DM Mono", monospace;
+      font-size: 11px; color: #B0998F; letter-spacing: 0.4px;
+      margin-top: 6px;
+    }
+    .nav {
+      display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+      max-width: 600px; margin: 4px 0;
+    }
+    .nav button {
+      padding: 8px 14px; border-radius: 999px;
+      border: 0.5px solid rgba(61,46,39,0.12); background: #FFFFFF;
+      cursor: pointer; font-family: "Zen Maru Gothic", "Noto Sans TC", sans-serif;
+      font-size: 12px; color: #3D2E27; font-weight: 500;
+      transition: all .2s;
+    }
+    .nav button:hover { transform: translateY(-1px); }
+    .nav button.active {
+      background: #D88B82; color: #fff; border-color: #D88B82;
+    }
+    .phone-wrap { animation: float-in .5s ease; }
+    .footnote {
+      font-family: "DM Mono", monospace;
+      font-size: 11px; color: #B0998F;
+      max-width: 540px; text-align: center; line-height: 1.7;
+      margin-top: 8px; letter-spacing: 0.3px;
+    }
+    .footnote b { color: #D88B82; }
+  </style>
+</head>
+<body>
+
+  <script src="data.js"></script>
+  <script src="theme.js"></script>
+  <script type="text/babel" src="ui.jsx"></script>
+  <script type="text/babel" src="chat.jsx"></script>
+  <script type="text/babel" src="screens.jsx"></script>
+  <script type="text/babel" src="extra.jsx"></script>
+  <script type="text/babel" src="app.jsx"></script>
+
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="env,react">
+    const { useState } = React;
+
+    const SCREENS = [
+      { id: 'chat',    label: '對話',         tab: 'chat' },
+      { id: 'time',    label: '時間',         tab: 'time' },
+      { id: 'reminder',label: '提醒詳情',     tab: 'time',   view: 'entry', entryId: 'e_today1' },
+      { id: 'memdet',  label: '記憶詳情',     tab: 'time',   view: 'entry', entryId: 'm3' },
+      { id: 'lookback',label: '一年前嘅今日', tab: 'time',   view: 'entry', entryId: 'mly' },
+      { id: 'event',   label: '加新提醒',     tab: 'time',   view: 'addEvent' },
+      { id: 'play',    label: '玩樂',         tab: 'play' },
+      { id: 'cards',   label: '抽卡',         tab: 'play',   view: 'cards' },
+      { id: 'quiz',    label: '21 條問題',    tab: 'play',   view: 'quiz' },
+      { id: 'us',      label: '我哋',         tab: 'us' },
+      { id: 'anniv',   label: '紀念日',       tab: 'us',     view: 'anniversaries' },
+      { id: 'kao',     label: '顏文字設定',   tab: 'us',     view: 'kao' },
+      { id: 'theme',   label: '主題',         tab: 'us',     view: 'theme' },
+      { id: 'cam',     label: '相機',         tab: 'chat',   view: 'camera' },
+      { id: 'onboard', label: 'Onboarding',                  view: 'onboarding' },
+    ];
+
+    function Stage() {
+      const [pick, setPick] = useState(SCREENS[0]);
+      return (
+        <div className="stage">
+          <div className="header">
+            <div className="kao">(♡˙︶˙♡)</div>
+            <h1>Kit & Michel</h1>
+            <p>iOS 情侶 App · 繁體中文 · 日系奶油主題</p>
+            <div className="meta">V0.4 · 4 tabs · 月曆 grid · past photo + future events</div>
+          </div>
+
+          <div className="nav">
+            {SCREENS.map(s => (
+              <button key={s.id} className={pick.id === s.id ? 'active' : ''} onClick={() => setPick(s)}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          <div key={pick.id} className="phone-wrap">
+            <window.Phone themeId="jbeam" tab={pick.tab} view={pick.view} entryId={pick.entryId} />
+          </div>
+
+          <div className="footnote">
+            <b>核心 idea</b> · 一個 entry 兩個階段：<b>未發生</b>係提醒、<b>已發生</b>會自動變成記憶。<br/>
+            <b>時間 tab 合一</b> · 月曆 grid · 過去嘅日子 = 相片填滿 · 將來嘅日子 = 活動標題 · tap 任何日子睇詳情<br/>
+            <b>回望</b> · 今日 detail 下方 surface「一年前嘅今日」 · <b>紀念日</b> · recurring + 倒數
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<Stage />);
+  </script>
+</body>
+</html>

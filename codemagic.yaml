@@ -1,0 +1,160 @@
+# Codemagic CI for Windows-only iOS development.
+# Two workflows:
+#   1. dev  → every push, builds for Simulator, runs UI tests, emails screenshots
+#   2. testflight → tagged releases (v*.*.*), archives + uploads to TestFlight
+#
+# Setup steps live in docs/CODEMAGIC_SETUP.md. Required environment groups:
+#   - app_store_credentials (only needed for the testflight workflow):
+#       APP_STORE_CONNECT_PRIVATE_KEY    (the .p8 file contents)
+#       APP_STORE_CONNECT_KEY_IDENTIFIER (Key ID)
+#       APP_STORE_CONNECT_ISSUER_ID      (Issuer ID)
+
+definitions:
+  shared_env: &shared_env
+    xcode: latest
+    cocoapods: default
+    vars:
+      XCODE_PROJECT: LoverApp.xcodeproj
+      XCODE_SCHEME: LoverApp
+      BUNDLE_ID: app.lover.LoverApp
+
+  shared_scripts:
+    install_xcodegen: &install_xcodegen
+      name: Install XcodeGen
+      script: |
+        if ! command -v xcodegen >/dev/null 2>&1; then
+          brew install xcodegen
+        fi
+
+    generate_project: &generate_project
+      name: Generate Xcode project
+      script: xcodegen generate
+
+workflows:
+  # ─────────────────────────────────────────────────────────────
+  # DEV — runs on every push to any branch. No code signing.
+  # Builds for iOS Simulator, runs UI tests that capture screenshots,
+  # emails screenshots so user can review UI without SwiftUI Preview.
+  # ─────────────────────────────────────────────────────────────
+  dev:
+    name: Dev Build (Simulator + Screenshots)
+    instance_type: mac_mini_m2
+    max_build_duration: 30
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: '*'
+          include: true
+      cancel_previous_builds: true
+    environment:
+      <<: *shared_env
+    scripts:
+      - *install_xcodegen
+      - *generate_project
+      - name: Show project files (debug)
+        script: |
+          ls -la
+          ls -la ios/LoverApp || true
+      - name: Build for Simulator
+        script: |
+          set -o pipefail
+          xcodebuild build-for-testing \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,name=iPhone 15 Pro,OS=latest" \
+            -derivedDataPath build \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify
+      - name: Run unit + UI tests (captures screenshots)
+        script: |
+          set -o pipefail
+          xcodebuild test-without-building \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,name=iPhone 15 Pro,OS=latest" \
+            -derivedDataPath build \
+            -resultBundlePath build/TestResults.xcresult \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify
+      - name: Extract screenshots from xcresult
+        script: |
+          mkdir -p screenshots
+          # xcparse extracts attachments (incl. our snapshot PNGs) from the .xcresult bundle.
+          npm install -g xcparse 2>/dev/null || true
+          if command -v xcparse >/dev/null 2>&1; then
+            xcparse screenshots build/TestResults.xcresult screenshots --test
+          fi
+          # Fallback: walk the xcresult manually if xcparse is unavailable.
+          if [ -z "$(ls -A screenshots 2>/dev/null)" ]; then
+            find build/TestResults.xcresult -name "*.png" -exec cp {} screenshots/ \;
+          fi
+          ls -la screenshots
+    artifacts:
+      - screenshots/*.png
+      - build/TestResults.xcresult
+      - build/Build/Products/Debug-iphonesimulator/Lover.app
+    publishing:
+      email:
+        recipients:
+          - kck980724@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  # ─────────────────────────────────────────────────────────────
+  # TESTFLIGHT — runs on tags matching v*.*.* (e.g. v0.1.0).
+  # Requires: paid Apple Developer Program ($99/yr), App Store Connect API key.
+  # ─────────────────────────────────────────────────────────────
+  testflight:
+    name: TestFlight Release
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: 'v*'
+          include: true
+    environment:
+      <<: *shared_env
+      groups:
+        - app_store_credentials
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: app.lover.LoverApp
+    scripts:
+      - *install_xcodegen
+      - *generate_project
+      - name: Set build number from latest TestFlight build
+        script: |
+          BUILD_NUMBER=$(($(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" --tries 5 || echo 0) + 1))
+          echo "Setting build number to $BUILD_NUMBER"
+          cd $(dirname "$XCODE_PROJECT")
+          agvtool new-version -all $BUILD_NUMBER
+      - name: Apply provisioning profiles
+        script: xcode-project use-profiles
+      - name: Build ipa
+        script: |
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --archive-flags="-allowProvisioningUpdates"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
+      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+    publishing:
+      email:
+        recipients:
+          - kck980724@gmail.com
+        notify:
+          success: true
+          failure: true
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        beta_groups:
+          - Internal Testers

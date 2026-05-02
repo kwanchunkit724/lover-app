@@ -1,0 +1,101 @@
+{
+  "version": 2,
+  "_note": "Mirrors design-import/data.js KAOMOJI + KAO_CATEGORIES + QUICK_REACT. Update both together when changing.",
+  "quick_react": ["(♡˙︶˙♡)", "(≧▽≦)", "(╥﹏╥)", "(¬‿¬)", "(⊙_⊙)", "(っ´ω`c)"],
+  "categories": [
+    {
+      "id": "love",
+      "label_zh": "愛意",
+      "label_en": "Love",
+      "label_ja": "愛",
+      "entries": [
+        "(♡˙︶˙♡)", "(´♡‿♡`)", "(/▽＼*)｡o○♡", "♡(>ᴗ<)♡", "(˘∇˘)♡",
+        "(„• ֊ •„)♡", "(*˘︶˘*).｡.:*♡", "(ෆˇᴗˇෆ)", "꒰⑅•ᴗ•⑅꒱♡", "(◍•ᴗ•◍)❤"
+      ]
+    },
+    {
+      "id": "happy",
+      "label_zh": "開心",
+      "label_en": "Happy",
+      "label_ja": "嬉しい",
+      "entries": [
+        "(◕‿◕)", "(´｡• ω •｡`)", "(≧▽≦)", "(*≧ω≦*)", "(◍•ᴗ•◍)",
+        "(｡•̀ᴗ-)✧", "(✿◕‿◕)", "(*ˊᗜˋ*)", "ヽ(´▽`)/", "(っ´ω`c)"
+      ]
+    },
+    {
+      "id": "silly",
+      "label_zh": "搞怪",
+      "label_en": "Silly",
+      "label_ja": "ふざけ",
+      "entries": [
+        "(￣ω￣)", "(¬‿¬)", "(￣▽￣)ノ", "( ͡° ͜ʖ ͡°)", "(；￢＿￢)",
+        "(◔_◔)", "(¬､¬)", "ᕙ(⇀‸↼‶)ᕗ"
+      ]
+    },
+    {
+      "id": "sad",
+      "label_zh": "失落",
+      "label_en": "Sad",
+      "label_ja": "悲しい",
+      "entries": [
+        "(╥﹏╥)", "(´;ω;`)", "(っ˘̩╭╮˘̩)っ", "(｡•́︿•̀｡)", "(っ- ‸ - ς)",
+        "(´；ω；`)", "(╯︵╰,)", "(ಥ﹏ಥ)"
+      ]
+    },
+    {
+      "id": "surprise",
+      "label_zh": "驚訝",
+      "label_en": "Surprise",
+      "label_ja": "驚き",
+      "entries": [
+        "(⊙_⊙)", "(°ロ°)", "(⊙o⊙)", "(*ﾟｪﾟ*)", "＼(º □ º l|l)/", "(゜o゜;"
+      ]
+    },
+    {
+      "id": "sleep",
+      "label_zh": "睏",
+      "label_en": "Sleepy",
+      "label_ja": "眠い",
+      "entries": [
+        "(￣o￣) zzZ", "(-, – )…zzzZZ", "(´〜｀*) zzz", "(￣ρ￣)..zzZZ"
+      ]
+    },
+    {
+      "id": "food",
+      "label_zh": "食",
+      "label_en": "Food",
+      "label_ja": "食べ物",
+      "entries": [
+        "(っ˘ڡ˘ς)", "(*¯︶¯*)", "|･ω･`)○ ⊃─", "~(￣▽￣)~*"
+      ]
+    },
+    {
+      "id": "dance",
+      "label_zh": "跳舞",
+      "label_en": "Dance",
+      "label_ja": "踊り",
+      "entries": [
+        "ヽ(•‿•)ノ", "٩(◕‿◕)۶", "＼(^o^)／", "ヽ(´∇`)ﾉ", "٩(｡•́‿•̀｡)۶"
+      ]
+    },
+    {
+      "id": "bear",
+      "label_zh": "熊",
+      "label_en": "Bear",
+      "label_ja": "クマ",
+      "entries": [
+        "ʕ•ᴥ•ʔ", "ʕ◉ᴥ◉ʔ", "ʕ•́ᴥ•̀ʔ", "ʕ•͡-•ʔ", "ʕ ﾟ●ﾟʔ"
+      ]
+    },
+    {
+      "id": "cat",
+      "label_zh": "貓",
+      "label_en": "Cat",
+      "label_ja": "猫",
+      "entries": [
+        "=^.^=", "(=ↀωↀ=)", "(=^･ω･^=)", "(^◔ᴥ◔^)", "(=｀ω´=)", "(=ᴗ͈ˬᴗ͈)"
+      ]
+    }
+  ]
+}
