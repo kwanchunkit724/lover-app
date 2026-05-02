@@ -23,6 +23,12 @@ settings:
     # ENABLE_USER_SCRIPT_SANDBOXING removed — Xcode 26's strict sandboxing
     # blocks XcodeGen's Info.plist generation script from writing the file.
     CODE_SIGN_STYLE: Automatic
+    # Xcode 26 splits the app executable into a stub + Us.debug.dylib for
+    # faster iteration. simctl install incorrectly reports "Missing bundle ID"
+    # when handed such a stub, even though the .app's Info.plist is valid.
+    # Force a single full executable.
+    ENABLE_DEBUG_DYLIB: 'NO'
+    ENABLE_DEBUG_DYLIB_SUPPORT: 'NO'
 
 targets:
   # ───── Main app ─────
