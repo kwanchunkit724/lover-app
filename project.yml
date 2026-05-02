@@ -38,15 +38,10 @@ targets:
         MARKETING_VERSION: 0.1.0
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: '1'   # iPhone only
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: 'YES'
-        INFOPLIST_KEY_UILaunchScreen_Generation: 'YES'
-        INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: 錄製語音訊息畀對方
-        INFOPLIST_KEY_NSCameraUsageDescription: 影相同對方分享
-        INFOPLIST_KEY_NSPhotoLibraryUsageDescription: 揀相片同對方分享
-        INFOPLIST_KEY_CFBundleDisplayName: Lover
-        INFOPLIST_KEY_CFBundleLocalizations: zh-Hant,en,ja
-        INFOPLIST_KEY_UIAppFonts: KleeOne-SemiBold.ttf,ZenMaruGothic-Medium.ttf,DMMono-Medium.ttf
+        # Use the committed Info.plist instead of Xcode's auto-generation —
+        # the auto-gen path is unreliable on Codemagic + Xcode 26 + XcodeGen.
+        INFOPLIST_FILE: ios/LoverApp/Info.plist
+        GENERATE_INFOPLIST_FILE: 'NO'
     entitlements:
       path: ios/LoverApp/LoverApp.entitlements
       properties:
