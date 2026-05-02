@@ -68,6 +68,35 @@ workflows:
             CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES \
             ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO \
             | xcbeautify
+      - name: Re-sign Us.app with explicit identifier
+        script: |
+          set -e
+          APP_PATH="build/Build/Products/Debug-iphonesimulator/Us.app"
+          BUNDLE_ID="michel.kit.us"
+
+          echo "Stripping extended attributes that block install..."
+          xattr -cr "$APP_PATH"
+
+          echo "Re-signing nested frameworks (deepest first)..."
+          find "$APP_PATH/Frameworks" -maxdepth 1 \( -name "*.framework" -o -name "*.dylib" \) 2>/dev/null | while read item; do
+            echo "  -> $item"
+            codesign --force --sign - "$item" 2>&1 | head -3
+          done
+
+          echo "Re-signing PlugIns (xctest bundles)..."
+          find "$APP_PATH/PlugIns" -maxdepth 1 -name "*.xctest" 2>/dev/null | while read item; do
+            inner_info="$item/Info.plist"
+            inner_id=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$inner_info" 2>/dev/null)
+            echo "  -> $item (id=$inner_id)"
+            codesign --force --sign - --identifier "$inner_id" "$item" 2>&1 | head -3
+          done
+
+          echo "Re-signing main app with --identifier $BUNDLE_ID..."
+          codesign --force --sign - --identifier "$BUNDLE_ID" "$APP_PATH"
+
+          echo ""
+          echo "Verifying new signature:"
+          codesign -dvvv "$APP_PATH" 2>&1 | head -20
       - name: ASSERT bundle ID exists in Us.app
         script: |
           set +e
