@@ -67,6 +67,20 @@ workflows:
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
             | xcbeautify
+      - name: Debug — inspect Us.app Info.plist
+        script: |
+          APP_PATH="build/Build/Products/Debug-iphonesimulator/Us.app"
+          echo "── Contents of $APP_PATH ──"
+          ls -la "$APP_PATH" || echo "(.app not found)"
+          echo ""
+          echo "── Info.plist (raw) ──"
+          plutil -p "$APP_PATH/Info.plist" || cat "$APP_PATH/Info.plist" || echo "(Info.plist not found)"
+          echo ""
+          echo "── Bundle ID via PlistBuddy ──"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP_PATH/Info.plist" 2>&1 || true
+          echo ""
+          echo "── Source Info.plist (post-xcodegen, in repo) ──"
+          plutil -p ios/LoverApp/Info.plist || cat ios/LoverApp/Info.plist
       - name: Run unit + UI tests (captures screenshots)
         script: |
           set -o pipefail
