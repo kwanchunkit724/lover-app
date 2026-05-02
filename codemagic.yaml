@@ -113,11 +113,11 @@ workflows:
     instance_type: mac_mini_m2
     max_build_duration: 60
     # `integrations` is a top-level workflow field (sibling of `environment`).
-    # The integration name MUST match the one you created in
-    # Codemagic UI → Teams → Integrations → App Store Connect
-    # — docs/CODEMAGIC_SETUP.md tells you to name it "lover_app_store".
+    # Codemagic 2026 unified Apple Developer Portal + App Store Connect into
+    # one integration that uses a single unified API key. Reference the
+    # integration NAME from Codemagic UI → Settings → Integrations → Developer Portal.
     integrations:
-      app_store_connect: lover_app_store
+      app_store_connect: CodeMagic
     triggering:
       events:
         - tag

@@ -57,38 +57,47 @@ If it fails: copy the error log from Codemagic and paste it back to me — I'll 
 - Pay US$99/year
 - Approval is usually within 24–48 hours
 
-### 2. Create the App Store Connect record
-- After approval, go to https://appstoreconnect.apple.com → **Apps** → **+** → **New App**
+### 2. Register Bundle ID + App Group on Apple Developer Portal
+- https://developer.apple.com/account/resources/identifiers/list
+- **+** → **App IDs** → **App** → Continue
+- Description: `Us`, Bundle ID: **Explicit** → `michel.kit.us`
+- Capabilities: ✅ **App Groups**, ✅ **Push Notifications**, ✅ **Sign In with Apple**
+- Continue → Register
+- Then in left sidebar dropdown switch to **App Groups** → **+** → Description `Us shared group`, Identifier `group.michel.kit.us.shared` → Continue → Register
+- Back to **App IDs** → `michel.kit.us` → enable App Groups → Edit → tick `group.michel.kit.us.shared` → Save → Continue → Save
+
+### 3. Create the App Store Connect record
+- https://appstoreconnect.apple.com → **Apps** → **+** → **New App**
 - Platform: iOS
-- Name: `Lover` (or whatever you want — can change later)
+- Name: `Us` (or alternative if taken — see note below)
 - Primary language: Traditional Chinese
-- Bundle ID: `app.lover.LoverApp` (must match `project.yml`)
-- SKU: any unique string (e.g. `lover-app-001`)
+- Bundle ID: pick `michel.kit.us` from dropdown
+- SKU: `us-app-001`
 - User Access: Full Access
 
-### 3. Create an App Store Connect API key
+> Note: if `Us` is taken on the App Store, use an alternate App Store name like `Us 我哋`. The on-device name (CFBundleDisplayName in `Info.plist`) stays `Us` regardless.
+
+### 4. App Store Connect API key
 This lets Codemagic upload to TestFlight without your password.
 
-- https://appstoreconnect.apple.com/access/api
-- Click **+** → name it `Codemagic`
-- Access: **App Manager**
-- Click **Generate**
-- ⚠️ **Download the .p8 file immediately** — you only get one chance
-- Note the **Key ID** (10 chars) and **Issuer ID** (UUID at the top of the page)
+**If you already have a unified Codemagic integration on your account** (most users): skip this — your existing key works for both Apple Developer Portal AND App Store Connect since the API is unified.
 
-### 4. Add credentials to Codemagic
-- In Codemagic, go to **Teams** → your team → **Integrations** → **Developer Portal** → **App Store Connect** → **Add key**
-- **Name: `lover_app_store`** ⚠️ exact name matters — it's referenced by `codemagic.yaml` (`integrations.app_store_connect: lover_app_store`)
-- Issuer ID: paste from step 3
-- Key ID: paste from step 3
-- API key: upload the .p8 file
-- Save
+Otherwise:
+- https://appstoreconnect.apple.com/access/integrations/api
+- **Generate API Key** → Name `Codemagic` → Access **App Manager** → Generate
+- ⚠️ Download the `.p8` file immediately (one-time only)
+- Note the **Key ID** + **Issuer ID**
 
-Then enable the integration on the app: **Apps** → `lover-app` → **Settings** → **Integrations** → **App Store Connect** → toggle `lover_app_store` ON.
+### 5. Wire the integration into Codemagic
+The `codemagic.yaml` references the integration name `CodeMagic` (the default name when you connected your Apple key in Codemagic Settings → Integrations → Developer Portal).
 
-### 5. Set up signing
-- Codemagic dashboard → your app → **iOS code signing** → **Automatic** → pick the App Store Connect key from step 4.
-- It will auto-create distribution certs and provisioning profiles.
+If your integration has a different name, either:
+- **Option A**: rename the integration in Codemagic UI to `CodeMagic`, OR
+- **Option B**: edit `codemagic.yaml` and replace `app_store_connect: CodeMagic` with your integration's actual name
+
+Then enable code signing on this specific app:
+- Codemagic dashboard → `lover-app` → **Settings** → **iOS code signing**
+- Select **Automatic**, pick the Apple Developer Portal integration → Save
 
 ### 6. Trigger TestFlight build
 TestFlight builds run on git tag, not push. So:
