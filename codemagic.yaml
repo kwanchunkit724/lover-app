@@ -162,17 +162,55 @@ workflows:
           # Ref: https://github.com/orgs/codemagic-ci-cd/discussions/2787
           gem update xcodeproj --no-document
           xcode-project use-profiles
-      - name: Build IPA (xcode-project handles archive + sign + export)
+      - name: Archive app
         script: |
-          # Codemagic's xcode-project build-ipa wrapper handles signing
-          # internals correctly across Xcode versions — including the deep
-          # signing of subcomponents that fails with raw xcodebuild.
-          xcode-project build-ipa \
-            --project="$XCODE_PROJECT" \
-            --scheme="$XCODE_SCHEME" \
-            --config=Release \
-            --archive-flags=-allowProvisioningUpdates \
-            --archive-xcargs="ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO COMPILER_INDEX_STORE_ENABLE=NO"
+          # Mirror construction-app's working pattern: raw `xcodebuild archive`
+          # with NO CLI signing overrides. Let the per-target signing config
+          # that `xcode-project use-profiles` wrote into the .xcodeproj drive
+          # everything. The previous `xcode-project build-ipa` wrapper added
+          # `'CODE_SIGN_IDENTITY=Apple Distribution' CODE_SIGN_STYLE=Manual`
+          # as CLI overrides — those conflicted with use-profiles' per-target
+          # PROVISIONING_PROFILE_SPECIFIER and produced the misleading
+          # codesign error: "code object is not signed at all
+          #   In subcomponent: .../Us.app/embedded.mobileprovision".
+          xcodebuild \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -archivePath /tmp/Us.xcarchive \
+            archive \
+            -destination "generic/platform=iOS" \
+            COMPILER_INDEX_STORE_ENABLE=NO
+      - name: Export IPA
+        script: |
+          # Read the profile UUID embedded in the freshly-archived app, then
+          # build an ExportOptions.plist that names it explicitly. Same as
+          # construction-app — works reliably without re-signing surprises.
+          PROFILE_UUID=$(security cms -D -i /tmp/Us.xcarchive/Products/Applications/Us.app/embedded.mobileprovision | plutil -extract UUID raw -)
+          echo "Exporting with profile UUID: $PROFILE_UUID"
+          cat > /tmp/ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key><string>$PROFILE_UUID</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+          </dict>
+          </plist>
+          EOF
+          mkdir -p build/ios/ipa
+          xcodebuild \
+            -exportArchive \
+            -archivePath /tmp/Us.xcarchive \
+            -exportPath build/ios/ipa \
+            -exportOptionsPlist /tmp/ExportOptions.plist
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
