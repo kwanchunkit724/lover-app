@@ -104,6 +104,7 @@ final class AuthService: NSObject, ObservableObject {
         let partnerName: String
         let anniversaryISO: String
         let themeId: String
+        let publicKey: String
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -111,16 +112,23 @@ final class AuthService: NSObject, ObservableObject {
             case partnerName   = "partner_name"
             case anniversaryISO = "anniversary_iso"
             case themeId       = "theme_id"
+            case publicKey     = "public_key"
         }
     }
 
+    /// Upserts the user row including the device's X25519 public key. The
+    /// private key never leaves the device. If a partner is already paired
+    /// before this device's public_key was uploaded, the partner's chat
+    /// derivation will fail until they refresh the partner row.
     private func upsertProfile(userId: UUID, profile: UserProfile) async throws {
+        let publicKey = try KeyManager.shared.myPublicKeyBase64()
         let row = UserRow(
             id: userId,
             myName: profile.myName,
             partnerName: profile.partnerName,
             anniversaryISO: profile.anniversaryISO,
-            themeId: profile.themeId
+            themeId: profile.themeId,
+            publicKey: publicKey
         )
         try await SB.client
             .from("users")

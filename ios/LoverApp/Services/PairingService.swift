@@ -43,6 +43,7 @@ final class PairingService: ObservableObject {
         let partnerName: String     // partner's partnerName (echo of yours)
         let anniversaryISO: String
         let themeId: String
+        let publicKey: String?      // base64 X25519 raw — Phase 4a
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -50,6 +51,7 @@ final class PairingService: ObservableObject {
             case partnerName   = "partner_name"
             case anniversaryISO = "anniversary_iso"
             case themeId       = "theme_id"
+            case publicKey     = "public_key"
         }
     }
 

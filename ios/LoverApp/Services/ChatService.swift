@@ -1,0 +1,145 @@
+import Foundation
+import Combine
+import Supabase
+
+// Phase 4a — fetch + send + decrypt messages.
+// Polling instead of realtime for now (Phase 4b adds Supabase Realtime).
+//
+// Messages are insert-only. We keep a local @Published [DecryptedMessage]
+// sorted oldest→newest that ChatView consumes 1:1.
+
+@MainActor
+final class ChatService: ObservableObject {
+
+    struct DecryptedMessage: Identifiable, Equatable {
+        let id: UUID
+        let senderId: UUID
+        let payload: ChatPayload
+        let createdAt: Date
+        let decryptionFailed: Bool
+
+        static func failed(id: UUID, senderId: UUID, createdAt: Date) -> Self {
+            DecryptedMessage(id: id, senderId: senderId,
+                             payload: ChatPayload(kind: .text,
+                                                  text: "(無法解密 — 可能對方換咗 device)",
+                                                  mediaHandle: nil,
+                                                  sentAt: createdAt),
+                             createdAt: createdAt,
+                             decryptionFailed: true)
+        }
+    }
+
+    @Published private(set) var messages: [DecryptedMessage] = []
+    @Published private(set) var isLoading = false
+    @Published var lastError: String?
+
+    private let crypto: CryptoService
+    private var pollTask: Task<Void, Never>?
+    private var coupleId: UUID?
+
+    init(crypto: CryptoService) {
+        self.crypto = crypto
+    }
+
+    // MARK: - Lifecycle
+
+    /// Called when ChatView appears AND the couple key is ready. Starts the
+    /// fetch loop. Cheap to call repeatedly (no-op if already polling for the
+    /// same couple).
+    func start(coupleId: UUID) {
+        if self.coupleId == coupleId, pollTask != nil { return }
+        self.coupleId = coupleId
+        pollTask?.cancel()
+        pollTask = Task { [weak self] in
+            await self?.runPollLoop()
+        }
+    }
+
+    func stop() {
+        pollTask?.cancel()
+        pollTask = nil
+    }
+
+    // MARK: - Send
+
+    func sendText(_ text: String, senderId: UUID) async {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let coupleId else { return }
+        do {
+            let payload = ChatPayload.text(trimmed)
+            let cipher = try crypto.seal(payload)
+            let row = OutgoingRow(couple_id: coupleId,
+                                  sender_id: senderId,
+                                  ciphertext_b64: cipher)
+            try await SB.client.from("messages").insert(row).execute()
+            // Optimistic local append so the UI feels instant; the next poll
+            // will reconcile (insert returns server id, but for simplicity
+            // we just refetch on the next tick).
+            await fetchOnce()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    // MARK: - Polling
+
+    private func runPollLoop() async {
+        await fetchOnce()
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            if Task.isCancelled { break }
+            await fetchOnce()
+        }
+    }
+
+    private func fetchOnce() async {
+        guard let coupleId else { return }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let rows: [IncomingRow] = try await SB.client
+                .from("messages")
+                .select()
+                .eq("couple_id", value: coupleId)
+                .order("created_at", ascending: true)
+                .limit(500)
+                .execute()
+                .value
+            self.messages = rows.map { row in
+                if let payload = try? crypto.open(row.ciphertext_b64) {
+                    return DecryptedMessage(id: row.id,
+                                            senderId: row.sender_id,
+                                            payload: payload,
+                                            createdAt: row.created_at,
+                                            decryptionFailed: false)
+                } else {
+                    return DecryptedMessage.failed(id: row.id,
+                                                   senderId: row.sender_id,
+                                                   createdAt: row.created_at)
+                }
+            }
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    // MARK: - Wire types
+
+    private struct OutgoingRow: Encodable {
+        let couple_id: UUID
+        let sender_id: UUID
+        let ciphertext_b64: String
+    }
+
+    private struct IncomingRow: Decodable {
+        let id: UUID
+        let couple_id: UUID
+        let sender_id: UUID
+        let ciphertext_b64: String
+        let created_at: Date
+
+        enum CodingKeys: String, CodingKey {
+            case id, couple_id, sender_id, ciphertext_b64, created_at
+        }
+    }
+}

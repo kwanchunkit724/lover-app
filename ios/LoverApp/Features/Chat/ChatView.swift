@@ -1,26 +1,71 @@
 import SwiftUI
 
 // The chat tab — translation of ChatDetail in design-import/chat.jsx.
-// Header with partner avatar / message stream / reply preview / composer +
-// modally-presented kaomoji picker / voice recorder / action sheet.
+// Phase 4a wires real E2EE chat: ChatService polls Supabase every 3s,
+// decrypts via shared chat key, exposes [DecryptedMessage]. We adapt those
+// to the existing Message struct so MessageBubble keeps rendering.
 //
-// Network + crypto are stubbed: messages come from MockData and a fake "Michel"
-// auto-reply runs after each send. Real backend wiring lives in Core/Networking
-// and gets injected via a ChatViewModel in v0.1.5.
+// Voice + photo bubble paths still rely on placeholder kinds in this build
+// — Phase 4c (v0.4.2) wires real media upload/encryption.
 
 struct ChatView: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var profileStore: UserProfileStore
+    @EnvironmentObject private var auth: AuthService
+    @EnvironmentObject private var pairing: PairingService
+    @EnvironmentObject private var chat: ChatService
 
-    @State private var messages: [Message] = MockData.messages
     @State private var input: String = ""
     @State private var showKaomoji = false
     @State private var showVoice = false
     @State private var showActions = false
     @State private var replyTo: Message? = nil
-    @State private var typing = false
 
-    private let me = MockData.me
-    private let partner = MockData.partner
+    // Derived identities — fall back to mock for previews / unsigned state.
+    private var meId: String {
+        if case .signedIn(let uuid) = auth.state { return uuid.uuidString }
+        return MockData.me.id
+    }
+    private var me: Person {
+        let name = profileStore.profile?.myName ?? MockData.me.name
+        return Person(id: meId, name: name, initial: String(name.prefix(1)), tint: .rose)
+    }
+    private var partner: Person {
+        let name = pairing.partner?.myName
+                ?? profileStore.profile?.partnerName
+                ?? MockData.partner.name
+        let id   = pairing.partner?.id.uuidString ?? MockData.partner.id
+        return Person(id: id, name: name, initial: String(name.prefix(1)), tint: .sage)
+    }
+
+    /// ChatService DecryptedMessage → Message adapter so MessageBubble code
+    /// keeps working unchanged.
+    private var messages: [Message] {
+        chat.messages.map { dm in
+            Message(
+                id: dm.id.uuidString,
+                from: dm.senderId.uuidString,
+                kind: messageKind(from: dm.payload.kind),
+                timestamp: HHmm.format(dm.createdAt),
+                read: true,
+                text: dm.payload.text,
+                photoSrc: nil,
+                caption: nil,
+                voiceDurationSec: nil,
+                voiceTranscript: nil,
+                replyTo: nil,
+                reactions: []
+            )
+        }
+    }
+
+    private func messageKind(from k: ChatPayload.Kind) -> Message.Kind {
+        switch k {
+        case .text, .kaomoji: return .text
+        case .photo:          return .photo
+        case .voice:          return .voice
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,8 +77,8 @@ struct ChatView: View {
             if showVoice {
                 VoiceRecorder(
                     onCancel: { showVoice = false },
-                    onSend: { duration in
-                        appendVoice(duration)
+                    onSend: { _ in
+                        // Phase 4c will wire real voice — for now no-op.
                         showVoice = false
                     }
                 )
@@ -44,7 +89,7 @@ struct ChatView: View {
                     onTapKaomoji: { withAnimation(.easeInOut(duration: 0.18)) { showKaomoji.toggle() } },
                     onTapVoice: { showVoice = true },
                     onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
-                    onTapCamera: { /* TODO v0.2: open Camera */ }
+                    onTapCamera: { /* Phase 4c */ }
                 )
             }
             if showKaomoji {
@@ -60,7 +105,7 @@ struct ChatView: View {
             if showActions {
                 ChatActionSheet(
                     onClose: { withAnimation(.easeInOut(duration: 0.18)) { showActions = false } },
-                    onCamera: { /* TODO v0.2 */ }
+                    onCamera: { /* Phase 4c */ }
                 )
                 .transition(.opacity)
             }
@@ -81,7 +126,7 @@ struct ChatView: View {
                         .font(DSText.mono(theme, 11))
                         .foregroundStyle(theme.rose)
                 }
-                Text("● 在線 · 一齊 711 日")
+                Text(headerStatus)
                     .font(DSText.mono(theme, 10))
                     .foregroundStyle(theme.sage)
             }
@@ -103,19 +148,20 @@ struct ChatView: View {
         )
     }
 
+    private var headerStatus: String {
+        let isoDate = pairing.partner?.anniversaryISO ?? profileStore.profile?.anniversaryISO
+        guard let iso = isoDate else { return "● 在線" }
+        let today = LocalDate.string(from: Date())
+        let days = TimeFormatting.daysBetween(iso, today)
+        return "● 在線 · 一齊 \(days) 日"
+    }
+
     // MARK: - Message stream
 
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    Text(MockData.todayDateString)
-                        .font(DSText.mono(theme, 10))
-                        .foregroundStyle(theme.inkMuted)
-                        .padding(.top, 4)
-                        .padding(.bottom, 14)
-                        .frame(maxWidth: .infinity)
-
                     ForEach(messages.indices, id: \.self) { i in
                         let m = messages[i]
                         let prev = i > 0 ? messages[i - 1] : nil
@@ -123,17 +169,19 @@ struct ChatView: View {
                             message: m,
                             isFromMe: m.from == me.id,
                             isContinuation: prev?.from == m.from,
-                            onReact: { reactQuick(to: m) },
+                            onReact: { },
                             onReply: { replyTo = m }
                         )
                         .id(m.id)
                         .padding(.horizontal, 14)
                     }
 
-                    if typing {
-                        TypingIndicator(partnerName: partner.name)
-                            .padding(.horizontal, 14)
-                            .id("__typing")
+                    if messages.isEmpty {
+                        Text("仲未有訊息 — 講句嘢試下 (´｡• ω •｡`)")
+                            .font(DSText.mono(theme, 12))
+                            .foregroundStyle(theme.inkMuted)
+                            .padding(.top, 80)
+                            .frame(maxWidth: .infinity)
                     }
                 }
                 .padding(.top, 12)
@@ -141,9 +189,6 @@ struct ChatView: View {
             }
             .onChange(of: messages.count) { _, _ in
                 withAnimation { proxy.scrollTo(messages.last?.id, anchor: .bottom) }
-            }
-            .onChange(of: typing) { _, newValue in
-                if newValue { withAnimation { proxy.scrollTo("__typing", anchor: .bottom) } }
             }
         }
     }
@@ -183,70 +228,35 @@ struct ChatView: View {
         )
     }
 
-    // MARK: - Actions (mock send + auto-reply for design fidelity)
+    // MARK: - Send
 
     private func send() {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
-
-        var newMsg = Message(
-            id: UUID().uuidString,
-            from: me.id,
-            kind: .text,
-            timestamp: nowHHmm(),
-            read: false,
-            text: trimmed
-        )
-        if let reply = replyTo {
-            newMsg.replyTo = .init(messageID: reply.id, kind: reply.kind, preview: reply.previewText)
-        }
-        messages.append(newMsg)
+        guard case .signedIn(let uuid) = auth.state else { return }
+        let toSend = trimmed
         input = ""
         replyTo = nil
-
-        // Demo-only: simulate Michel typing then replying.
-        Task {
-            try? await Task.sleep(for: .milliseconds(1200))
-            await MainActor.run { typing = true }
-            try? await Task.sleep(for: .milliseconds(2300))
-            await MainActor.run {
-                typing = false
-                messages.append(.init(
-                    id: UUID().uuidString,
-                    from: partner.id,
-                    kind: .text,
-                    timestamp: nowHHmm(),
-                    read: true,
-                    text: "收到 (♡˙︶˙♡)"
-                ))
-            }
-        }
-    }
-
-    private func appendVoice(_ duration: Int) {
-        messages.append(.init(
-            id: UUID().uuidString,
-            from: me.id,
-            kind: .voice,
-            timestamp: nowHHmm(),
-            read: false,
-            voiceDurationSec: duration
-        ))
-    }
-
-    private func reactQuick(to message: Message) {
-        guard let idx = messages.firstIndex(where: { $0.id == message.id }) else { return }
-        let kao = MockData.quickReact.first ?? "(♡˙︶˙♡)"
-        messages[idx].reactions.append(.init(from: me.id, kao: kao))
-    }
-
-    private func nowHHmm() -> String {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        return f.string(from: Date())
+        Task { await chat.sendText(toSend, senderId: uuid) }
     }
 }
 
+// MARK: - Helpers
+
+private enum HHmm {
+    static let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+    static func format(_ date: Date) -> String { formatter.string(from: date) }
+}
+
 #Preview {
-    ChatView().theme(.jbeam)
+    ChatView()
+        .environmentObject(UserProfileStore())
+        .environmentObject(AuthService())
+        .environmentObject(PairingService())
+        .environmentObject(ChatService(crypto: CryptoService()))
+        .theme(.jbeam)
 }
