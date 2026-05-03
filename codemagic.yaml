@@ -135,7 +135,16 @@ workflows:
           echo "Setting build number to $BUILD_NUMBER"
           cd $(dirname "$XCODE_PROJECT")
           agvtool new-version -all $BUILD_NUMBER
-      - name: Apply provisioning profiles
+      # `use-profiles` only fetches existing profiles. Use `fetch-signing-files`
+      # with `--create` so the App Store profile is auto-created on first run
+      # (failure was: "No matching profiles found for bundle identifier
+      # 'michel.kit.us' and distribution type 'app_store'").
+      - name: Fetch + auto-create signing files
+        script: |
+          xcode-project fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Use profiles
         script: xcode-project use-profiles
       - name: Build ipa
         script: |
