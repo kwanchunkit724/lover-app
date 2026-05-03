@@ -154,10 +154,11 @@ workflows:
           xcode-project use-profiles
       - name: Archive app
         script: |
-          # -allowProvisioningUpdates lets xcodebuild adopt profiles from
-          # `xcode-project use-profiles` even when CODE_SIGN_STYLE was Auto
-          # (XcodeGen generated it as Automatic before use-profiles flipped
-          # it to Manual via project.pbxproj patching).
+          # OTHER_CODE_SIGN_FLAGS="--deep" forces signing of every nested
+          # bundle/binary, fixing "code object is not signed at all
+          # In subcomponent: ..." errors at the final bundle codesign step.
+          # CODE_SIGNING_REQUIRED=YES makes Xcode actually run sign phases
+          # for every embedded binary instead of skipping them.
           xcodebuild \
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
@@ -167,7 +168,9 @@ workflows:
             -destination "generic/platform=iOS" \
             -allowProvisioningUpdates \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO
+            ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO \
+            CODE_SIGNING_REQUIRED=YES \
+            OTHER_CODE_SIGN_FLAGS="--deep --options=runtime"
       - name: Export IPA
         script: |
           PROFILE_UUID=$(security cms -D -i /tmp/Us.xcarchive/Products/Applications/Us.app/embedded.mobileprovision | plutil -extract UUID raw -)
