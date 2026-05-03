@@ -140,7 +140,10 @@ workflows:
           agvtool new-version -all $BUILD_NUMBER
       - name: Fetch + auto-create signing files
         script: |
-          xcode-project fetch-signing-files "$BUNDLE_ID" \
+          # `fetch-signing-files` is on the `app-store-connect` CLI, not
+          # `xcode-project`. --create auto-creates the distribution profile
+          # (and certificate) on first run if missing.
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --create
       - name: Use profiles
