@@ -19,6 +19,7 @@ struct ChatView: View {
     @State private var showKaomoji = false
     @State private var showVoice = false
     @State private var showActions = false
+    @State private var showPhotoPicker = false
     @State private var replyTo: Message? = nil
 
     // Derived identities — fall back to mock for previews / unsigned state.
@@ -89,7 +90,7 @@ struct ChatView: View {
                     onTapKaomoji: { withAnimation(.easeInOut(duration: 0.18)) { showKaomoji.toggle() } },
                     onTapVoice: { showVoice = true },
                     onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
-                    onTapCamera: { /* Phase 4c */ }
+                    onTapCamera: { showPhotoPicker = true }
                 )
             }
             if showKaomoji {
@@ -105,10 +106,23 @@ struct ChatView: View {
             if showActions {
                 ChatActionSheet(
                     onClose: { withAnimation(.easeInOut(duration: 0.18)) { showActions = false } },
-                    onCamera: { /* Phase 4c */ }
+                    onCamera: {
+                        showActions = false
+                        showPhotoPicker = true
+                    }
                 )
                 .transition(.opacity)
             }
+        }
+        .sheet(isPresented: $showPhotoPicker) {
+            PhotoPickerSheet(
+                onPick: { data in
+                    showPhotoPicker = false
+                    guard case .signedIn(let uuid) = auth.state else { return }
+                    Task { await chat.sendPhoto(data: data, caption: nil, senderId: uuid) }
+                },
+                onCancel: { showPhotoPicker = false }
+            )
         }
     }
 

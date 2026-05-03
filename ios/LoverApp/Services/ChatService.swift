@@ -34,13 +34,18 @@ final class ChatService: ObservableObject {
     @Published var lastError: String?
 
     private let crypto: CryptoService
+    private let media: MediaService
     private var pollTask: Task<Void, Never>?
     private var realtimeTask: Task<Void, Never>?
     private var coupleId: UUID?
 
     init(crypto: CryptoService) {
         self.crypto = crypto
+        self.media = MediaService(crypto: crypto)
     }
+
+    var coupleIdValue: UUID? { coupleId }
+    var mediaService: MediaService { media }
 
     // MARK: - Lifecycle
 
@@ -79,9 +84,29 @@ final class ChatService: ObservableObject {
                                   sender_id: senderId,
                                   ciphertext_b64: cipher)
             try await SB.client.from("messages").insert(row).execute()
-            // Optimistic local append so the UI feels instant; the next poll
-            // will reconcile (insert returns server id, but for simplicity
-            // we just refetch on the next tick).
+            await fetchOnce()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
+    /// Phase 4c — encrypt + upload photo bytes to Storage, then insert a
+    /// chat message whose payload references the storage path.
+    func sendPhoto(data: Data, caption: String?, senderId: UUID) async {
+        guard let coupleId else { return }
+        do {
+            let path = try await media.encryptAndUpload(data: data, coupleId: coupleId)
+            let payload = ChatPayload(
+                kind: .photo,
+                text: caption,
+                mediaHandle: path,
+                sentAt: Date()
+            )
+            let cipher = try crypto.seal(payload)
+            let row = OutgoingRow(couple_id: coupleId,
+                                  sender_id: senderId,
+                                  ciphertext_b64: cipher)
+            try await SB.client.from("messages").insert(row).execute()
             await fetchOnce()
         } catch {
             lastError = error.localizedDescription

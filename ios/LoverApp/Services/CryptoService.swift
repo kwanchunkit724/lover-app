@@ -34,7 +34,7 @@ struct ChatPayload: Codable, Equatable {
 }
 
 @MainActor
-final class CryptoService {
+final class CryptoService: ObservableObject {
 
     /// Derived shared key for the active couple. nil until both sides have
     /// uploaded a public_key AND we've called `prepare(couple:partner:)`.
