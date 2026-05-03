@@ -89,7 +89,13 @@ targets:
           - group.michel.kit.us.shared
         com.apple.developer.applesignin:
           - Default
-        aps-environment: development
+        # MUST be 'production' for App Store / TestFlight builds.
+        # 'development' caused codesign to fail with
+        #   "code object is not signed at all
+        #    In subcomponent: .../Us.app/embedded.mobileprovision"
+        # because the entitlements claimed a development-environment APS push
+        # capability that the production-distribution profile didn't grant.
+        aps-environment: production
 
   # ───── Unit tests (logic) ─────
   LoverAppTests:
