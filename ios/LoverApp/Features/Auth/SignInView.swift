@@ -61,73 +61,8 @@ struct SignInView: View {
     }
 }
 
-// MARK: - Placeholder unpaired surface
-
-/// Shown after sign-in but before pairing. Phase 3b replaces this with the
-/// real PairingView (generate code / enter code, with anniversary cross-check).
-struct PairingPlaceholderView: View {
-    @Environment(\.theme) private var theme
-    @EnvironmentObject private var profileStore: UserProfileStore
-    @EnvironmentObject private var auth: AuthService
-
-    var body: some View {
-        ZStack {
-            theme.paper.ignoresSafeArea()
-
-            VStack(spacing: 18) {
-                Spacer()
-
-                Text("(◕‿◕)")
-                    .font(.system(size: 48, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(theme.rose)
-
-                Text("已登入")
-                    .font(.system(size: 28, weight: .semibold, design: .serif))
-                    .foregroundStyle(theme.ink)
-
-                Text("Phase 3b 會做配對流程：\n你會攞到一個 6 位數字配對碼，畀對方輸入。")
-                    .font(DSText.ui(theme, 13))
-                    .foregroundStyle(theme.inkSoft)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-
-                if let name = profileStore.profile?.myName {
-                    Text("hi, \(name) ♡")
-                        .font(DSText.mono(theme, 13))
-                        .foregroundStyle(theme.inkMuted)
-                        .padding(.top, 8)
-                }
-
-                Spacer()
-
-                Button {
-                    Task { await auth.signOut() }
-                } label: {
-                    Text("登出")
-                        .font(DSText.ui(theme, 14, weight: .medium))
-                        .foregroundStyle(theme.inkSoft)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(theme.line, lineWidth: 0.5)
-                        )
-                }
-                .padding(.bottom, 28)
-            }
-        }
-    }
-}
-
 #Preview("Sign in") {
     SignInView()
-        .environmentObject(UserProfileStore())
-        .environmentObject(AuthService())
-        .theme(.jbeam)
-}
-
-#Preview("Placeholder paired") {
-    PairingPlaceholderView()
         .environmentObject(UserProfileStore())
         .environmentObject(AuthService())
         .theme(.jbeam)
