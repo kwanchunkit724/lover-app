@@ -151,6 +151,16 @@ workflows:
             --create \
             --certificate-key "@env:CERTIFICATE_PRIVATE_KEY"
           keychain add-certificates
+          # Codemagic's `xcode-project use-profiles` uses the Ruby Xcodeproj
+          # gem to write CODE_SIGN_IDENTITY / PROVISIONING_PROFILE_SPECIFIER
+          # into the .xcodeproj. Older Xcodeproj versions don't understand
+          # the Xcode 16/26 project format, so they silently fail to write
+          # signing settings — leading to:
+          #   "code object is not signed at all
+          #    In subcomponent: .../Us.app/embedded.mobileprovision"
+          # Force-update the gem before running use-profiles.
+          # Ref: https://github.com/orgs/codemagic-ci-cd/discussions/2787
+          gem update xcodeproj --no-document
           xcode-project use-profiles
       - name: Build IPA (xcode-project handles archive + sign + export)
         script: |
