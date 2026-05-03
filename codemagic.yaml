@@ -8,6 +8,9 @@
 #       APP_STORE_CONNECT_PRIVATE_KEY    (the .p8 file contents)
 #       APP_STORE_CONNECT_KEY_IDENTIFIER (Key ID)
 #       APP_STORE_CONNECT_ISSUER_ID      (Issuer ID)
+#       CERTIFICATE_PRIVATE_KEY          (the cert_private_key.pem contents —
+#                                         same value as construction-app uses
+#                                         since they share the distribution cert)
 
 definitions:
   shared_env: &shared_env
@@ -107,29 +110,24 @@ workflows:
     name: TestFlight Release
     instance_type: mac_mini_m2
     max_build_duration: 60
-    # `integrations` is a top-level workflow field (sibling of `environment`).
-    # Codemagic 2026 unified Apple Developer Portal + App Store Connect into
-    # one integration that uses a single unified API key. Reference the
-    # integration NAME from Codemagic UI → Settings → Integrations → Developer Portal.
-    integrations:
-      app_store_connect: CodeMagic
+    # Mirrors the proven construction-app workflow:
+    #   - NO integrations: block (CERTIFICATE_PRIVATE_KEY env var supplies key)
+    #   - NO ios_signing: block (init phase has no signing to fail on)
+    #   - --certificate-key @env: passes the .pem to fetch-signing-files
+    #     so it can save+download the existing distribution cert
+    #   - Manual archive + export with raw xcodebuild (matches construction-app)
     triggering:
       events:
         - tag
       tag_patterns:
         - pattern: 'v*'
           include: true
-    # ios_signing block REMOVED — Codemagic's init step refuses to find
-    # the manually-created "Us App Store" profile (likely only matches
-    # profiles it created itself via API). Pure script approach below:
-    #   1. integrations.app_store_connect downloads cert .p12 to default path
-    #   2. keychain initialize + add-certificates loads the integration cert
-    #   3. fetch-signing-files (no --create) downloads the manual profile
-    #   4. use-profiles wires it up to the .xcodeproj
     environment:
       <<: *shared_env
       groups:
         - app_store_credentials
+      vars:
+        TEAM_ID: C22JSRYW54
     scripts:
       - *install_xcodegen
       - *generate_project
@@ -137,43 +135,57 @@ workflows:
         script: |
           BUILD_NUMBER=$(($(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" --tries 5 || echo 0) + 1))
           echo "Setting build number to $BUILD_NUMBER"
-          cd $(dirname "$XCODE_PROJECT")
           agvtool new-version -all $BUILD_NUMBER
-      - name: Set up signing (use integration cert + existing profile)
+      - name: Fetch App Store signing files
         script: |
-          set -e
-          echo "── Inspecting integration assets ──"
-          ls -la $HOME/Library/MobileDevice/Provisioning\ Profiles/ 2>/dev/null || echo "(no profiles yet)"
-          find $HOME -name "*.p12" 2>/dev/null | head -5
-
-          echo ""
-          echo "── Initialise keychain ──"
           keychain initialize
-
-          echo ""
-          echo "── Fetch existing profile (no --create, no fresh key) ──"
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --strict-match-identifier
-
-          echo ""
-          echo "── Add cert from integration to keychain ──"
+            --create \
+            --certificate-key "@env:CERTIFICATE_PRIVATE_KEY"
           keychain add-certificates
-
-          echo ""
-          echo "── Wire profile into Xcode project ──"
           xcode-project use-profiles
-      - name: Build ipa
+      - name: Archive app
         script: |
-          xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME" \
-            --archive-flags="-allowProvisioningUpdates" \
-            --archive-xcargs="ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO"
+          xcodebuild \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -archivePath /tmp/Us.xcarchive \
+            archive \
+            -destination "generic/platform=iOS" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO
+      - name: Export IPA
+        script: |
+          PROFILE_UUID=$(security cms -D -i /tmp/Us.xcarchive/Products/Applications/Us.app/embedded.mobileprovision | plutil -extract UUID raw -)
+          echo "Exporting with profile UUID: $PROFILE_UUID"
+          cat > /tmp/ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key><string>$PROFILE_UUID</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+          </dict>
+          </plist>
+          EOF
+          mkdir -p build/ios/ipa
+          xcodebuild \
+            -exportArchive \
+            -archivePath /tmp/Us.xcarchive \
+            -exportPath build/ios/ipa \
+            -exportOptionsPlist /tmp/ExportOptions.plist
     artifacts:
       - build/ios/ipa/*.ipa
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
-      - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+      - /tmp/xcodebuild_logs/*.log
     publishing:
       email:
         recipients:
@@ -182,7 +194,8 @@ workflows:
           success: true
           failure: true
       app_store_connect:
-        auth: integration
+        api_key: $APP_STORE_CONNECT_PRIVATE_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
-        beta_groups:
-          - Internal Testers
+        submit_to_app_store: false
