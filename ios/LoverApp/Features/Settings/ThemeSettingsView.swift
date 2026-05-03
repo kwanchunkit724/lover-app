@@ -6,6 +6,7 @@ import SwiftUI
 
 struct ThemeSettingsView: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var profileStore: UserProfileStore
     let onClose: () -> Void
 
     @State private var selectedID: String = Theme.jbeam.id
@@ -28,6 +29,14 @@ struct ThemeSettingsView: View {
             }
         }
         .background(theme.paper)
+        .onAppear {
+            if let saved = profileStore.profile?.themeId { selectedID = saved }
+        }
+        .onChange(of: selectedID) { _, newID in
+            guard var p = profileStore.profile, p.themeId != newID else { return }
+            p.themeId = newID
+            profileStore.save(p)
+        }
     }
 
     private var navBar: some View {
@@ -116,7 +125,10 @@ struct ThemeSettingsView: View {
     }
 
     private var syncWarning: some View {
-        Text("⚠ 主題會同步到 Michel 嘅手機")
+        // Phase 2: theme is local-only. Phase 3 will sync the chosen theme so
+        // both phones in the couple display the same surface.
+        let partnerName = profileStore.profile?.partnerName ?? "對方"
+        return Text("⚠ Phase 3 之後主題會同步到 \(partnerName) 嘅手機")
             .font(.system(size: 11, weight: .regular, design: .monospaced))
             .foregroundStyle(theme.amber)
             .padding(.horizontal, 14)
@@ -129,5 +141,7 @@ struct ThemeSettingsView: View {
 }
 
 #Preview {
-    ThemeSettingsView(onClose: {}).theme(.jbeam)
+    ThemeSettingsView(onClose: {})
+        .environmentObject(UserProfileStore())
+        .theme(.jbeam)
 }

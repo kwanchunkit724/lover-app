@@ -3,35 +3,42 @@ import SwiftUI
 @main
 struct LoverApp: App {
     @StateObject private var session = SessionStore()
+    @StateObject private var profileStore = UserProfileStore()
 
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(session)
-                .theme(.jbeam)   // single launch theme; other themes are post-v1.0
+                .environmentObject(profileStore)
+                .theme(profileStore.theme)
                 .task { await session.bootstrap() }
         }
     }
 }
 
-// Top-level routing. Decides which surface to show based on auth + pairing state.
-// Onboarding and Pairing screens land in v0.1; for now they short-circuit to the
-// paired tab view so the chat UI can be exercised end-to-end.
+// Top-level routing. Decides which surface to show:
+//   1. Onboarding (no UserProfile saved yet) — Phase 2
+//   2. Pairing (signed in, no couple) — Phase 3 (TODO)
+//   3. MainTabView (paired or mock-paired)
 struct RootView: View {
     @EnvironmentObject private var session: SessionStore
+    @EnvironmentObject private var profileStore: UserProfileStore
 
     var body: some View {
-        switch session.state {
-        case .loading:
-            ProgressView()
-        case .signedOut:
-            // TODO v0.1: OnboardingView()
-            MainTabView()
-        case .signedInUnpaired:
-            // TODO v0.1: PairingView()
-            MainTabView()
-        case .paired:
-            MainTabView()
+        Group {
+            if !profileStore.isOnboarded {
+                OnboardingView()
+            } else {
+                switch session.state {
+                case .loading:
+                    ProgressView()
+                case .signedOut, .signedInUnpaired:
+                    // Phase 3 will replace this with PairingView; for now drop into mock chat.
+                    MainTabView()
+                case .paired:
+                    MainTabView()
+                }
+            }
         }
     }
 }
@@ -48,8 +55,8 @@ final class SessionStore: ObservableObject {
     @Published private(set) var state: State = .loading
 
     func bootstrap() async {
-        // v0.1 wires this to KeyManager + BackendClient. For now we drop straight
-        // into the paired state so the chat UI can be developed and reviewed.
+        // Phase 3 wires this to KeyManager + Supabase. For now we drop straight
+        // into the paired state so chat/timetable/profile UIs render with mock data.
         state = .paired(coupleId: UUID(), partnerUserId: UUID())
     }
 }

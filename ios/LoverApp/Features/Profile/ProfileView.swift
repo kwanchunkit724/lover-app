@@ -5,15 +5,31 @@ import SwiftUI
 
 struct ProfileView: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var profileStore: UserProfileStore
 
     @State private var presented: SettingsRoute? = nil
+    @State private var confirmReset = false
 
-    private let me = MockData.me
-    private let partner = MockData.partner
     private let anniversaries = MockData.anniversaries
 
+    // Avatar tints stay from MockData (same kawaii palette); name/initial come from
+    // the saved onboarding profile so the identity card reflects the real couple.
+    private var me: Person {
+        let name = profileStore.profile?.myName ?? MockData.me.name
+        return Person(id: "me", name: name, initial: String(name.prefix(1)), tint: .rose)
+    }
+    private var partner: Person {
+        let name = profileStore.profile?.partnerName ?? MockData.partner.name
+        return Person(id: "partner", name: name, initial: String(name.prefix(1)), tint: .sage)
+    }
+
+    private var anniversaryISO: String {
+        profileStore.profile?.anniversaryISO ?? MockData.togetherSinceISO
+    }
+
     private var daysTogether: Int {
-        TimeFormatting.daysBetween(MockData.togetherSinceISO, MockData.todayISO)
+        let todayISO = ISO8601DateFormatter.fullDate.string(from: Date())
+        return TimeFormatting.daysBetween(anniversaryISO, todayISO)
     }
 
     private var nextAnniv: (anniversary: Anniversary, days: Int, ordinal: Int?)? {
@@ -54,6 +70,12 @@ struct ProfileView: View {
             sheetContent(for: route)
                 .theme(theme)
         }
+        .alert("重設個人資料？", isPresented: $confirmReset) {
+            Button("取消", role: .cancel) {}
+            Button("重設", role: .destructive) { profileStore.reset() }
+        } message: {
+            Text("會清除你輸入嘅名同紀念日，App 會回到歡迎畫面。")
+        }
     }
 
     // MARK: - Identity card
@@ -76,7 +98,7 @@ struct ProfileView: View {
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
 
-            Text("一齊 \(daysTogether) 日 · 自 \(MockData.togetherSinceISO.replacingOccurrences(of: "-", with: "."))")
+            Text("一齊 \(daysTogether) 日 · 自 \(anniversaryISO.replacingOccurrences(of: "-", with: "."))")
                 .font(DSText.mono(theme, 11))
                 .foregroundStyle(theme.inkMuted)
                 .padding(.top, 4)
@@ -124,15 +146,19 @@ struct ProfileView: View {
                        onTap: { presented = .kao })
             ProfileRow(icon: .image, label: "共用相簿", value: "247", onTap: nil)
             ProfileRow(icon: .clock, label: "提醒時間", value: "08:00", onTap: nil)
-            ProfileRow(icon: .us, label: "主題", value: "日系奶油 →",
+            ProfileRow(icon: .us, label: "主題", value: "\(theme.name) →",
                        onTap: { presented = .theme }, isLast: true)
         }
     }
 
     private var accountSection: some View {
         ProfileSection(title: "帳戶") {
-            ProfileRow(icon: .more, label: "解除配對", value: "", subtle: true, onTap: nil)
-            ProfileRow(icon: .more, label: "關於", value: "v0.1", onTap: nil, isLast: true)
+            // Phase 2: tapping this clears the local profile so the user can
+            // re-walk onboarding to test it. Phase 3 will replace with real
+            // unpair (delete couple row + rotate keys).
+            ProfileRow(icon: .more, label: "重設個人資料", value: "→", subtle: true,
+                       onTap: { confirmReset = true })
+            ProfileRow(icon: .more, label: "關於", value: "v0.2", onTap: nil, isLast: true)
         }
     }
 
@@ -218,5 +244,7 @@ private struct ProfileRow: View {
 }
 
 #Preview {
-    ProfileView().theme(.jbeam)
+    ProfileView()
+        .environmentObject(UserProfileStore())
+        .theme(.jbeam)
 }
