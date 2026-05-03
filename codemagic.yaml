@@ -138,9 +138,16 @@ workflows:
     scripts:
       - *install_xcodegen
       - *generate_project
-      - name: Set build number from latest TestFlight build
+      - name: Set build number from unix timestamp
         script: |
-          BUILD_NUMBER=$(($(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" --tries 5 || echo 0) + 1))
+          # Use unix timestamp as CFBundleVersion so it's always strictly higher
+          # than any prior upload — no API call needed. Mirrors construction-app's
+          # working pattern. The previous approach used
+          #   app-store-connect get-latest-testflight-build-number ... --tries 5
+          # but the --tries flag was removed in newer codemagic-cli-tools, so the
+          # command failed silently and BUILD_NUMBER defaulted to 1, colliding
+          # with the v0.1.28 upload that was already build 1.
+          BUILD_NUMBER=$(date +%s)
           echo "Setting build number to $BUILD_NUMBER"
           agvtool new-version -all $BUILD_NUMBER
       - name: Fetch App Store signing files
