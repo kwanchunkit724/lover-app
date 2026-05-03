@@ -126,7 +126,14 @@ workflows:
       <<: *shared_env
       groups:
         - app_store_credentials
+      # NOTE: re-declare ALL vars here — YAML's `<<` merge does NOT recursively
+      # merge nested maps. If we only set TEAM_ID, the shared XCODE_PROJECT /
+      # XCODE_SCHEME / BUNDLE_ID get wiped, leading to:
+      #   xcodebuild: error: '' is not a project file.
       vars:
+        XCODE_PROJECT: LoverApp.xcodeproj
+        XCODE_SCHEME: LoverApp
+        BUNDLE_ID: michel.kit.us
         TEAM_ID: C22JSRYW54
     scripts:
       - *install_xcodegen
