@@ -73,8 +73,17 @@ struct MessageBubble: View {
 
     private var photoBubble: some View {
         VStack(spacing: 0) {
-            DSPhotoPlaceholder(id: message.photoSrc ?? message.id, height: 260, cornerRadius: 0)
-                .frame(width: 220)
+            // Real photos coming from the backend have photoSrc set to a
+            // chat-media storage path ("couple-{uuid}/{uuid}.bin"). Mock
+            // photos in previews / MockData use a short placeholder id.
+            // EncryptedAsyncImage handles the download + decrypt path.
+            if let path = message.photoSrc, path.hasPrefix("couple-") {
+                EncryptedAsyncImage(mediaHandle: path, maxHeight: 260, cornerRadius: 0)
+                    .frame(width: 220)
+            } else {
+                DSPhotoPlaceholder(id: message.photoSrc ?? message.id, height: 260, cornerRadius: 0)
+                    .frame(width: 220)
+            }
 
             if let caption = message.caption {
                 Text(caption)

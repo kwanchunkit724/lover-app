@@ -50,10 +50,13 @@ struct ChatView: View {
                 timestamp: HHmm.format(dm.createdAt),
                 read: true,
                 text: dm.payload.text,
-                photoSrc: nil,
-                caption: nil,
+                // For photo + voice messages the storage path goes into
+                // photoSrc / voiceTranscript so MessageBubble can hand it
+                // to EncryptedAsyncImage / EncryptedAudioPlayer.
+                photoSrc: dm.payload.kind == .photo ? dm.payload.mediaHandle : nil,
+                caption: dm.payload.kind == .photo ? dm.payload.text : nil,
                 voiceDurationSec: nil,
-                voiceTranscript: nil,
+                voiceTranscript: dm.payload.kind == .voice ? dm.payload.mediaHandle : nil,
                 replyTo: nil,
                 reactions: []
             )
