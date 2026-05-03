@@ -35,6 +35,7 @@ final class ChatService: ObservableObject {
 
     private let crypto: CryptoService
     private var pollTask: Task<Void, Never>?
+    private var realtimeTask: Task<Void, Never>?
     private var coupleId: UUID?
 
     init(crypto: CryptoService) {
@@ -43,21 +44,27 @@ final class ChatService: ObservableObject {
 
     // MARK: - Lifecycle
 
-    /// Called when ChatView appears AND the couple key is ready. Starts the
-    /// fetch loop. Cheap to call repeatedly (no-op if already polling for the
-    /// same couple).
+    /// Called when MainTabView appears AND the couple key is ready. Starts:
+    /// - one-shot fetch of all existing messages
+    /// - Supabase Realtime subscription for INSERTs (Phase 4b — instant push
+    ///   to the UI without waiting for a poll tick)
+    /// - 30-second fallback poll (in case the realtime channel disconnects)
     func start(coupleId: UUID) {
-        if self.coupleId == coupleId, pollTask != nil { return }
+        if self.coupleId == coupleId, realtimeTask != nil { return }
         self.coupleId = coupleId
         pollTask?.cancel()
+        realtimeTask?.cancel()
         pollTask = Task { [weak self] in
             await self?.runPollLoop()
+        }
+        realtimeTask = Task { [weak self] in
+            await self?.runRealtimeLoop(coupleId: coupleId)
         }
     }
 
     func stop() {
-        pollTask?.cancel()
-        pollTask = nil
+        pollTask?.cancel(); pollTask = nil
+        realtimeTask?.cancel(); realtimeTask = nil
     }
 
     // MARK: - Send
@@ -81,14 +88,42 @@ final class ChatService: ObservableObject {
         }
     }
 
-    // MARK: - Polling
+    // MARK: - Polling (fallback when realtime drops)
 
     private func runPollLoop() async {
         await fetchOnce()
         while !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            try? await Task.sleep(nanoseconds: 30_000_000_000)   // 30s — slow fallback
             if Task.isCancelled { break }
             await fetchOnce()
+        }
+    }
+
+    // MARK: - Realtime (Phase 4b)
+
+    private func runRealtimeLoop(coupleId: UUID) async {
+        let channel = SB.client.channel("messages-\(coupleId.uuidString)")
+        let inserts = channel.postgresChange(
+            InsertAction.self,
+            schema: "public",
+            table: "messages",
+            filter: "couple_id=eq.\(coupleId.uuidString.lowercased())"
+        )
+        do {
+            try await channel.subscribeWithError()
+        } catch {
+            // Subscription failed — poll loop is still running so chat stays
+            // alive, just with 30s lag.
+            lastError = "realtime: \(error.localizedDescription)"
+            return
+        }
+        for await action in inserts {
+            if Task.isCancelled { break }
+            // The new row landed via realtime; refetch to pick it up so we
+            // share the same decrypt path. Cheap because messages list is
+            // small per couple.
+            await fetchOnce()
+            _ = action   // unused — refetch is simpler than decoding the change
         }
     }
 

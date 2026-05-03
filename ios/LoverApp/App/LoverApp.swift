@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct LoverApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var profileStore = UserProfileStore()
     @StateObject private var auth         = AuthService()
     @StateObject private var pairing      = PairingService()
@@ -97,5 +98,8 @@ struct RootView: View {
                 chat.start(coupleId: couple.id)
             }
         }
+        // Phase 4b: ask for notification permission + register APNs once
+        // we're paired. Idempotent.
+        PushService.shared.bootstrap()
     }
 }
