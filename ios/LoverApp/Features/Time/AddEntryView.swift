@@ -6,6 +6,10 @@ import SwiftUI
 
 struct AddEntryView: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var entryService: EntryService
+    @EnvironmentObject private var auth: AuthService
+    @EnvironmentObject private var profileStore: UserProfileStore
+
     let onClose: () -> Void
 
     @State private var title: String = ""
@@ -13,6 +17,10 @@ struct AddEntryView: View {
     @State private var who: Entry.Who = .both
     @State private var proposer: String = "kit"
     @State private var memorable: Bool = true
+    @State private var date: Date = Date()
+    @State private var includeTime: Bool = false
+    @State private var location: String = ""
+    @State private var isSubmitting: Bool = false
 
     private let suggestions = ["食飯", "睇戲", "行山", "散步", "煮嘢食", "紀念日"]
 
@@ -38,9 +46,16 @@ struct AddEntryView: View {
                 .font(DSText.ui(theme, 16, weight: .semibold))
                 .foregroundStyle(theme.ink)
             Spacer()
-            Button("加") { onClose() }
-                .font(DSText.ui(theme, 15, weight: .semibold))
-                .foregroundStyle(theme.rose)
+            Button(action: submit) {
+                if isSubmitting {
+                    ProgressView().tint(theme.rose)
+                } else {
+                    Text("加")
+                        .font(DSText.ui(theme, 15, weight: .semibold))
+                        .foregroundStyle(canSubmit ? theme.rose : theme.inkMuted)
+                }
+            }
+            .disabled(!canSubmit || isSubmitting)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -63,9 +78,42 @@ struct AddEntryView: View {
             .padding(.bottom, 22)
 
             section(title: "日期 · 時間") {
-                row(icon: .cal, label: "日期", value: "5月 2 日 (六)")
-                row(icon: .clock, label: "時間", value: "18:30")
-                row(icon: .pin2, label: "地點", value: "未填", isLast: true)
+                VStack(alignment: .leading, spacing: 0) {
+                    DatePicker(
+                        "日期",
+                        selection: $date,
+                        displayedComponents: includeTime ? [.date, .hourAndMinute] : .date
+                    )
+                    .datePickerStyle(.compact)
+                    .tint(theme.rose)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    Divider().background(theme.line)
+
+                    Toggle(isOn: $includeTime) {
+                        HStack(spacing: 12) {
+                            DSIcon(name: .clock, size: 16, color: theme.inkMuted)
+                            Text("有時間")
+                                .font(DSText.ui(theme, 14))
+                                .foregroundStyle(theme.ink)
+                        }
+                    }
+                    .tint(theme.rose)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+
+                    Divider().background(theme.line)
+
+                    HStack(spacing: 12) {
+                        DSIcon(name: .pin2, size: 16, color: theme.inkMuted)
+                        TextField("地點 (可以唔填)", text: $location)
+                            .font(DSText.ui(theme, 14))
+                            .foregroundStyle(theme.ink)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                }
             }
             .padding(.bottom, 22)
 
@@ -239,8 +287,49 @@ struct AddEntryView: View {
         case .solo:           return theme.inkMuted
         }
     }
+
+    // MARK: - Submit
+
+    private var canSubmit: Bool {
+        !title.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private func submit() {
+        guard canSubmit else { return }
+        guard case .signedIn(let uuid) = auth.state else { return }
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        timeFormatter.timeZone = .current
+        let payload = EntryPayload(
+            title: title.trimmingCharacters(in: .whitespaces),
+            dateISO: LocalDate.string(from: date),
+            time: includeTime ? timeFormatter.string(from: date) : nil,
+            location: location.isEmpty ? nil : location,
+            proposedBy: proposer,
+            who: who.rawValue,
+            tag: tag.rawValue,
+            isSpecial: memorable,
+            notes: nil,
+            kaomoji: nil,
+            photoCount: 0,
+            voiceCount: 0,
+            messageCount: 0,
+            reflection: nil
+        )
+        isSubmitting = true
+        Task {
+            await entryService.add(payload: payload, senderId: uuid)
+            isSubmitting = false
+            onClose()
+        }
+    }
 }
 
 #Preview {
-    AddEntryView(onClose: {}).theme(.jbeam)
+    let crypto = CryptoService()
+    return AddEntryView(onClose: {})
+        .environmentObject(EntryService(crypto: crypto))
+        .environmentObject(AuthService())
+        .environmentObject(UserProfileStore())
+        .theme(.jbeam)
 }

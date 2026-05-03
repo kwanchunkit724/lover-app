@@ -10,16 +10,40 @@ import SwiftUI
 
 struct TimeView: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var entryService: EntryService
+    @EnvironmentObject private var anniversaryService: AnniversaryService
 
-    @State private var viewYear = 2026
-    @State private var viewMonth = 5
-    @State private var selectedISO = MockData.todayISO
+    // Default the calendar header to the current month so freshly-paired
+    // couples see "today" highlighted on first launch.
+    @State private var viewYear: Int = Calendar.current.component(.year, from: Date())
+    @State private var viewMonth: Int = Calendar.current.component(.month, from: Date())
+    @State private var selectedISO: String = LocalDate.string(from: Date())
     @State private var presentedEntryID: String? = nil
     @State private var addingEntry = false
 
-    private let todayISO = MockData.todayISO
-    private let entries = MockData.entries
-    private let anniversaries = MockData.anniversaries
+    private var todayISO: String { LocalDate.string(from: Date()) }
+
+    /// v0.5.1: real entries from EntryService when paired (E2EE). Fall back
+    /// to MockData when service is empty so previews still render.
+    private var entries: [Entry] {
+        let real = entryService.asEntries
+        return real.isEmpty ? MockData.entries : real
+    }
+
+    private var anniversaries: [Anniversary] {
+        let real = anniversaryService.items.map { d in
+            Anniversary(
+                id: d.id.uuidString,
+                title: d.payload.title,
+                baseDate: d.payload.baseDateISO,
+                recur: d.payload.recur == .yearly ? .yearly : .monthly,
+                kaomoji: d.payload.kaomoji,
+                emoji: d.payload.emoji,
+                subtitle: d.payload.subtitle
+            )
+        }
+        return real.isEmpty ? MockData.anniversaries : real
+    }
 
     var body: some View {
         ScrollView {

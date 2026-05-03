@@ -9,12 +9,14 @@ struct LoverApp: App {
     @StateObject private var crypto       = CryptoService()
     @StateObject private var chat: ChatService
     @StateObject private var anniversaries: AnniversaryService
+    @StateObject private var entries: EntryService
 
     init() {
         let c = CryptoService()
         _crypto         = StateObject(wrappedValue: c)
         _chat           = StateObject(wrappedValue: ChatService(crypto: c))
         _anniversaries  = StateObject(wrappedValue: AnniversaryService(crypto: c))
+        _entries        = StateObject(wrappedValue: EntryService(crypto: c))
     }
 
     var body: some Scene {
@@ -26,6 +28,7 @@ struct LoverApp: App {
                 .environmentObject(crypto)
                 .environmentObject(chat)
                 .environmentObject(anniversaries)
+                .environmentObject(entries)
                 .theme(profileStore.theme)
                 .task { await auth.bootstrap() }
         }
@@ -48,6 +51,7 @@ struct RootView: View {
     @EnvironmentObject private var crypto: CryptoService
     @EnvironmentObject private var chat: ChatService
     @EnvironmentObject private var anniversaries: AnniversaryService
+    @EnvironmentObject private var entries: EntryService
 
     var body: some View {
         Group {
@@ -78,6 +82,7 @@ struct RootView: View {
                 // Sign-out / error: tear down chat polling + chat key.
                 chat.stop()
                 anniversaries.stop()
+                entries.stop()
                 crypto.reset()
             }
         }
@@ -85,6 +90,7 @@ struct RootView: View {
             if !isPaired {
                 chat.stop()
                 anniversaries.stop()
+                entries.stop()
                 crypto.reset()
             }
         }
@@ -104,6 +110,7 @@ struct RootView: View {
                 try? crypto.prepare(coupleId: couple.id, partner: partner)
                 chat.start(coupleId: couple.id)
                 anniversaries.start(coupleId: couple.id)
+                entries.start(coupleId: couple.id)
             }
         }
         // Phase 4b: ask for notification permission + register APNs once
