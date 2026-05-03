@@ -14,7 +14,7 @@ struct MainTabView: View {
             ZStack {
                 switch selection {
                 case .chat: ChatView()
-                case .time: PlaceholderTab(label: "時間 tab — v0.3")
+                case .time: TimeView()
                 case .play: PlaceholderTab(label: "玩樂 tab — v0.5")
                 case .us:   PlaceholderTab(label: "我哋 tab — v0.4")
                 }
