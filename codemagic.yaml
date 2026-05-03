@@ -164,10 +164,14 @@ workflows:
           xcode-project use-profiles
       - name: Build ipa
         script: |
+          # ENABLE_DEBUG_DYLIB flags also matter for archive — without them
+          # Xcode 26 sometimes produces a stub executable + sidecar .debug.dylib
+          # that codesign refuses to sign as "code object not signed at all".
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
-            --archive-flags="-allowProvisioningUpdates"
+            --archive-flags="-allowProvisioningUpdates" \
+            --archive-xcargs="ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO"
     artifacts:
       - build/ios/ipa/*.ipa
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
