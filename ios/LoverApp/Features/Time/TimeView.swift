@@ -123,7 +123,7 @@ struct TimeView: View {
                 .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("\(verbatim: "\(viewYear)") \(TimeFormatting.monthsTC[viewMonth - 1])")
+                    Text(verbatim: "\(viewYear) \(TimeFormatting.monthsTC[viewMonth - 1])")
                         .font(.system(size: 24, weight: .semibold, design: .serif))
                         .foregroundStyle(theme.ink)
                     Text(monthCountsLabel)
