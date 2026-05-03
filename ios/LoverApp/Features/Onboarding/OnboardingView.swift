@@ -226,12 +226,10 @@ struct OnboardingView: View {
     }
 
     private func finish() {
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withFullDate]
         let profile = UserProfile(
             myName: myName.trimmingCharacters(in: .whitespaces),
             partnerName: partnerName.trimmingCharacters(in: .whitespaces),
-            anniversaryISO: isoFormatter.string(from: anniversary),
+            anniversaryISO: LocalDate.string(from: anniversary),
             themeId: themeId,
             completedAt: Date()
         )

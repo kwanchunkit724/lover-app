@@ -182,6 +182,27 @@ struct PairingView: View {
                     .multilineTextAlignment(.center)
             }
 
+            // Display the anniversary the partner needs to enter — this is
+            // the value the server stored from your onboarding profile and
+            // will compare against. Without this, you wouldn't know exactly
+            // which date to tell them.
+            if let annivISO = profileStore.profile?.anniversaryISO {
+                VStack(spacing: 6) {
+                    Text("對方要輸入嘅紀念日")
+                        .font(DSText.mono(theme, 11))
+                        .foregroundStyle(theme.inkMuted)
+                    Text(DisplayDate.from(iso: annivISO))
+                        .font(.system(size: 18, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(theme.ink)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(theme.sageSoft)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .padding(.top, 4)
+            }
+
             Button { Task { await pairing.createCode() } } label: {
                 Text("換一個 code")
                     .font(DSText.ui(theme, 14, weight: .medium))
@@ -335,9 +356,7 @@ struct PairingView: View {
     @FocusState private var codeFieldFocused: Bool
 
     private var formattedAnniversary: String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy.MM.dd"
-        return f.string(from: enteredAnniversary)
+        DisplayDate.formatter.string(from: enteredAnniversary)
     }
 
     private var canSubmit: Bool { enteredCode.count == 6 }

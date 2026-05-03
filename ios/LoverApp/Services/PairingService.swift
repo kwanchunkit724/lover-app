@@ -120,6 +120,25 @@ final class PairingService: ObservableObject {
         activeCode = nil
     }
 
+    // MARK: - Unpair (Phase 3c)
+
+    /// Atomic unpair — calls public.unpair() RPC which deletes the couple row
+    /// for whichever side made the call. Both sides fall back to PairingView
+    /// on their next refresh.
+    func unpair() async {
+        isLoading = true
+        defer { isLoading = false }
+        lastError = nil
+        do {
+            _ = try await SB.client.rpc("unpair").execute()
+            self.couple = nil
+            self.partner = nil
+            self.activeCode = nil
+        } catch {
+            lastError = friendlyMessage(for: error)
+        }
+    }
+
     // MARK: - Redeem code (phone B)
 
     private struct RedeemArgs: Encodable {
@@ -133,9 +152,7 @@ final class PairingService: ObservableObject {
         defer { isLoading = false }
         lastError = nil
 
-        let isoFormatter = ISO8601DateFormatter()
-        isoFormatter.formatOptions = [.withFullDate]
-        let annivISO = isoFormatter.string(from: anniversary)
+        let annivISO = LocalDate.string(from: anniversary)
 
         do {
             _ = try await SB.client

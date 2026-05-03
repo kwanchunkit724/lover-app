@@ -54,12 +54,43 @@ final class UserProfileStore: ObservableObject {
     }
 }
 
-// Shared yyyy-MM-dd formatter — matches the format MockData / Anniversary /
-// Entry already use throughout the app.
-extension ISO8601DateFormatter {
-    static let fullDate: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withFullDate]
+// Shared yyyy-MM-dd formatter pinned to LOCAL time zone — matches what the
+// user picked in the date wheel. ISO8601DateFormatter defaults to GMT, which
+// in HK shifts a freshly picked midnight backwards a day ("May 22" → 16:00 UTC
+// May 21 → "2024-05-21"). That bit two phones during pairing because the
+// anniversary cross-check started rejecting visually-identical dates.
+//
+// Both onboarding (storing the picked date as a string) and pairing redeem
+// (sending the picked date to the RPC) MUST use this same helper.
+enum LocalDate {
+    static let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.timeZone = .current
+        f.locale = Locale(identifier: "en_US_POSIX")
         return f
     }()
+
+    static func string(from date: Date) -> String { formatter.string(from: date) }
+
+    static func date(from iso: String) -> Date? { formatter.date(from: iso) }
+}
+
+// Pretty display: "yyyy.MM.dd" in local time zone.
+enum DisplayDate {
+    static let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy.MM.dd"
+        f.timeZone = .current
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f
+    }()
+
+    /// Convert a "yyyy-MM-dd" iso string into a "yyyy.MM.dd" display string.
+    static func from(iso: String) -> String {
+        guard let d = LocalDate.date(from: iso) else {
+            return iso.replacingOccurrences(of: "-", with: ".")
+        }
+        return formatter.string(from: d)
+    }
 }

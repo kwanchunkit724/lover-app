@@ -6,29 +6,42 @@ import SwiftUI
 struct ProfileView: View {
     @Environment(\.theme) private var theme
     @EnvironmentObject private var profileStore: UserProfileStore
+    @EnvironmentObject private var auth: AuthService
+    @EnvironmentObject private var pairing: PairingService
 
     @State private var presented: SettingsRoute? = nil
     @State private var confirmReset = false
+    @State private var confirmUnpair = false
+    @State private var confirmSignOut = false
 
     private let anniversaries = MockData.anniversaries
 
-    // Avatar tints stay from MockData (same kawaii palette); name/initial come from
-    // the saved onboarding profile so the identity card reflects the real couple.
+    // Avatar tints stay from MockData (same kawaii palette); name/initial
+    // resolve from the freshest source: real partner row (Phase 3c) → local
+    // onboarding profile (Phase 2) → mock data (no auth, no profile).
     private var me: Person {
         let name = profileStore.profile?.myName ?? MockData.me.name
         return Person(id: "me", name: name, initial: String(name.prefix(1)), tint: .rose)
     }
     private var partner: Person {
-        let name = profileStore.profile?.partnerName ?? MockData.partner.name
+        // pairing.partner.myName is what the partner typed for THEMSELVES on
+        // their device — preferred over our local "what I think they're called".
+        let name = pairing.partner?.myName
+                ?? profileStore.profile?.partnerName
+                ?? MockData.partner.name
         return Person(id: "partner", name: name, initial: String(name.prefix(1)), tint: .sage)
     }
 
     private var anniversaryISO: String {
-        profileStore.profile?.anniversaryISO ?? MockData.togetherSinceISO
+        // Both sides cross-checked the same anniversary at pairing time, so
+        // the partner row's value is canonical when paired.
+        pairing.partner?.anniversaryISO
+            ?? profileStore.profile?.anniversaryISO
+            ?? MockData.togetherSinceISO
     }
 
     private var daysTogether: Int {
-        let todayISO = ISO8601DateFormatter.fullDate.string(from: Date())
+        let todayISO = LocalDate.string(from: Date())
         return TimeFormatting.daysBetween(anniversaryISO, todayISO)
     }
 
@@ -72,9 +85,35 @@ struct ProfileView: View {
         }
         .alert("重設個人資料？", isPresented: $confirmReset) {
             Button("取消", role: .cancel) {}
-            Button("重設", role: .destructive) { profileStore.reset() }
+            Button("重設", role: .destructive) {
+                profileStore.reset()
+                Task { await auth.signOut() }
+            }
         } message: {
-            Text("會清除你輸入嘅名同紀念日，App 會回到歡迎畫面。")
+            Text("會清除你輸入嘅名同紀念日，登出 App，回到歡迎畫面。")
+        }
+        .alert("解除配對？", isPresented: $confirmUnpair) {
+            Button("取消", role: .cancel) {}
+            Button("解除", role: .destructive) {
+                Task { await pairing.unpair() }
+            }
+        } message: {
+            Text("會刪除你哋嘅配對。對方下次開 App 會見到要重新配對。")
+        }
+        .alert("登出？", isPresented: $confirmSignOut) {
+            Button("取消", role: .cancel) {}
+            Button("登出", role: .destructive) {
+                Task { await auth.signOut() }
+            }
+        } message: {
+            Text("配對唔會解除，下次用同一個 Apple ID 登入返就見返一切。")
+        }
+        .task {
+            // Refresh partner data when this tab opens — picks up theme /
+            // name changes the partner made on their device.
+            if case .signedIn(let id) = auth.state {
+                await pairing.refresh(meId: id)
+            }
         }
     }
 
@@ -98,15 +137,33 @@ struct ProfileView: View {
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
 
-            Text("一齊 \(daysTogether) 日 · 自 \(anniversaryISO.replacingOccurrences(of: "-", with: "."))")
+            Text("一齊 \(daysTogether) 日 · 自 \(DisplayDate.from(iso: anniversaryISO))")
                 .font(DSText.mono(theme, 11))
                 .foregroundStyle(theme.inkMuted)
                 .padding(.top, 4)
 
-            Text("(♡˙︶˙♡)")
-                .font(DSText.mono(theme, 14))
-                .foregroundStyle(theme.rose)
+            // Phase 3c — show pairing status. When paired, sage-tinted "已配對 ♡"
+            // badge confirms backend round-trip; when unpaired, amber warning
+            // hints that real chat won't work until pairing.
+            if pairing.isPaired {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("已配對 ♡")
+                        .font(DSText.mono(theme, 11))
+                }
+                .foregroundStyle(theme.sage)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(theme.sageSoft)
+                .clipShape(Capsule())
                 .padding(.top, 10)
+            } else {
+                Text("(♡˙︶˙♡)")
+                    .font(DSText.mono(theme, 14))
+                    .foregroundStyle(theme.rose)
+                    .padding(.top, 10)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(20)
@@ -153,12 +210,15 @@ struct ProfileView: View {
 
     private var accountSection: some View {
         ProfileSection(title: "帳戶") {
-            // Phase 2: tapping this clears the local profile so the user can
-            // re-walk onboarding to test it. Phase 3 will replace with real
-            // unpair (delete couple row + rotate keys).
+            if pairing.isPaired {
+                ProfileRow(icon: .more, label: "解除配對", value: "→", subtle: true,
+                           onTap: { confirmUnpair = true })
+            }
+            ProfileRow(icon: .more, label: "登出", value: "→", subtle: true,
+                       onTap: { confirmSignOut = true })
             ProfileRow(icon: .more, label: "重設個人資料", value: "→", subtle: true,
                        onTap: { confirmReset = true })
-            ProfileRow(icon: .more, label: "關於", value: "v0.2", onTap: nil, isLast: true)
+            ProfileRow(icon: .more, label: "關於", value: "v0.3", onTap: nil, isLast: true)
         }
     }
 
@@ -246,5 +306,7 @@ private struct ProfileRow: View {
 #Preview {
     ProfileView()
         .environmentObject(UserProfileStore())
+        .environmentObject(AuthService())
+        .environmentObject(PairingService())
         .theme(.jbeam)
 }
