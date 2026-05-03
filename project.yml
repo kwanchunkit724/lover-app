@@ -70,6 +70,11 @@ targets:
       properties:
         CFBundleDevelopmentRegion: zh-Hant
         CFBundleDisplayName: Us
+        # Required by App Store / TestFlight ingest. Must match the
+        # AppIcon.appiconset name in Assets.xcassets, otherwise upload
+        # rejects with: "Missing Info.plist value. A value for the
+        # Info.plist key 'CFBundleIconName' is missing in the bundle".
+        CFBundleIconName: AppIcon
         CFBundleLocalizations:
           - zh-Hant
           - en
