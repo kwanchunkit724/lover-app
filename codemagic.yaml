@@ -152,49 +152,17 @@ workflows:
             --certificate-key "@env:CERTIFICATE_PRIVATE_KEY"
           keychain add-certificates
           xcode-project use-profiles
-      - name: Archive app
+      - name: Build IPA (xcode-project handles archive + sign + export)
         script: |
-          # CODE_SIGNING_REQUIRED=YES forces Xcode to run sign phases for every
-          # embedded binary. (--deep was tried but caused "Archive Missing Bundle
-          # Identifier" — Xcode 26 doesn't like --deep with Manual signing.)
-          xcodebuild \
-            -project "$XCODE_PROJECT" \
-            -scheme "$XCODE_SCHEME" \
-            -configuration Release \
-            -archivePath /tmp/Us.xcarchive \
-            archive \
-            -destination "generic/platform=iOS" \
-            -allowProvisioningUpdates \
-            COMPILER_INDEX_STORE_ENABLE=NO \
-            ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO \
-            CODE_SIGNING_REQUIRED=YES
-      - name: Export IPA
-        script: |
-          PROFILE_UUID=$(security cms -D -i /tmp/Us.xcarchive/Products/Applications/Us.app/embedded.mobileprovision | plutil -extract UUID raw -)
-          echo "Exporting with profile UUID: $PROFILE_UUID"
-          cat > /tmp/ExportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>method</key><string>app-store-connect</string>
-            <key>teamID</key><string>$TEAM_ID</string>
-            <key>signingStyle</key><string>manual</string>
-            <key>provisioningProfiles</key>
-            <dict>
-              <key>$BUNDLE_ID</key><string>$PROFILE_UUID</string>
-            </dict>
-            <key>uploadSymbols</key><true/>
-            <key>compileBitcode</key><false/>
-          </dict>
-          </plist>
-          EOF
-          mkdir -p build/ios/ipa
-          xcodebuild \
-            -exportArchive \
-            -archivePath /tmp/Us.xcarchive \
-            -exportPath build/ios/ipa \
-            -exportOptionsPlist /tmp/ExportOptions.plist
+          # Codemagic's xcode-project build-ipa wrapper handles signing
+          # internals correctly across Xcode versions — including the deep
+          # signing of subcomponents that fails with raw xcodebuild.
+          xcode-project build-ipa \
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME" \
+            --config Release \
+            --archive-flags "-allowProvisioningUpdates" \
+            --archive-xcargs "ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO COMPILER_INDEX_STORE_ENABLE=NO"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
