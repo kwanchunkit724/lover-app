@@ -36,6 +36,9 @@ secrets/
 .vscode/launch.json
 .idea/
 
+# Claude Code internal
+.claude/
+
 # Node (in case of tooling)
 node_modules/
 
