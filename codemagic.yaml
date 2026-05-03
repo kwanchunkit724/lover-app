@@ -158,11 +158,11 @@ workflows:
           # internals correctly across Xcode versions — including the deep
           # signing of subcomponents that fails with raw xcodebuild.
           xcode-project build-ipa \
-            --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME" \
-            --config Release \
-            --archive-flags "-allowProvisioningUpdates" \
-            --archive-xcargs "ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO COMPILER_INDEX_STORE_ENABLE=NO"
+            --project="$XCODE_PROJECT" \
+            --scheme="$XCODE_SCHEME" \
+            --config=Release \
+            --archive-flags=-allowProvisioningUpdates \
+            --archive-xcargs="ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO COMPILER_INDEX_STORE_ENABLE=NO"
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
