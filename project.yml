@@ -85,16 +85,16 @@ targets:
     entitlements:
       path: ios/LoverApp/LoverApp.entitlements
       properties:
-        com.apple.security.application-groups:
-          - group.michel.kit.us.shared
-        com.apple.developer.applesignin:
-          - Default
-        # MUST be 'production' for App Store / TestFlight builds.
-        # 'development' caused codesign to fail with
+        # Minimal entitlements only — must match what the "Us App Store"
+        # provisioning profile grants. App Groups + Sign in with Apple were
+        # removed because the michel.kit.us bundle ID in Apple Developer
+        # portal does not have those capabilities enabled, so the profile
+        # doesn't include them, so codesign rejects them with:
         #   "code object is not signed at all
         #    In subcomponent: .../Us.app/embedded.mobileprovision"
-        # because the entitlements claimed a development-environment APS push
-        # capability that the production-distribution profile didn't grant.
+        # To re-enable: turn on the capability for the bundle ID in the
+        # Apple Developer portal, regenerate the profile, then add the key
+        # back here.
         aps-environment: production
 
   # ───── Unit tests (logic) ─────
