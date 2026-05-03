@@ -154,6 +154,10 @@ workflows:
           xcode-project use-profiles
       - name: Archive app
         script: |
+          # -allowProvisioningUpdates lets xcodebuild adopt profiles from
+          # `xcode-project use-profiles` even when CODE_SIGN_STYLE was Auto
+          # (XcodeGen generated it as Automatic before use-profiles flipped
+          # it to Manual via project.pbxproj patching).
           xcodebuild \
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
@@ -161,6 +165,7 @@ workflows:
             -archivePath /tmp/Us.xcarchive \
             archive \
             -destination "generic/platform=iOS" \
+            -allowProvisioningUpdates \
             COMPILER_INDEX_STORE_ENABLE=NO \
             ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO
       - name: Export IPA
