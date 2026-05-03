@@ -15,7 +15,7 @@ struct MainTabView: View {
                 switch selection {
                 case .chat: ChatView()
                 case .time: TimeView()
-                case .play: PlaceholderTab(label: "玩樂 tab — v0.5")
+                case .play: ActivitiesView()
                 case .us:   ProfileView()
                 }
             }

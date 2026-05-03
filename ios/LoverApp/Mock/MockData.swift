@@ -197,4 +197,48 @@ enum MockData {
                     baseDate: "1997-08-19", recur: .yearly,
                     kaomoji: "(*ˊᗜˋ*)", emoji: "🎂", subtitle: nil),
     ]
+
+    // MARK: - Activities (玩樂 tab)
+
+    static let activities: [Activity] = [
+        Activity(id: "a1", title: "盲盒約會", subtitle: "抽一張卡，跟住做", kind: .cards, count: 24),
+        Activity(id: "a2", title: "21 條問題", subtitle: "了解多啲對方", kind: .quiz, count: 21),
+        Activity(id: "a3", title: "香港探險地圖", subtitle: "一齊去未去過嘅地方", kind: .map, count: 18),
+        Activity(id: "a4", title: "今晚煮乜", subtitle: "隨機菜譜", kind: .cards, count: 36),
+        Activity(id: "a5", title: "情侶小測驗", subtitle: "你有幾了解 Michel？", kind: .quiz, count: 10),
+        Activity(id: "a6", title: "感激清單", subtitle: "每日寫一樣", kind: .journal, count: nil),
+    ]
+
+    static let dateCards: [DateCard] = [
+        DateCard(id: 1, title: "夜遊維港",
+                 detail: "搭天星小輪，喺甲板上面影返張合照",
+                 mood: "浪漫", kaomoji: "(♡˙︶˙♡)", tint: .rose, cost: "$$"),
+        DateCard(id: 2, title: "一齊整 pancake",
+                 detail: "揀一個未試過嘅口味，最差嗰個負責洗碗",
+                 mood: "屋企", kaomoji: "(っ˘ڡ˘ς)", tint: .amber, cost: "$"),
+        DateCard(id: 3, title: "影貼紙相",
+                 detail: "銅鑼灣或旺角，搞笑款 4 連張",
+                 mood: "玩樂", kaomoji: "(≧▽≦)", tint: .rose, cost: "$"),
+        DateCard(id: 4, title: "行一條未行過嘅街",
+                 detail: "Google Maps 隨機 drop pin，去最近嗰條",
+                 mood: "探險", kaomoji: "(´｡• ω •｡`)", tint: .sage, cost: "$"),
+        DateCard(id: 5, title: "寫信俾未來自己",
+                 detail: "一年後拆，封住放入記憶簿",
+                 mood: "靜", kaomoji: "(◍•ᴗ•◍)", tint: .amber, cost: "$"),
+        DateCard(id: 6, title: "盲交換禮物",
+                 detail: "$50 budget，30 分鐘內入便利店揀",
+                 mood: "玩樂", kaomoji: "(¬‿¬)", tint: .sage, cost: "$"),
+    ]
+
+    static let quizQuestions: [QuizQuestion] = [
+        QuizQuestion(id: 1, question: "你最鍾意我邊度？",
+                     kitAnswer: "你笑嗰陣眼仔彎彎",
+                     michelAnswer: "你成日諗住其他人嘅心情"),
+        QuizQuestion(id: 2, question: "我哋第一次去嘅餐廳叫乜？",
+                     kitAnswer: "銅鑼灣嗰間意大利餐",
+                     michelAnswer: "銅鑼灣嗰間意大利餐"),
+        QuizQuestion(id: 3, question: "我最怕乜？",
+                     kitAnswer: "蟑螂",
+                     michelAnswer: "高度"),
+    ]
 }
