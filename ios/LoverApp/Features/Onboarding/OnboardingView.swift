@@ -12,7 +12,6 @@ import SwiftUI
 
 struct OnboardingView: View {
     @EnvironmentObject private var profileStore: UserProfileStore
-    @Environment(\.theme) private var theme
 
     @State private var step: Step = .welcome
     @State private var myName: String = ""
@@ -24,7 +23,23 @@ struct OnboardingView: View {
         case welcome, yourName, partnerName, anniversary, theme
     }
 
+    /// Live theme reflecting the user's current selection in the theme step,
+    /// so picking "深夜暖色" recolors the entire onboarding flow immediately
+    /// instead of only after profile save.
+    private var theme: Theme {
+        switch themeId {
+        case "notion": return .notion
+        case "cozy":   return .cozy
+        default:       return .jbeam
+        }
+    }
+
     var body: some View {
+        content
+            .theme(theme)
+    }
+
+    private var content: some View {
         ZStack {
             theme.paper.ignoresSafeArea()
 
@@ -109,6 +124,8 @@ struct OnboardingView: View {
                 .datePickerStyle(.wheel)
                 .labelsHidden()
                 .frame(maxWidth: .infinity)
+                .frame(height: 200)              // wheel collapses to 0 without an explicit height
+                .colorScheme(theme.isDark ? .dark : .light)  // wheel text follows theme
                 .background(theme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay(
