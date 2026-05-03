@@ -119,16 +119,20 @@ workflows:
       tag_patterns:
         - pattern: 'v*'
           include: true
-    # NOTE: ios_signing block intentionally OMITTED from environment.
-    # Codemagic's built-in auto-signing runs in the Initialize Build phase
-    # (before any script step) and bombs out with "No matching profiles found"
-    # when the App Store profile doesn't exist yet. We manage signing entirely
-    # via scripts below (xcode-project fetch-signing-files --create) so we
-    # control timing and can auto-create on first run.
+    # Restored ios_signing block. The previous "No matching profiles found"
+    # init error has been resolved — v0.1.4's run successfully created the
+    # App Store profile. The Apple account already has 2 distribution certs
+    # at the cap (from the user's other Codemagic app), so script-based
+    # --create cannot make a 3rd. Codemagic's built-in ios_signing has
+    # access to the existing cert's private key via the unified integration
+    # storage, so it will reuse the same cert and the now-existing profile.
     environment:
       <<: *shared_env
       groups:
         - app_store_credentials
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: michel.kit.us
     scripts:
       - *install_xcodegen
       - *generate_project
@@ -138,30 +142,6 @@ workflows:
           echo "Setting build number to $BUILD_NUMBER"
           cd $(dirname "$XCODE_PROJECT")
           agvtool new-version -all $BUILD_NUMBER
-      - name: Set up signing (cert + profile, auto-created if missing)
-        script: |
-          # Canonical Codemagic signing flow when neither cert nor profile exist:
-          #   1. Generate a fresh RSA private key locally
-          #   2. fetch-signing-files --create uses that key as the CSR signer
-          #      to ask Apple to issue a new distribution certificate, AND to
-          #      create the App Store provisioning profile if missing
-          #   3. Initialise a keychain + add the cert to it so xcodebuild can
-          #      pick it up at archive time
-          #   4. Use profiles wires Xcode project to the downloaded .mobileprovision
-          set -e
-
-          KEY_FILE=/tmp/apple_distribution.pem
-          ssh-keygen -t rsa -b 2048 -m PEM -f "$KEY_FILE" -q -N ""
-
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --certificate-key=@file:"$KEY_FILE" \
-            --create
-
-          keychain initialize
-          keychain add-certificates
-
-          xcode-project use-profiles
       - name: Build ipa
         script: |
           # ENABLE_DEBUG_DYLIB flags also matter for archive — without them
