@@ -8,11 +8,13 @@ struct LoverApp: App {
     @StateObject private var pairing      = PairingService()
     @StateObject private var crypto       = CryptoService()
     @StateObject private var chat: ChatService
+    @StateObject private var anniversaries: AnniversaryService
 
     init() {
         let c = CryptoService()
-        _crypto = StateObject(wrappedValue: c)
-        _chat   = StateObject(wrappedValue: ChatService(crypto: c))
+        _crypto         = StateObject(wrappedValue: c)
+        _chat           = StateObject(wrappedValue: ChatService(crypto: c))
+        _anniversaries  = StateObject(wrappedValue: AnniversaryService(crypto: c))
     }
 
     var body: some Scene {
@@ -23,6 +25,7 @@ struct LoverApp: App {
                 .environmentObject(pairing)
                 .environmentObject(crypto)
                 .environmentObject(chat)
+                .environmentObject(anniversaries)
                 .theme(profileStore.theme)
                 .task { await auth.bootstrap() }
         }
@@ -44,6 +47,7 @@ struct RootView: View {
     @EnvironmentObject private var pairing: PairingService
     @EnvironmentObject private var crypto: CryptoService
     @EnvironmentObject private var chat: ChatService
+    @EnvironmentObject private var anniversaries: AnniversaryService
 
     var body: some View {
         Group {
@@ -73,12 +77,14 @@ struct RootView: View {
             } else {
                 // Sign-out / error: tear down chat polling + chat key.
                 chat.stop()
+                anniversaries.stop()
                 crypto.reset()
             }
         }
         .onChange(of: pairing.isPaired) { _, isPaired in
             if !isPaired {
                 chat.stop()
+                anniversaries.stop()
                 crypto.reset()
             }
         }
@@ -89,6 +95,7 @@ struct RootView: View {
         do {
             try crypto.prepare(coupleId: couple.id, partner: partner)
             chat.start(coupleId: couple.id)
+            anniversaries.start(coupleId: couple.id)
         } catch {
             // Likely partner hasn't uploaded their public key yet (first
             // sign-in race) — refresh once more to pick it up, then retry.
@@ -96,6 +103,7 @@ struct RootView: View {
             if let partner = pairing.partner {
                 try? crypto.prepare(coupleId: couple.id, partner: partner)
                 chat.start(coupleId: couple.id)
+                anniversaries.start(coupleId: couple.id)
             }
         }
         // Phase 4b: ask for notification permission + register APNs once

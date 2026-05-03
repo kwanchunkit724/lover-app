@@ -3,20 +3,42 @@ import SwiftUI
 // Anniversaries detail screen — translation of Anniversaries() in
 // design-import/extra.jsx. Hero card for the soonest, then full list
 // with each item's recurrence badge + countdown.
+//
+// v0.5.0: real E2EE data via AnniversaryService instead of MockData.
+// Add via AddAnniversaryView sheet. Long-press / swipe to delete.
 
 struct AnniversariesView: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var anniversaryService: AnniversaryService
+
     let onClose: () -> Void
 
-    private var items: [(anniversary: Anniversary, days: Int, ordinal: Int?, isoDate: String)] {
-        let today = TimeFormatting.parseDate(MockData.todayISO) ?? Date()
+    @State private var showAdd = false
+
+    /// Maps DecryptedAnniversary -> the legacy Anniversary view-model the
+    /// row UI code expects, plus its computed countdown.
+    private var items: [(anniversary: Anniversary, days: Int, ordinal: Int?, isoDate: String, sourceId: UUID)] {
+        let today = Date()
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM-dd"
-        f.timeZone = TimeZone(identifier: "Asia/Hong_Kong")
-        return MockData.anniversaries
-            .map { a in
+        f.timeZone = .current
+        return anniversaryService.items
+            .map { d in
+                let a = Anniversary(
+                    id: d.id.uuidString,
+                    title: d.payload.title,
+                    baseDate: d.payload.baseDateISO,
+                    recur: d.payload.recur == .yearly ? .yearly : .monthly,
+                    kaomoji: d.payload.kaomoji,
+                    emoji: d.payload.emoji,
+                    subtitle: d.payload.subtitle
+                )
                 let occ = a.nextOccurrence(today: today)
-                return (anniversary: a, days: occ.daysAway, ordinal: occ.ordinal, isoDate: f.string(from: occ.date))
+                return (anniversary: a,
+                        days: occ.daysAway,
+                        ordinal: occ.ordinal,
+                        isoDate: f.string(from: occ.date),
+                        sourceId: d.id)
             }
             .sorted { $0.days < $1.days }
     }
@@ -26,44 +48,83 @@ struct AnniversariesView: View {
             VStack(alignment: .leading, spacing: 0) {
                 navBar
 
-                if let hero = items.first {
-                    heroCard(hero)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
-                }
+                if items.isEmpty {
+                    emptyState
+                        .padding(.top, 60)
+                } else {
+                    if let hero = items.first {
+                        heroCard(hero)
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 20)
+                    }
 
-                Text("所有 · \(items.count) 個")
-                    .font(.system(size: 10, weight: .regular, design: .monospaced))
-                    .foregroundStyle(theme.inkMuted)
-                    .textCase(.uppercase)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 10)
+                    Text("所有 · \(items.count) 個")
+                        .font(.system(size: 10, weight: .regular, design: .monospaced))
+                        .foregroundStyle(theme.inkMuted)
+                        .textCase(.uppercase)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 10)
 
-                ForEach(items.dropFirst(), id: \.anniversary.id) { item in
-                    AnniversaryRow(item: item)
+                    ForEach(items.dropFirst(), id: \.anniversary.id) { item in
+                        AnniversaryRow(item: item) {
+                            Task { await delete(sourceId: item.sourceId) }
+                        }
                         .padding(.horizontal, 20)
                         .padding(.bottom, 8)
-                }
+                    }
 
-                Button {} label: {
-                    Text("＋ 加新紀念日")
-                        .font(DSText.ui(theme, 13))
-                        .foregroundStyle(theme.inkMuted)
-                        .frame(maxWidth: .infinity)
-                        .padding(14)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                        )
+                    addButton
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        .padding(.bottom, 30)
                 }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 30)
             }
         }
         .background(theme.paper)
+        .sheet(isPresented: $showAdd) {
+            AddAnniversaryView(onClose: { showAdd = false })
+                .theme(theme)
+                .environmentObject(anniversaryService)
+        }
     }
+
+    // MARK: - Empty state
+
+    private var emptyState: some View {
+        VStack(spacing: 14) {
+            Text("(´｡• ω •｡`)")
+                .font(.system(size: 40, weight: .semibold, design: .monospaced))
+                .foregroundStyle(theme.rose)
+            Text("仲未有紀念日")
+                .font(.system(size: 18, weight: .semibold, design: .serif))
+                .foregroundStyle(theme.ink)
+            Text("加返你哋一齊嘅日子、生日、月誌\n兩個人都會見到")
+                .font(DSText.ui(theme, 12))
+                .foregroundStyle(theme.inkSoft)
+                .multilineTextAlignment(.center)
+            addButton
+                .padding(.horizontal, 32)
+                .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var addButton: some View {
+        Button { showAdd = true } label: {
+            Text("＋ 加新紀念日")
+                .font(DSText.ui(theme, 13))
+                .foregroundStyle(theme.inkMuted)
+                .frame(maxWidth: .infinity)
+                .padding(14)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(theme.lineStrong, style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Nav
 
     private var navBar: some View {
         HStack {
@@ -75,7 +136,7 @@ struct AnniversariesView: View {
                 .font(DSText.ui(theme, 17, weight: .semibold))
                 .foregroundStyle(theme.ink)
             Spacer()
-            Button {} label: {
+            Button { showAdd = true } label: {
                 Text("＋")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(theme.rose)
@@ -87,7 +148,9 @@ struct AnniversariesView: View {
         .padding(.vertical, 4)
     }
 
-    private func heroCard(_ item: (anniversary: Anniversary, days: Int, ordinal: Int?, isoDate: String)) -> some View {
+    // MARK: - Hero card
+
+    private func heroCard(_ item: (anniversary: Anniversary, days: Int, ordinal: Int?, isoDate: String, sourceId: UUID)) -> some View {
         ZStack(alignment: .bottomTrailing) {
             VStack(alignment: .leading, spacing: 0) {
                 Text("下一個 · 倒數中")
@@ -127,50 +190,51 @@ struct AnniversariesView: View {
         .background(theme.rose)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
+
+    // MARK: - Delete
+
+    private func delete(sourceId: UUID) async {
+        guard let item = anniversaryService.items.first(where: { $0.id == sourceId }) else { return }
+        await anniversaryService.delete(item)
+    }
 }
 
 private struct AnniversaryRow: View {
     @Environment(\.theme) private var theme
-    let item: (anniversary: Anniversary, days: Int, ordinal: Int?, isoDate: String)
+    let item: (anniversary: Anniversary, days: Int, ordinal: Int?, isoDate: String, sourceId: UUID)
+    let onDelete: () -> Void
 
     private var daysSinceBase: Int {
-        TimeFormatting.daysBetween(item.anniversary.baseDate, MockData.todayISO)
+        let today = LocalDate.string(from: Date())
+        return TimeFormatting.daysBetween(item.anniversary.baseDate, today)
     }
 
     var body: some View {
         HStack(spacing: 14) {
-            Text(item.anniversary.emoji ?? "♡")
-                .font(.system(size: 22))
-                .frame(width: 48, height: 48)
-                .background(theme.roseSoft)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            ZStack {
+                Circle().fill(theme.roseSoft)
+                Text(item.anniversary.emoji ?? "♡")
+                    .font(.system(size: 22))
+            }
+            .frame(width: 44, height: 44)
 
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(item.anniversary.title)
-                        .font(DSText.ui(theme, 14, weight: .semibold))
-                        .foregroundStyle(theme.ink)
-                    Text(item.anniversary.recur == .yearly ? "每年" : "每月")
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(item.anniversary.recur == .yearly ? theme.sage : theme.amber)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(item.anniversary.recur == .yearly ? theme.sageSoft : theme.amberSoft)
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                }
-                Text("從 \(item.anniversary.baseDate) · 一齊 \(daysSinceBase) 日")
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.anniversary.title)
+                    .font(DSText.ui(theme, 14, weight: .semibold))
+                    .foregroundStyle(theme.ink)
+                Text("\(item.isoDate) · \(item.anniversary.recur == .yearly ? "年" : "月") · \(daysSinceBase) 日前開始")
                     .font(DSText.mono(theme, 11))
                     .foregroundStyle(theme.inkMuted)
             }
 
-            Spacer(minLength: 0)
+            Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text("\(item.days)")
-                    .font(.system(size: 20, weight: .semibold, design: .serif))
+                    .font(.system(size: 18, weight: .semibold, design: .serif))
                     .foregroundStyle(theme.rose)
                 Text("日後")
-                    .font(DSText.mono(theme, 9))
+                    .font(DSText.mono(theme, 10))
                     .foregroundStyle(theme.inkMuted)
             }
         }
@@ -181,9 +245,10 @@ private struct AnniversaryRow: View {
                 .stroke(theme.line, lineWidth: 0.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .contextMenu {
+            Button(role: .destructive, action: onDelete) {
+                Label("刪除", systemImage: "trash")
+            }
+        }
     }
-}
-
-#Preview {
-    AnniversariesView(onClose: {}).theme(.jbeam)
 }

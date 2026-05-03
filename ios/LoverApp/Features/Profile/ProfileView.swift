@@ -13,8 +13,25 @@ struct ProfileView: View {
     @State private var confirmReset = false
     @State private var confirmUnpair = false
     @State private var confirmSignOut = false
+    @EnvironmentObject private var anniversaryService: AnniversaryService
 
-    private let anniversaries = MockData.anniversaries
+    /// v0.5.0: real anniversaries from backend (E2EE). When unsigned-in or
+    /// before the service has fetched, fall back to MockData so the
+    /// anniversaries section isn't empty in previews.
+    private var anniversaries: [Anniversary] {
+        let real = anniversaryService.items.map { d in
+            Anniversary(
+                id: d.id.uuidString,
+                title: d.payload.title,
+                baseDate: d.payload.baseDateISO,
+                recur: d.payload.recur == .yearly ? .yearly : .monthly,
+                kaomoji: d.payload.kaomoji,
+                emoji: d.payload.emoji,
+                subtitle: d.payload.subtitle
+            )
+        }
+        return real.isEmpty ? MockData.anniversaries : real
+    }
 
     // Avatar tints stay from MockData (same kawaii palette); name/initial
     // resolve from the freshest source: real partner row (Phase 3c) → local
@@ -46,7 +63,7 @@ struct ProfileView: View {
     }
 
     private var nextAnniv: (anniversary: Anniversary, days: Int, ordinal: Int?)? {
-        guard let today = TimeFormatting.parseDate(MockData.todayISO) else { return nil }
+        let today = Date()
         return anniversaries
             .map { a in
                 let occ = a.nextOccurrence(today: today)
@@ -304,9 +321,11 @@ private struct ProfileRow: View {
 }
 
 #Preview {
-    ProfileView()
+    let crypto = CryptoService()
+    return ProfileView()
         .environmentObject(UserProfileStore())
         .environmentObject(AuthService())
         .environmentObject(PairingService())
+        .environmentObject(AnniversaryService(crypto: crypto))
         .theme(.jbeam)
 }
