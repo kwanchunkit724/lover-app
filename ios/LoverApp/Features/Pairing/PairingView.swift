@@ -19,6 +19,7 @@ struct PairingView: View {
     @State private var mode: Mode = .choose
     @State private var enteredCode: String = ""
     @State private var enteredAnniversary: Date = Date()
+    @State private var generateAnniversary: Date = Date()
     @State private var showAnniversaryPicker: Bool = false
     @State private var now: Date = Date()
 
@@ -101,7 +102,7 @@ struct PairingView: View {
                 icon: "qrcode",
                 title: "我嚟生成配對碼",
                 subtitle: "佢會見到一個 6 位數字，我講畀 TA 聽",
-                action: { mode = .generate; Task { await pairing.createCode() } }
+                action: { mode = .generate }   // generateMode picks anniversary, then user taps 生成
             )
 
             choiceCard(
@@ -157,41 +158,95 @@ struct PairingView: View {
 
     // MARK: - Generate mode (phone A)
 
+    @ViewBuilder
     private var generateMode: some View {
-        VStack(spacing: 18) {
-            Text("講畀對方聽")
+        if pairing.activeCode == nil {
+            generatePickAnniversary
+        } else {
+            generateShowCode
+        }
+    }
+
+    /// Step 1: pick the anniversary, tap 生成. We don't pre-fill from
+    /// onboarding — explicit confirmation each time.
+    private var generatePickAnniversary: some View {
+        VStack(spacing: 16) {
+            Text("揀紀念日")
                 .font(.system(size: 24, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
                 .padding(.top, 12)
-            Text("TA 喺自己手機輸入呢個 code +\n你哋共同嘅紀念日。")
+            Text("揀好之後生成配對碼。\n對方喺佢手機要輸入同一個日期，先至成功。")
                 .font(DSText.ui(theme, 13))
                 .foregroundStyle(theme.inkSoft)
                 .multilineTextAlignment(.center)
-                .padding(.bottom, 8)
+                .padding(.bottom, 4)
 
-            if pairing.isLoading && pairing.activeCode == nil {
-                ProgressView()
-                    .padding(.vertical, 60)
-            } else if let active = pairing.activeCode {
-                codeDisplay(active.code)
-                expiryRow(active.expiresAt)
-            } else if let err = pairing.lastError {
+            DatePicker("", selection: $generateAnniversary, in: ...Date(), displayedComponents: .date)
+                .datePickerStyle(.wheel)
+                .labelsHidden()
+                .frame(maxWidth: .infinity)
+                .frame(height: 200)
+                .colorScheme(theme.isDark ? .dark : .light)
+                .background(theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(theme.line, lineWidth: 0.5)
+                )
+
+            if let err = pairing.lastError {
                 Text(err)
                     .font(DSText.mono(theme, 12))
                     .foregroundStyle(theme.rose)
                     .multilineTextAlignment(.center)
             }
 
-            // Display the anniversary the partner needs to enter — this is
-            // the value the server stored from your onboarding profile and
-            // will compare against. Without this, you wouldn't know exactly
-            // which date to tell them.
-            if let annivISO = profileStore.profile?.anniversaryISO {
+            Button {
+                Task { await pairing.createCode(anniversary: generateAnniversary) }
+            } label: {
+                Group {
+                    if pairing.isLoading {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text("生成配對碼")
+                            .font(DSText.ui(theme, 16, weight: .medium))
+                    }
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(theme.rose)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .disabled(pairing.isLoading)
+            .padding(.top, 8)
+        }
+    }
+
+    /// Step 2: code generated — show 6 digits + the locked-in anniversary so
+    /// the user can communicate both to their partner.
+    private var generateShowCode: some View {
+        guard let active = pairing.activeCode else { return AnyView(EmptyView()) }
+        return AnyView(
+            VStack(spacing: 18) {
+                Text("講畀對方聽")
+                    .font(.system(size: 24, weight: .semibold, design: .serif))
+                    .foregroundStyle(theme.ink)
+                    .padding(.top, 12)
+                Text("TA 喺自己手機輸入呢個 code +\n下面個紀念日。")
+                    .font(DSText.ui(theme, 13))
+                    .foregroundStyle(theme.inkSoft)
+                    .multilineTextAlignment(.center)
+                    .padding(.bottom, 4)
+
+                codeDisplay(active.code)
+                expiryRow(active.expiresAt)
+
                 VStack(spacing: 6) {
                     Text("對方要輸入嘅紀念日")
                         .font(DSText.mono(theme, 11))
                         .foregroundStyle(theme.inkMuted)
-                    Text(DisplayDate.from(iso: annivISO))
+                    Text(DisplayDate.from(iso: active.anniversaryISO))
                         .font(.system(size: 18, weight: .semibold, design: .monospaced))
                         .foregroundStyle(theme.ink)
                 }
@@ -201,21 +256,23 @@ struct PairingView: View {
                 .background(theme.sageSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .padding(.top, 4)
-            }
 
-            Button { Task { await pairing.createCode() } } label: {
-                Text("換一個 code")
-                    .font(DSText.ui(theme, 14, weight: .medium))
-                    .foregroundStyle(theme.rose)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(theme.rose.opacity(0.4), lineWidth: 1)
-                    )
+                Button {
+                    pairing.clearActiveCode()    // back to pick step
+                } label: {
+                    Text("換日期 / 換 code")
+                        .font(DSText.ui(theme, 14, weight: .medium))
+                        .foregroundStyle(theme.rose)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(theme.rose.opacity(0.4), lineWidth: 1)
+                        )
+                }
+                .padding(.top, 8)
             }
-            .padding(.top, 8)
-        }
+        )
     }
 
     private func codeDisplay(_ code: String) -> some View {

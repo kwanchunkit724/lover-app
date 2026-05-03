@@ -53,9 +53,12 @@ final class PairingService: ObservableObject {
         }
     }
 
-    /// Active pairing code issued by THIS device.
+    /// Active pairing code issued by THIS device. Carries the anniversary
+    /// the generator picked so the Generate screen can echo it back as
+    /// "對方要輸入: yyyy.MM.dd".
     struct ActiveCode: Equatable {
-        let code: String        // "123456"
+        let code: String                // "123456"
+        let anniversaryISO: String      // "yyyy-MM-dd" the partner must enter
         let expiresAt: Date
     }
 
@@ -101,16 +104,27 @@ final class PairingService: ObservableObject {
 
     // MARK: - Generate code (phone A)
 
-    func createCode() async {
+    private struct CreateArgs: Encodable {
+        let p_anniversary_iso: String
+    }
+
+    /// Phase 3c v0.3.3 — generator picks the anniversary at code-creation
+    /// time so it's an explicit confirmation rather than silently inheriting
+    /// a casual onboarding placeholder.
+    func createCode(anniversary: Date) async {
         isLoading = true
         defer { isLoading = false }
         lastError = nil
         do {
+            let annivISO = LocalDate.string(from: anniversary)
             let code: String = try await SB.client
-                .rpc("create_pairing_code")
+                .rpc("create_pairing_code",
+                     params: CreateArgs(p_anniversary_iso: annivISO))
                 .execute()
                 .value
-            activeCode = ActiveCode(code: code, expiresAt: Date().addingTimeInterval(10 * 60))
+            activeCode = ActiveCode(code: code,
+                                    anniversaryISO: annivISO,
+                                    expiresAt: Date().addingTimeInterval(10 * 60))
         } catch {
             lastError = friendlyMessage(for: error)
         }

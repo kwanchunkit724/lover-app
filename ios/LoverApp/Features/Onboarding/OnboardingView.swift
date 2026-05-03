@@ -53,8 +53,18 @@ struct OnboardingView: View {
                 Group {
                     switch step {
                     case .welcome:     welcomeStep
-                    case .yourName:    nameStep(title: "你叫咩名？", placeholder: "名/暱稱", text: $myName)
-                    case .partnerName: nameStep(title: "對方叫咩名？", placeholder: "TA 嘅名/暱稱", text: $partnerName)
+                    case .yourName:    nameStep(
+                        title: "你叫咩？",
+                        hint: "暱稱、英文名、外號…乜都得",
+                        placeholder: "你嘅暱稱",
+                        text: $myName
+                    )
+                    case .partnerName: nameStep(
+                        title: "你點稱呼對方？",
+                        hint: "你哋之間嗌嘅嗰個就得，唔使真名",
+                        placeholder: "TA 嘅暱稱",
+                        text: $partnerName
+                    )
                     case .anniversary: anniversaryStep
                     case .theme:       themeStep
                     }
@@ -97,11 +107,15 @@ struct OnboardingView: View {
         .padding(.horizontal, 24)
     }
 
-    private func nameStep(title: String, placeholder: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 22) {
+    private func nameStep(title: String, hint: String, placeholder: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
             Text(title)
                 .font(.system(size: 28, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
+
+            Text(hint)
+                .font(DSText.ui(theme, 13))
+                .foregroundStyle(theme.inkMuted)
 
             DSTextField(placeholder: placeholder, text: text)
                 .submitLabel(.next)
