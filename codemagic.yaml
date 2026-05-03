@@ -119,13 +119,16 @@ workflows:
       tag_patterns:
         - pattern: 'v*'
           include: true
+    # NOTE: ios_signing block intentionally OMITTED from environment.
+    # Codemagic's built-in auto-signing runs in the Initialize Build phase
+    # (before any script step) and bombs out with "No matching profiles found"
+    # when the App Store profile doesn't exist yet. We manage signing entirely
+    # via scripts below (xcode-project fetch-signing-files --create) so we
+    # control timing and can auto-create on first run.
     environment:
       <<: *shared_env
       groups:
         - app_store_credentials
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: michel.kit.us
     scripts:
       - *install_xcodegen
       - *generate_project
@@ -135,10 +138,6 @@ workflows:
           echo "Setting build number to $BUILD_NUMBER"
           cd $(dirname "$XCODE_PROJECT")
           agvtool new-version -all $BUILD_NUMBER
-      # `use-profiles` only fetches existing profiles. Use `fetch-signing-files`
-      # with `--create` so the App Store profile is auto-created on first run
-      # (failure was: "No matching profiles found for bundle identifier
-      # 'michel.kit.us' and distribution type 'app_store'").
       - name: Fetch + auto-create signing files
         script: |
           xcode-project fetch-signing-files "$BUNDLE_ID" \
