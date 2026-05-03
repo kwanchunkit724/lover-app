@@ -119,20 +119,17 @@ workflows:
       tag_patterns:
         - pattern: 'v*'
           include: true
-    # Restored ios_signing block. The previous "No matching profiles found"
-    # init error has been resolved — v0.1.4's run successfully created the
-    # App Store profile. The Apple account already has 2 distribution certs
-    # at the cap (from the user's other Codemagic app), so script-based
-    # --create cannot make a 3rd. Codemagic's built-in ios_signing has
-    # access to the existing cert's private key via the unified integration
-    # storage, so it will reuse the same cert and the now-existing profile.
+    # ios_signing block REMOVED — Codemagic's init step refuses to find
+    # the manually-created "Us App Store" profile (likely only matches
+    # profiles it created itself via API). Pure script approach below:
+    #   1. integrations.app_store_connect downloads cert .p12 to default path
+    #   2. keychain initialize + add-certificates loads the integration cert
+    #   3. fetch-signing-files (no --create) downloads the manual profile
+    #   4. use-profiles wires it up to the .xcodeproj
     environment:
       <<: *shared_env
       groups:
         - app_store_credentials
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: michel.kit.us
     scripts:
       - *install_xcodegen
       - *generate_project
@@ -142,11 +139,32 @@ workflows:
           echo "Setting build number to $BUILD_NUMBER"
           cd $(dirname "$XCODE_PROJECT")
           agvtool new-version -all $BUILD_NUMBER
+      - name: Set up signing (use integration cert + existing profile)
+        script: |
+          set -e
+          echo "── Inspecting integration assets ──"
+          ls -la $HOME/Library/MobileDevice/Provisioning\ Profiles/ 2>/dev/null || echo "(no profiles yet)"
+          find $HOME -name "*.p12" 2>/dev/null | head -5
+
+          echo ""
+          echo "── Initialise keychain ──"
+          keychain initialize
+
+          echo ""
+          echo "── Fetch existing profile (no --create, no fresh key) ──"
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --strict-match-identifier
+
+          echo ""
+          echo "── Add cert from integration to keychain ──"
+          keychain add-certificates
+
+          echo ""
+          echo "── Wire profile into Xcode project ──"
+          xcode-project use-profiles
       - name: Build ipa
         script: |
-          # ENABLE_DEBUG_DYLIB flags also matter for archive — without them
-          # Xcode 26 sometimes produces a stub executable + sidecar .debug.dylib
-          # that codesign refuses to sign as "code object not signed at all".
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
             --scheme "$XCODE_SCHEME" \
