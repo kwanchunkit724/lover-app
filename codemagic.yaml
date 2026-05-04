@@ -138,18 +138,39 @@ workflows:
     scripts:
       - *install_xcodegen
       - *generate_project
-      - name: Set build number from unix timestamp
+      - name: Set build + marketing version
         script: |
-          # Use unix timestamp as CFBundleVersion so it's always strictly higher
-          # than any prior upload — no API call needed. Mirrors construction-app's
-          # working pattern. The previous approach used
-          #   app-store-connect get-latest-testflight-build-number ... --tries 5
-          # but the --tries flag was removed in newer codemagic-cli-tools, so the
-          # command failed silently and BUILD_NUMBER defaulted to 1, colliding
-          # with the v0.1.28 upload that was already build 1.
+          # CFBundleVersion (build number) — unix timestamp so it's always
+          # strictly higher than any prior upload, no API call needed. The old
+          # approach used `app-store-connect get-latest-testflight-build-number
+          # ... --tries 5` but the --tries flag was removed in newer
+          # codemagic-cli-tools, so the command failed silently and
+          # BUILD_NUMBER defaulted to 1, colliding with build 1 already in TF.
           BUILD_NUMBER=$(date +%s)
           echo "Setting build number to $BUILD_NUMBER"
           agvtool new-version -all $BUILD_NUMBER
+
+          # CFBundleShortVersionString (marketing version) — read straight
+          # from project.yml so it can never drift from the source of truth.
+          # Without this, XcodeGen regenerates Info.plist with default "1.0"
+          # on every build and `agvtool new-version` doesn't touch the short
+          # version string — so every TestFlight build shipped as 1.0
+          # regardless of MARKETING_VERSION in project.yml. The "v0.3" the
+          # user kept seeing in TestFlight was actually a stale Swift hardcode
+          # masking the same root issue.
+          MARKETING_VERSION=$(grep "MARKETING_VERSION:" project.yml | head -1 | sed 's/.*MARKETING_VERSION: *//' | tr -d '[:space:]')
+          if [ -z "$MARKETING_VERSION" ]; then
+            echo "ERROR: could not parse MARKETING_VERSION from project.yml"
+            exit 1
+          fi
+          echo "Setting marketing version to $MARKETING_VERSION"
+          # Use plutil rather than `agvtool new-marketing-version` because
+          # agvtool requires VERSIONING_SYSTEM = apple-generic which our
+          # project doesn't set. plutil edits Info.plist directly and is
+          # idempotent.
+          plutil -replace CFBundleShortVersionString -string "$MARKETING_VERSION" ios/LoverApp/Info.plist
+          # Sanity check: print the updated values so they show in CI logs.
+          plutil -p ios/LoverApp/Info.plist | grep -E "CFBundleShortVersionString|CFBundleVersion"
       - name: Fetch App Store signing files
         script: |
           keychain initialize
