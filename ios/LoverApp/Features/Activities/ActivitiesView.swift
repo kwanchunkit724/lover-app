@@ -28,8 +28,9 @@ struct ActivitiesView: View {
         .background(theme.paper)
         .sheet(item: $presented) { route in
             switch route {
-            case .cards: CardDeckView(onClose: { presented = nil }).theme(theme)
-            case .quiz:  QuizView(onClose: { presented = nil }).theme(theme)
+            case .cards:   CardDeckView(onClose: { presented = nil }).theme(theme)
+            case .quiz:    QuizView(onClose: { presented = nil }).theme(theme)
+            case .journal: JournalView(onClose: { presented = nil }).theme(theme)
             }
         }
     }
@@ -104,9 +105,10 @@ struct ActivitiesView: View {
     private func tile(_ activity: Activity) -> some View {
         Button {
             switch activity.kind {
-            case .cards: presented = .cards
-            case .quiz:  presented = .quiz
-            case .map, .journal: break    // not yet implemented
+            case .cards:   presented = .cards
+            case .quiz:    presented = .quiz
+            case .journal: presented = .journal
+            case .map:     break    // 香港探險地圖 still coming
             }
         } label: {
             VStack(alignment: .leading, spacing: 0) {
@@ -161,7 +163,7 @@ struct ActivitiesView: View {
 }
 
 private enum ActivityRoute: String, Identifiable {
-    case cards, quiz
+    case cards, quiz, journal
     var id: String { rawValue }
 }
 
