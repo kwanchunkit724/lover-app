@@ -5,11 +5,14 @@ import SwiftUI
 
 struct CardDeckView: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var playHistory: PlayHistoryService
+    @EnvironmentObject private var auth: AuthService
     let onClose: () -> Void
 
     @State private var index: Int = 0
     @State private var flipped: Bool = false
     @State private var drawn: Set<Int> = []
+    @State private var lastSavedCardId: Int? = nil
 
     private var card: DateCard {
         let cards = MockData.dateCards
@@ -53,7 +56,7 @@ struct CardDeckView: View {
                 Text("盲盒約會")
                     .font(DSText.ui(theme, 15, weight: .semibold))
                     .foregroundStyle(theme.ink)
-                Text("\(drawn.count)/24 張已抽")
+                Text("\(drawn.count)/24 張已抽 · 做過 \(totalDone) 種")
                     .font(DSText.mono(theme, 10))
                     .foregroundStyle(theme.inkMuted)
             }
@@ -193,6 +196,7 @@ struct CardDeckView: View {
             } else {
                 Button {
                     flipped = false
+                    lastSavedCardId = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                         index += 1
                     }
@@ -211,18 +215,25 @@ struct CardDeckView: View {
                 }
                 .buttonStyle(.plain)
 
-                Button {
-                    // TODO: hook into AddEntry once entries are persisted
-                } label: {
-                    Text("加入時間表 →")
-                        .font(DSText.ui(theme, 15, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(theme.rose)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                Button { recordDoneTap() } label: {
+                    HStack(spacing: 6) {
+                        if isJustSaved {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("已記錄 ♡")
+                        } else {
+                            Text("我哋做過 ♡")
+                        }
+                    }
+                    .font(DSText.ui(theme, 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(isJustSaved ? theme.sage : theme.rose)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .disabled(isJustSaved)
             }
         }
     }
@@ -244,8 +255,33 @@ struct CardDeckView: View {
         case .amber: return theme.amberSoft
         }
     }
+
+    // MARK: - History (v0.6.0)
+
+    private var isJustSaved: Bool { lastSavedCardId == card.id }
+
+    /// How many times this couple has recorded the current card as done.
+    private var doneCount: Int { playHistory.dateCardDoneCount(card.id) }
+
+    /// Total date cards across the catalog this couple has touched.
+    private var totalDone: Int {
+        Set(playHistory.dateCardHistory.compactMap(\.payload.cardId)).count
+    }
+
+    private func recordDoneTap() {
+        guard case .signedIn(let uuid) = auth.state else { return }
+        let cardId = card.id
+        Task {
+            await playHistory.recordDateCard(cardId: cardId, reflection: nil, senderId: uuid)
+            await MainActor.run { lastSavedCardId = cardId }
+        }
+    }
 }
 
 #Preview {
-    CardDeckView(onClose: {}).theme(.jbeam)
+    let crypto = CryptoService()
+    return CardDeckView(onClose: {})
+        .environmentObject(PlayHistoryService(crypto: crypto))
+        .environmentObject(AuthService())
+        .theme(.jbeam)
 }
