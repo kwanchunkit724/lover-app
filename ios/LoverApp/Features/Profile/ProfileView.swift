@@ -13,7 +13,16 @@ struct ProfileView: View {
     @State private var confirmReset = false
     @State private var confirmUnpair = false
     @State private var confirmSignOut = false
+    @State private var showPairing = false
     @EnvironmentObject private var anniversaryService: AnniversaryService
+
+    /// Build version pulled from the bundle so the "關於" row isn't a stale
+    /// hardcoded string. Phase 9: was hardcoded to "v0.3" — masked the fact
+    /// that the user was running outdated builds during testing.
+    private var bundleVersion: String {
+        let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        return "v\(v)"
+    }
 
     /// v0.5.0: real anniversaries from backend (E2EE). When unsigned-in or
     /// before the service has fetched, fall back to MockData so the
@@ -82,12 +91,20 @@ struct ProfileView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 16)
 
-                identityCard
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
+                if pairing.isPaired {
+                    identityCard
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
+                } else {
+                    soloPairCard
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
+                }
 
                 VStack(alignment: .leading, spacing: 22) {
-                    anniversariesSection
+                    if pairing.isPaired {
+                        anniversariesSection
+                    }
                     settingsSection
                     accountSection
                 }
@@ -98,6 +115,10 @@ struct ProfileView: View {
         .background(theme.paper)
         .sheet(item: $presented) { route in
             sheetContent(for: route)
+                .theme(theme)
+        }
+        .sheet(isPresented: $showPairing) {
+            PairingView()
                 .theme(theme)
         }
         .alert("重設個人資料？", isPresented: $confirmReset) {
@@ -132,6 +153,46 @@ struct ProfileView: View {
                 await pairing.refresh(meId: id)
             }
         }
+    }
+
+    // MARK: - Solo (unpaired) pair card
+
+    private var soloPairCard: some View {
+        VStack(spacing: 12) {
+            Text("(´｡• ω •｡`)")
+                .font(.system(size: 36, weight: .semibold, design: .monospaced))
+                .foregroundStyle(theme.rose)
+
+            Text(me.name)
+                .font(.system(size: 22, weight: .semibold, design: .serif))
+                .foregroundStyle(theme.ink)
+
+            Text("仲未配對 — Profile / 設定 / 主題照用，配對之後就解鎖對話、紀念日、玩樂。")
+                .font(DSText.ui(theme, 12))
+                .foregroundStyle(theme.inkSoft)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 12)
+
+            Button { showPairing = true } label: {
+                Text("去配對 →")
+                    .font(DSText.ui(theme, 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: 200)
+                    .frame(height: 42)
+                    .background(theme.rose)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(20)
+        .background(theme.surface)
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(theme.line, lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     // MARK: - Identity card
@@ -235,7 +296,7 @@ struct ProfileView: View {
                        onTap: { confirmSignOut = true })
             ProfileRow(icon: .more, label: "重設個人資料", value: "→", subtle: true,
                        onTap: { confirmReset = true })
-            ProfileRow(icon: .more, label: "關於", value: "v0.3", onTap: nil, isLast: true)
+            ProfileRow(icon: .more, label: "關於", value: bundleVersion, onTap: nil, isLast: true)
         }
     }
 

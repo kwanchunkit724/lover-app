@@ -83,6 +83,20 @@ struct ChatView: View {
     }
 
     var body: some View {
+        // Phase 9 — chat is the one tab that genuinely cannot work solo
+        // (no partner = no recipient). Show pair prompt when unpaired.
+        if !pairing.isPaired {
+            UnpairedPrompt(
+                title: "仲未配對",
+                subtitle: "配對先可以同對方傾偈、send 相、send 語音。",
+                kaomoji: "(´｡• ω •｡`)"
+            )
+        } else {
+            pairedBody
+        }
+    }
+
+    private var pairedBody: some View {
         VStack(spacing: 0) {
             header
             messageList

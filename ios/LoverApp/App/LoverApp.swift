@@ -38,14 +38,22 @@ struct LoverApp: App {
     }
 }
 
-// Top-level routing decides which surface to show based on three pieces of
-// state, in this order:
+// Top-level routing decides which surface to show:
 //
-//   1. profileStore.isOnboarded false  → OnboardingView    (Phase 2 — local only)
-//   2. auth.state .unknown             → ProgressView       (still checking session)
-//   3. auth.state .signedOut/.error    → SignInView         (Phase 3a)
-//   4. auth.state .signedIn, no couple → PairingView        (Phase 3b)
-//   5. couple exists                   → MainTabView        (Phase 4 — real chat)
+//   1. profileStore.isOnboarded false  → OnboardingView
+//   2. auth.state .unknown             → ProgressView (checking session)
+//   3. auth.state .signedOut/.error    → SignInView
+//   4. auth.state .signedIn            → MainTabView
+//
+// Phase 9 (v0.9.0): pairing is no longer a gate before MainTabView. A
+// signed-in user can use the app solo — Profile, Settings, Themes work
+// fully, Chat / Time / Anniversary / Play tabs show an "未配對" prompt
+// with a "去配對" button that opens PairingView as a sheet. This lets
+// users iterate on the app with one Apple ID instead of needing two
+// devices for every test.
+//
+// Per-couple services (chat, anniversaries, entries, playHistory) only
+// start when a couple actually exists — driven by `onChange(of: pairing.isPaired)`.
 
 struct RootView: View {
     @EnvironmentObject private var profileStore: UserProfileStore
@@ -69,21 +77,26 @@ struct RootView: View {
                 case .signedOut, .error:
                     SignInView()
                 case .signedIn(let userId):
-                    if pairing.isPaired {
-                        MainTabView()
-                            .task { await preparePaired(meId: userId) }
-                    } else {
-                        PairingView()
-                            .task { await pairing.refresh(meId: userId) }
-                    }
+                    MainTabView()
+                        .task {
+                            await pairing.refresh(meId: userId)
+                            if pairing.isPaired {
+                                await preparePaired(meId: userId)
+                            }
+                        }
                 }
             }
         }
         .onChange(of: auth.state) { _, newState in
             if case .signedIn(let id) = newState {
-                Task { await pairing.refresh(meId: id) }
+                Task {
+                    await pairing.refresh(meId: id)
+                    if pairing.isPaired {
+                        await preparePaired(meId: id)
+                    }
+                }
             } else {
-                // Sign-out / error: tear down chat polling + chat key.
+                // Sign-out / error: tear down per-couple services + chat key.
                 chat.stop()
                 anniversaries.stop()
                 entries.stop()
@@ -92,7 +105,11 @@ struct RootView: View {
             }
         }
         .onChange(of: pairing.isPaired) { _, isPaired in
-            if !isPaired {
+            if isPaired {
+                if case .signedIn(let id) = auth.state {
+                    Task { await preparePaired(meId: id) }
+                }
+            } else {
                 chat.stop()
                 anniversaries.stop()
                 entries.stop()
@@ -116,8 +133,7 @@ struct RootView: View {
                 startCoupleServices(coupleId: couple.id)
             }
         }
-        // Phase 4b: ask for notification permission + register APNs once
-        // we're paired. Idempotent.
+        // Ask for notification permission + register APNs once paired.
         PushService.shared.bootstrap()
     }
 
