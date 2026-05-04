@@ -255,3 +255,13 @@ workflows:
         issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
         submit_to_app_store: false
+        # CRITICAL: without beta_groups, `submit_to_testflight: true` attempts
+        # an EXTERNAL beta review submission. That requires Beta App Review
+        # Info (description, feedback email, marketing URL) which we have not
+        # filled in — so the post-processing step fails and Apple does NOT
+        # release the build to ANY testers (not even internal ones).
+        # Naming the internal "Me" group here tells Codemagic to release the
+        # build directly to that group instead of submitting for external
+        # review. Internal groups are exempt from beta review.
+        beta_groups:
+          - Me
