@@ -22,6 +22,11 @@ final class AuthService: NSObject, ObservableObject {
         case error(String)
     }
 
+    /// Phase 8 v0.8.0 — separate published surface for the email/OTP flow
+    /// so the SignInView can show an "已寄個 link 去你 email" confirmation
+    /// without entangling with the main `state` machine.
+    @Published var emailLinkSent: String? = nil
+
     @Published private(set) var state: State = .unknown
 
     /// Random nonce used for the current Sign-in-with-Apple request. Apple
@@ -94,6 +99,63 @@ final class AuthService: NSObject, ObservableObject {
     func signOut() async {
         try? await SB.client.auth.signOut()
         state = .signedOut
+        emailLinkSent = nil
+    }
+
+    // MARK: - Email magic link (Phase 8 v0.8.0)
+    //
+    // Apple's App Review rule: any app that offers a third-party social
+    // login MUST also offer Sign in with Apple. We have Sign in with Apple
+    // already; adding email magic link satisfies users who want a non-Apple
+    // option (e.g. Joan's account uses Gmail). Supabase Email auth provider
+    // handles delivery of the OTP email; the user clicks the link in their
+    // inbox which redirects back to the app via Universal Links (Phase 8b)
+    // or by entering the 6-digit OTP shown in the email.
+
+    /// Sends a one-time password email to the address. Returns true if the
+    /// OTP was dispatched, false on error.
+    func sendEmailOTP(to email: String) async -> Bool {
+        let trimmed = email.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, trimmed.contains("@") else {
+            state = .error("唔似一個 email 地址喎")
+            return false
+        }
+        do {
+            try await SB.client.auth.signInWithOTP(
+                email: trimmed,
+                shouldCreateUser: true
+            )
+            emailLinkSent = trimmed
+            return true
+        } catch {
+            state = .error(error.localizedDescription)
+            return false
+        }
+    }
+
+    /// Verifies the 6-digit OTP code the user typed in (or that arrived via
+    /// magic link). On success: same user-row upsert as the Apple flow.
+    func verifyEmailOTP(email: String, code: String, profile: UserProfile) async {
+        let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
+        let trimmedCode  = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            let session = try await SB.client.auth.verifyOTP(
+                email: trimmedEmail,
+                token: trimmedCode,
+                type: .email
+            )
+            try await upsertProfile(userId: session.user.id, profile: profile)
+            emailLinkSent = nil
+            state = .signedIn(userId: session.user.id)
+        } catch {
+            state = .error(error.localizedDescription)
+        }
+    }
+
+    /// Cancel a pending email-link flow (user wants to try a different
+    /// email or switch back to Apple sign-in).
+    func cancelEmailFlow() {
+        emailLinkSent = nil
     }
 
     // MARK: - Profile upsert
