@@ -12,8 +12,13 @@
 //
 // What it intentionally does NOT do:
 //   • Decrypt the message body. The server can't — it doesn't have the
-//     chat key. The notification body is generic ("傳咗訊息畀你") so the
+//     chat key. The notification body is generic ("new message") so the
 //     content stays E2EE.
+//
+// NOTE: Chinese string literals are written as \uXXXX escapes because the
+// Supabase Dashboard editor's clipboard paste path mangles multi-byte UTF-8
+// characters and produces "Unterminated string constant" deploy errors.
+// Escapes are equivalent at runtime and survive the round-trip.
 //   • Retry on failure. APNs failures are silent — the chat still works
 //     in foreground via Realtime, push is best-effort.
 //
@@ -107,12 +112,18 @@ serve(async (req: Request) => {
     cryptoKey
   );
 
-  const senderName = sender?.my_name ?? "對方";
+  // Fallback display name = "the other one" (Chinese chars escaped to keep
+  // this file ASCII-safe for the Supabase Dashboard paste path, which mangles
+  // multi-byte UTF-8 and produces "Unterminated string constant" deploy
+  // errors). Runtime values pulled from DB are unaffected — only literals.
+  // 對方 = "the other one"
+  const senderName = sender?.my_name ?? "\u5C0D\u65B9";
+  // 傳咗訊息畀你 ♡ = "sent you a message <heart>"
   const apnsBody = {
     aps: {
       alert: {
         title: senderName,
-        body: "傳咗訊息畀你 ♡",
+        body: "\u50B3\u5497\u8A0A\u606F\u7562\u4F60 \u2661",
       },
       sound: "default",
       "thread-id": record.couple_id,
