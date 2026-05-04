@@ -113,6 +113,32 @@ final class ChatService: ObservableObject {
         }
     }
 
+    /// Phase 7 v0.7.0 — encrypt + upload voice bytes (m4a) to Storage,
+    /// insert a chat message with mediaHandle = path. Duration is encoded
+    /// in the text field as "0:NN" so the bubble can show it without
+    /// downloading the audio first.
+    func sendVoice(data: Data, durationSec: Int, senderId: UUID) async {
+        guard let coupleId else { return }
+        do {
+            let path = try await media.encryptAndUpload(data: data, coupleId: coupleId)
+            let durationStr = String(format: "0:%02d", durationSec)
+            let payload = ChatPayload(
+                kind: .voice,
+                text: durationStr,
+                mediaHandle: path,
+                sentAt: Date()
+            )
+            let cipher = try crypto.seal(payload)
+            let row = OutgoingRow(couple_id: coupleId,
+                                  sender_id: senderId,
+                                  ciphertext_b64: cipher)
+            try await SB.client.from("messages").insert(row).execute()
+            await fetchOnce()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     // MARK: - Polling (fallback when realtime drops)
 
     private func runPollLoop() async {

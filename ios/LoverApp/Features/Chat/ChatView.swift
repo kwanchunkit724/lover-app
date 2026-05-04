@@ -51,16 +51,27 @@ struct ChatView: View {
                 read: true,
                 text: dm.payload.text,
                 // For photo + voice messages the storage path goes into
-                // photoSrc / voiceTranscript so MessageBubble can hand it
-                // to EncryptedAsyncImage / EncryptedAudioPlayer.
-                photoSrc: dm.payload.kind == .photo ? dm.payload.mediaHandle : nil,
+                // photoSrc so MessageBubble can hand it to either
+                // EncryptedAsyncImage or EncryptedAudioPlayback.
+                // voiceDurationSec is parsed from the payload text "0:NN"
+                // sent by ChatService.sendVoice.
+                photoSrc: (dm.payload.kind == .photo || dm.payload.kind == .voice)
+                    ? dm.payload.mediaHandle : nil,
                 caption: dm.payload.kind == .photo ? dm.payload.text : nil,
-                voiceDurationSec: nil,
-                voiceTranscript: dm.payload.kind == .voice ? dm.payload.mediaHandle : nil,
+                voiceDurationSec: dm.payload.kind == .voice
+                    ? parseVoiceDuration(dm.payload.text) : nil,
+                voiceTranscript: nil,
                 replyTo: nil,
                 reactions: []
             )
         }
+    }
+
+    /// "0:23" → 23
+    private func parseVoiceDuration(_ s: String?) -> Int? {
+        guard let s, let parts = s.split(separator: ":").last,
+              let n = Int(parts) else { return nil }
+        return n
     }
 
     private func messageKind(from k: ChatPayload.Kind) -> Message.Kind {
@@ -81,9 +92,10 @@ struct ChatView: View {
             if showVoice {
                 VoiceRecorder(
                     onCancel: { showVoice = false },
-                    onSend: { _ in
-                        // Phase 4c will wire real voice — for now no-op.
+                    onSend: { data, duration in
                         showVoice = false
+                        guard case .signedIn(let uuid) = auth.state else { return }
+                        Task { await chat.sendVoice(data: data, durationSec: duration, senderId: uuid) }
                     }
                 )
             } else {

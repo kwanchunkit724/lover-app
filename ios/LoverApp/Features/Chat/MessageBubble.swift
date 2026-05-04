@@ -99,11 +99,25 @@ struct MessageBubble: View {
     }
 
     private var voiceBubble: some View {
-        VoicePlayback(
-            messageID: message.id,
-            durationSec: message.voiceDurationSec ?? 0,
-            isFromMe: isFromMe
-        )
+        Group {
+            // Real voice messages from the backend have photoSrc set to the
+            // chat-media path (we reuse photoSrc for both kinds of media in
+            // the ChatView adapter). Mock data uses no path.
+            if let path = message.photoSrc, path.hasPrefix("couple-") {
+                EncryptedAudioPlayback(
+                    messageID: message.id,
+                    mediaHandle: path,
+                    durationSec: message.voiceDurationSec ?? 0,
+                    isFromMe: isFromMe
+                )
+            } else {
+                VoicePlayback(
+                    messageID: message.id,
+                    durationSec: message.voiceDurationSec ?? 0,
+                    isFromMe: isFromMe
+                )
+            }
+        }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .background(

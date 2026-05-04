@@ -1,103 +1,101 @@
-# Tonight's test plan — v0.4.3 → v0.5.1
+# Tonight's test plan — v0.4.3 → v0.6.2
 
 ## What shipped
 
 | Tag | What it does |
 |---|---|
-| **v0.4.3** | Photo display in chat bubbles (real download + decrypt + render with NSCache) |
-| **v0.5.0** | Anniversaries E2EE — shared list, add/delete on either phone, realtime sync |
-| **v0.5.1** | Timetable entries E2EE — shared calendar, AddEntryView actually saves, realtime sync |
+| **v0.4.3** | Photo display in chat bubbles (E2EE download + decrypt + render) |
+| **v0.5.0** | Anniversaries E2EE — add/delete/realtime, hero countdown |
+| **v0.5.1** | Timetable entries E2EE — AddEntryView wired to save, calendar sync |
+| **v0.6.0** | Date-card history — record cards we've actually done |
+| **v0.6.1** | Gratitude journal — 1 entry/day, both partners' timeline |
+| **v0.6.2** | Async quiz — both answer privately, reveal when both done |
 
-Install **v0.5.1** (highest build number when it lands) — supersedes everything before it.
+Install **v0.6.2** (highest build number when it lands) — supersedes everything before it.
 
 ## Migrations applied to Supabase
 
-- 0007 — `anniversaries` table + RLS + realtime publication
-- 0008 — `entries` table + RLS + realtime publication
+- 0007 — `anniversaries` table
+- 0008 — `entries` table
+- 0009 — `play_history` table (backs date-cards + journal + quiz)
 
 ---
 
 ## Solo tests (no partner needed)
 
-### A. v0.5.0 — Add an anniversary
-1. Make sure paired (or pair if fresh install)
-2. 我哋 → 紀念日 → expect kawaii empty state `(´｡• ω •｡`) 仲未有紀念日`
-3. Tap **＋ 加新紀念日**
-4. Title: `第一次見面`
-5. Date wheel: pick a past date (e.g. 2024-11-08)
-6. Recur: tap `每年` (default) — try `每月` to see toggle work
-7. Emoji: tap `☕`
-8. Tap **加入** — sheet closes, list shows the new anniversary
-9. Hero card at top should show **下一個 · 倒數中** with "X 日後 ♡" + ☕ background watermark
-10. Add 3 more (生日, 月誌 with 每月, 紀念日) — list sorts by countdown
-11. Long-press a row → **刪除** — disappears immediately
+### A. Date-card history
+1. 玩樂 → 抽張卡 (or tap 盲盒約會 tile)
+2. Tap 抽卡 → reveal a card (e.g. 夜遊維港)
+3. Tap **我哋做過 ♡** → button flips sage with ✓ "已記錄 ♡"
+4. Header shows **做過 1 種**
+5. Tap 再抽 → next card → record it too → header shows 做過 2 種
 
-### B. v0.5.1 — Add a timetable entry
-1. 時間 tab → tap **＋** in top right (if exists) or open the AddEntryView some other way (currently only via "+" button)
-2. Title: `行山：龍脊`
-3. Date: pick a future date
-4. Toggle **有時間** ON → time fields appear
-5. Tag: `出遊`
-6. 邊個: `我哋兩個`
-7. 提議: `Kit` (or whoever)
-8. 地點: `石澳`
-9. Tap **加** — sheet closes
-10. Calendar should now show a dot on that date
-11. Tap the date in MonthGrid → entry appears in the day detail below
+### B. Gratitude journal
+1. 玩樂 → tap 感激清單 tile
+2. Should see kawaii empty state (`(´｡• ᵕ •｡`) 仲未有感激清單`)
+3. Type "多謝你今朝沖嘅咖啡 (♡˙︶˙♡)" + 記低 (◕‿◕)
+4. Composer collapses to sage **今日已記低 ♡** + "聽日再嚟"
+5. Below the composer, your entry appears with your avatar tint (rose) and today's date header
 
-### C. v0.4.3 — Send + see your own photo
-1. Go to chat (對話 tab)
-2. Tap camera icon in composer
-3. Pick a photo from library
-4. Wait a moment — bubble should appear with **正在解密…** spinner briefly, then your photo
-5. Scroll up + back down — image should be cached (no spinner second time)
+### C. Async quiz (single-side test)
+1. 玩樂 → tap 21 條問題 OR 情侶小測驗 tile
+2. Question shows + 2 status rows ("你 答緊…" + "對方 答緊…")
+3. Composer below — type "你笑嗰陣眼仔彎彎"
+4. Tap 記低答案 → composer disappears, your status row flips to "你 已答 ✓"
+5. Partner row still says "答緊…" → reveal won't fire until partner answers
+6. Hit → to advance to next question
 
-### D. v0.5.0 — Profile shows real next anniversary
-1. After step A, 我哋 tab
-2. Identity card still shows real names + 已配對 ♡
-3. **下一個** row should now show YOUR newly-added anniversary's title + days countdown (was MockData "我哋一齊嘅日子" before)
+### D. Anniversaries (from v0.5.0)
+- 我哋 → 紀念日 → ＋ → kawaii add flow
+
+### E. Timetable (from v0.5.1)
+- 時間 → ＋ → date picker, time toggle, 地點 field, 加
 
 ---
 
 ## Two-device tests (need partner)
 
-### E. Anniversary realtime
-1. Both phones paired, both on 我哋 → 紀念日
-2. Phone A: add `搬入嚟一齊住` with 2025-09-14, 🏠
-3. Phone B should see it appear within ~1 second (realtime, no refresh needed)
-4. Phone B long-press it → 刪除 → Phone A sees it disappear
+### F. Date-card sync
+1. Phone A records `夜遊維港` as done
+2. Phone B's CardDeckView header should bump to **做過 1 種** within ~1s
 
-### F. Entry realtime
-1. Both on 時間 tab
-2. Phone A: add `今晚煮意粉` with tomorrow's date, tag 屋企, location `我哋屋企`
-3. Phone B should see the dot appear on the calendar within ~1 second
+### G. Journal timeline
+1. Phone A writes today's entry "多謝你陪我食宵夜"
+2. Phone B opens 感激清單 → sees Phone A's entry with sage avatar tint
+3. Phone B writes their own entry → both appear under today's header
 
-### G. Photo round-trip
-1. Phone A sends a photo
-2. Phone B: bubble appears, 正在解密…, photo renders
-3. Force-quit Phone B + reopen → photo renders again from cache
+### H. Quiz reveal
+1. Both phones on same question
+2. Phone A submits "你笑嗰陣眼仔彎彎"
+3. Phone B sees "對方已答 ✓" + their composer still active
+4. Phone B submits same answer
+5. **BOTH phones flip** to reveal both answers + 心有靈犀 ♡ badge if matched
+
+### I. Photo round-trip (from v0.4.3)
+- Send photo from A → see render on B with 正在解密… → photo
 
 ---
 
-## Known limitations (deferred to Phase 6)
+## Known limitations (Phase 7 polish)
 
-- **Voice messages** — VoiceRecorder UI exists but doesn't actually record yet (needs AVAudioRecorder plumbing)
-- **Photo bubble caption** — captions get encoded but the UI doesn't expose a caption input yet
-- **Push notifications** — iOS requests permission and uploads APNs token; server-side delivery (edge function) needs Apple Push Key in App Store Connect
-- **Edit entries / anniversaries** — only add + delete supported; tap-to-edit comes later
-- **AddEntryView nav from TimeView** — needs to verify the "+" trigger button is wired (was MockData before)
-- **PartnerName in AddEntryView** — buttons still labeled "Kit"/"Michel" hardcoded; cosmetic, doesn't affect functionality
+- **Voice messages** — UI exists but recording isn't wired (AVAudioRecorder)
+- **Edit anniversaries / entries** — only add + delete; tap-to-edit is later
+- **Push delivery** — token uploaded to backend, but server-side edge function not yet deployed
+- **App icon** — placeholder still in build. Claude Design auto-generated 4 concepts in the open Chrome tab — pick one and I'll wire it
+- **香港探險地圖** — activity tile placeholder, no destination yet
+- **MockData fallback** — when not paired or service is empty, MockData fills in for previews
 
 ## Feedback I want
 
-- Anniversary add flow — date wheel, recur chips, emoji grid feel right?
-- Timetable add — date picker compact style OK or want a wheel?
-- Photo loading state — `正在解密…` text + spinner enough, or want a skeleton?
-- Hero anniversary card watermark emoji at 12% opacity — visible enough?
+- Date card "我哋做過" CTA placement — under the card OK or want it elsewhere?
+- Journal "1/day" gate — feels right or too restrictive?
+- Quiz async UX — wait time feels OK, or want a "ping partner" nudge?
+- 心有靈犀 match — case-insensitive trim is the only normalization. Want fuzzier (e.g. ignore punctuation)?
+- Icon — pick one from Claude Design tab, I'll integrate
 
 ## Next stretch
 
-- **v0.4.4** — voice messages (record + encrypt + upload + AVAudioPlayer playback)
-- **v0.6.x** — real Claude Design icon, push delivery edge function, App Store screenshots, submission
+- **v0.6.3** — wire user-picked icon into Assets.xcassets
+- **v0.7.x (Phase 7)** — voice via AVAudioRecorder, push edge function, App Store screenshots/description, submission
 
-Tell me which of A–G works, what feels off, and I'll iterate.
+Tell me what works + breaks. Sleep tight 🩷
