@@ -9,7 +9,10 @@ struct DSPhotoPlaceholder: View {
 
     let id: String
     var label: String? = nil
-    var height: CGFloat = 200
+    /// Pass `nil` to let the placeholder fill its container instead of pinning
+    /// a fixed height. MonthGrid uses this so the calendar cell can stay square
+    /// via .aspectRatio(1, .fit) on the Button label.
+    var height: CGFloat? = 200
     var cornerRadius: CGFloat = 14
 
     var body: some View {
@@ -41,6 +44,7 @@ struct DSPhotoPlaceholder: View {
                     .padding(.bottom, 8)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .frame(height: height)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
     }

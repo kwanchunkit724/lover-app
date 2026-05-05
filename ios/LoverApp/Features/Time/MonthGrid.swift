@@ -71,18 +71,29 @@ struct MonthGrid: View {
         Button {
             selectedISO = iso
         } label: {
-            ZStack(alignment: .topLeading) {
-                if let past {
-                    photoCell(past, day: day)
-                } else {
-                    labelCell(day: day, upcoming: upcoming, isToday: isToday, isPastEmpty: isPastEmpty)
+            // Color.clear anchors the square frame to the column width; the
+            // actual cell content sits in the overlay so its intrinsic height
+            // (e.g. DSPhotoPlaceholder's old hard-coded height) can't blow up
+            // the row. Earlier we set aspectRatio directly on the ZStack but
+            // SwiftUI lets the child's intrinsic height win, so cells turned
+            // into tall vertical columns. Color.clear has no intrinsic size so
+            // the aspect ratio actually sticks here.
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    ZStack(alignment: .topLeading) {
+                        if let past {
+                            photoCell(past, day: day)
+                        } else {
+                            labelCell(day: day, upcoming: upcoming, isToday: isToday, isPastEmpty: isPastEmpty)
+                        }
+                    }
                 }
-            }
-            .aspectRatio(1, contentMode: .fit)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(isSelected ? theme.rose : .clear, lineWidth: 2)
-            )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(isSelected ? theme.rose : .clear, lineWidth: 2)
+                )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -90,7 +101,7 @@ struct MonthGrid: View {
     // Past day with memory — photo fills cell.
     private func photoCell(_ entry: Entry, day: Int) -> some View {
         ZStack(alignment: .topLeading) {
-            DSPhotoPlaceholder(id: entry.cover ?? entry.id, height: 999, cornerRadius: 8)
+            DSPhotoPlaceholder(id: entry.cover ?? entry.id, height: nil, cornerRadius: 8)
 
             LinearGradient(
                 colors: [Color.black.opacity(0.05), .clear, Color.black.opacity(0.55)],
