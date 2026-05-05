@@ -95,7 +95,9 @@ struct KaoSettingsView: View {
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 14)
-                        .background(selectedStyle == s.id ? theme.roseSoft : .clear)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(selectedStyle == s.id ? theme.roseSoft : theme.surface)
+                        .contentShape(Rectangle())
                         .overlay(
                             Rectangle().frame(height: i == 0 ? 0 : 0.5).foregroundStyle(theme.line),
                             alignment: .top

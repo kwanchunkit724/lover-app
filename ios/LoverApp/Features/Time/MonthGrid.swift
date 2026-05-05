@@ -51,7 +51,7 @@ struct MonthGrid: View {
                 if let day = cells[i] {
                     cell(day: day)
                 } else {
-                    Color.clear.aspectRatio(1, contentMode: .fill)
+                    Color.clear.aspectRatio(1, contentMode: .fit)
                 }
             }
         }
@@ -78,7 +78,7 @@ struct MonthGrid: View {
                     labelCell(day: day, upcoming: upcoming, isToday: isToday, isPastEmpty: isPastEmpty)
                 }
             }
-            .aspectRatio(1, contentMode: .fill)
+            .aspectRatio(1, contentMode: .fit)
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .stroke(isSelected ? theme.rose : .clear, lineWidth: 2)
