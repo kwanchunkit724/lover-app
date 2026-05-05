@@ -52,9 +52,12 @@ struct AddEntryView: View {
 
     private var navBar: some View {
         HStack {
-            Button("取消") { onClose() }
-                .font(DSText.ui(theme, 15))
-                .foregroundStyle(theme.rose)
+            // v1.0.5 — text labels swapped for icons per user request.
+            Button { onClose() } label: {
+                DSIcon(name: .close, size: 22, color: theme.rose, strokeWidth: 2.2)
+                    .frame(width: 30, height: 30)
+            }
+            .buttonStyle(.plain)
             Spacer()
             Text("新提醒")
                 .font(DSText.ui(theme, 16, weight: .semibold))
@@ -64,11 +67,13 @@ struct AddEntryView: View {
                 if isSubmitting {
                     ProgressView().tint(theme.rose)
                 } else {
-                    Text("加")
-                        .font(DSText.ui(theme, 15, weight: .semibold))
-                        .foregroundStyle(canSubmit ? theme.rose : theme.inkMuted)
+                    DSIcon(name: .plus, size: 22,
+                           color: canSubmit ? theme.rose : theme.inkMuted,
+                           strokeWidth: 2.4)
+                        .frame(width: 30, height: 30)
                 }
             }
+            .buttonStyle(.plain)
             .disabled(!canSubmit || isSubmitting)
         }
         .padding(.horizontal, 14)
@@ -77,7 +82,11 @@ struct AddEntryView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
-            TextField("想做啲乜？", text: $title)
+            // v1.0.5 — placeholder uses inkSoft (not the iOS default very-light
+            // gray) so user can actually read what the field is asking for.
+            TextField("",
+                      text: $title,
+                      prompt: Text("想做啲乜？").foregroundColor(theme.inkSoft))
                 .font(.system(size: 26, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
                 .focused($titleFocused)
@@ -122,7 +131,9 @@ struct AddEntryView: View {
 
                     HStack(spacing: 12) {
                         DSIcon(name: .pin2, size: 16, color: theme.inkMuted)
-                        TextField("地點 (可以唔填)", text: $location)
+                        TextField("",
+                                  text: $location,
+                                  prompt: Text("地點 (可以唔填)").foregroundColor(theme.inkSoft))
                             .font(DSText.ui(theme, 14))
                             .foregroundStyle(theme.ink)
                     }

@@ -14,8 +14,17 @@ struct CardDeckView: View {
     @State private var drawn: Set<Int> = []
     @State private var lastSavedCardId: Int? = nil
 
+    /// v1.0.5 (bug 5.3) — exclude cards the couple has already marked as done
+    /// so the deck rotates through fresh ideas. When everything has been
+    /// done, fall back to the full deck so the screen never goes blank.
+    private var availableCards: [DateCard] {
+        let doneIds = Set(playHistory.dateCardHistory.compactMap(\.payload.cardId))
+        let remaining = MockData.dateCards.filter { !doneIds.contains($0.id) }
+        return remaining.isEmpty ? MockData.dateCards : remaining
+    }
+
     private var card: DateCard {
-        let cards = MockData.dateCards
+        let cards = availableCards
         return cards[index % cards.count]
     }
 

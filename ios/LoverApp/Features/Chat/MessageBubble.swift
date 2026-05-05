@@ -31,6 +31,12 @@ struct MessageBubble: View {
 
                 if !isFromMe { Spacer(minLength: 40) }
             }
+            // KEY: without .frame(maxWidth: .infinity) the HStack collapses
+            // to its content width (bubble + timestamp + 40pt min spacer ≈
+            // 120pt) and the LazyVStack centers it, making own messages
+            // float in the middle. Forcing full row width gives Spacer real
+            // space to push the bubble flush against the correct edge.
+            .frame(maxWidth: .infinity)
 
             if !message.reactions.isEmpty {
                 reactionsRow
@@ -75,8 +81,6 @@ struct MessageBubble: View {
                 BubbleShape(isFromMe: isFromMe)
                     .stroke(isFromMe ? Color.clear : theme.bubbleThemBorder, lineWidth: 0.5)
             )
-            .frame(maxWidth: 270)
-            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var photoBubble: some View {

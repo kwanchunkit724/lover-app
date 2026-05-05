@@ -21,6 +21,10 @@ struct ChatView: View {
     @State private var showActions = false
     @State private var showPhotoPicker = false
     @State private var showCamera = false
+    // v1.0.5 — buffer the picked photo so user can confirm before sending
+    // (per user request — accidental sends were a problem). Same buffer is
+    // used for both camera + album paths.
+    @State private var pendingPhoto: Data? = nil
     @State private var replyTo: Message? = nil
 
     // Derived identities — fall back to mock for previews / unsigned state.
@@ -155,8 +159,7 @@ struct ChatView: View {
             PhotoPickerSheet(
                 onPick: { data in
                     showPhotoPicker = false
-                    guard case .signedIn(let uuid) = auth.state else { return }
-                    Task { await chat.sendPhoto(data: data, caption: nil, senderId: uuid) }
+                    pendingPhoto = data
                 },
                 onCancel: { showPhotoPicker = false }
             )
@@ -168,12 +171,27 @@ struct ChatView: View {
             CameraSheet(
                 onPick: { data in
                     showCamera = false
-                    guard case .signedIn(let uuid) = auth.state else { return }
-                    Task { await chat.sendPhoto(data: data, caption: nil, senderId: uuid) }
+                    pendingPhoto = data
                 },
                 onCancel: { showCamera = false }
             )
             .ignoresSafeArea()
+        }
+        .sheet(item: Binding(
+            get: { pendingPhoto.map { PhotoPreviewItem(data: $0) } },
+            set: { pendingPhoto = $0?.data }
+        )) { item in
+            PhotoConfirmSheet(
+                imageData: item.data,
+                onSend: {
+                    let toSend = item.data
+                    pendingPhoto = nil
+                    guard case .signedIn(let uuid) = auth.state else { return }
+                    Task { await chat.sendPhoto(data: toSend, caption: nil, senderId: uuid) }
+                },
+                onCancel: { pendingPhoto = nil }
+            )
+            .theme(theme)
         }
     }
 
@@ -214,8 +232,15 @@ struct ChatView: View {
     }
 
     private var headerStatus: String {
-        let isoDate = pairing.partner?.anniversaryISO ?? profileStore.profile?.anniversaryISO
-        guard let iso = isoDate else { return "● 在線" }
+        // v1.0.5 — same fix as ProfileView.anniversaryISO (bug 5.1): use the
+        // earlier of the two anniversary dates so both phones agree.
+        let mine   = profileStore.profile?.anniversaryISO
+        let theirs = pairing.partner?.anniversaryISO
+        let iso: String? = {
+            if let mine, let theirs { return min(mine, theirs) }
+            return mine ?? theirs
+        }()
+        guard let iso else { return "● 在線" }
         let today = LocalDate.string(from: Date())
         let days = TimeFormatting.daysBetween(iso, today)
         return "● 在線 · 一齊 \(days) 日"

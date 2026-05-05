@@ -59,11 +59,17 @@ struct ProfileView: View {
     }
 
     private var anniversaryISO: String {
-        // Both sides cross-checked the same anniversary at pairing time, so
-        // the partner row's value is canonical when paired.
-        pairing.partner?.anniversaryISO
-            ?? profileStore.profile?.anniversaryISO
-            ?? MockData.togetherSinceISO
+        // v1.0.5 — bug 5.1: each phone was showing the OTHER user's
+        // onboarding-entered date, so the two devices disagreed (one read
+        // 2026-05-04, the other 2025-12-08). Pairing was supposed to
+        // cross-check these but in practice each side keeps its own value.
+        // Use min() of the two ISO strings (which sort lexically) so both
+        // phones derive the SAME value — and the earlier date is more
+        // likely the actual relationship start than the later one.
+        let mine   = profileStore.profile?.anniversaryISO
+        let theirs = pairing.partner?.anniversaryISO
+        if let mine, let theirs { return min(mine, theirs) }
+        return mine ?? theirs ?? MockData.togetherSinceISO
     }
 
     private var daysTogether: Int {
