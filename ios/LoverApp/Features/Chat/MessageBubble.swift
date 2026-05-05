@@ -55,6 +55,13 @@ struct MessageBubble: View {
     }
 
     private var textBubble: some View {
+        // Earlier this had `.frame(maxWidth: 270, alignment: .leading)` which
+        // RESERVED 270pt of width regardless of text length, leaving a huge
+        // empty area to the right of the bubble. In an HStack with Spacer-
+        // based alignment that made own messages float around mid-screen
+        // instead of hugging the right edge. Letting Text size to its own
+        // content + applying maxWidth without alignment lets it wrap at 270
+        // when long but stay tight when short.
         Text(message.text ?? "")
             .font(DSText.ui(theme, 15))
             .foregroundStyle(isFromMe ? theme.bubbleMeText : theme.bubbleThemText)
@@ -68,7 +75,8 @@ struct MessageBubble: View {
                 BubbleShape(isFromMe: isFromMe)
                     .stroke(isFromMe ? Color.clear : theme.bubbleThemBorder, lineWidth: 0.5)
             )
-            .frame(maxWidth: 270, alignment: .leading)
+            .frame(maxWidth: 270)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     private var photoBubble: some View {

@@ -8,6 +8,7 @@ struct ChatActionSheet: View {
 
     let onClose: () -> Void
     let onCamera: () -> Void
+    let onAlbum: () -> Void
 
     private struct Item: Identifiable {
         let id: String
@@ -19,7 +20,7 @@ struct ChatActionSheet: View {
     var body: some View {
         let items: [Item] = [
             .init(id: "cam", icon: .cam, label: "影相", action: onCamera),
-            .init(id: "img", icon: .image, label: "相簿", action: onClose),
+            .init(id: "img", icon: .image, label: "相簿", action: onAlbum),
             .init(id: "pin", icon: .pin2, label: "位置", action: onClose),
             .init(id: "cal", icon: .cal, label: "加入時間表", action: onClose),
             .init(id: "heart", icon: .heart, label: "存到記憶", action: onClose),

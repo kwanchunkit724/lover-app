@@ -20,6 +20,7 @@ struct ChatView: View {
     @State private var showVoice = false
     @State private var showActions = false
     @State private var showPhotoPicker = false
+    @State private var showCamera = false
     @State private var replyTo: Message? = nil
 
     // Derived identities — fall back to mock for previews / unsigned state.
@@ -119,7 +120,10 @@ struct ChatView: View {
                     onTapKaomoji: { withAnimation(.easeInOut(duration: 0.18)) { showKaomoji.toggle() } },
                     onTapVoice: { showVoice = true },
                     onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
-                    onTapCamera: { showPhotoPicker = true }
+                    // v1.0.4 — camera icon now opens the actual camera, not
+                    // the photo library. Plus button still opens the action
+                    // sheet where the user can pick album / camera / etc.
+                    onTapCamera: { showCamera = true }
                 )
             }
             if showKaomoji {
@@ -137,6 +141,10 @@ struct ChatView: View {
                     onClose: { withAnimation(.easeInOut(duration: 0.18)) { showActions = false } },
                     onCamera: {
                         showActions = false
+                        showCamera = true
+                    },
+                    onAlbum: {
+                        showActions = false
                         showPhotoPicker = true
                     }
                 )
@@ -152,6 +160,20 @@ struct ChatView: View {
                 },
                 onCancel: { showPhotoPicker = false }
             )
+        }
+        .fullScreenCover(isPresented: $showCamera) {
+            // Camera needs full-screen so the viewfinder gets the whole window.
+            // PHPicker uses a sheet because it's a list UI; UIImagePicker camera
+            // looks broken inside a partial sheet.
+            CameraSheet(
+                onPick: { data in
+                    showCamera = false
+                    guard case .signedIn(let uuid) = auth.state else { return }
+                    Task { await chat.sendPhoto(data: data, caption: nil, senderId: uuid) }
+                },
+                onCancel: { showCamera = false }
+            )
+            .ignoresSafeArea()
         }
     }
 

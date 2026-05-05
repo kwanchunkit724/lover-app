@@ -24,6 +24,8 @@ struct AddEntryView: View {
 
     private let suggestions = ["食飯", "睇戲", "行山", "散步", "煮嘢食", "紀念日"]
 
+    @FocusState private var titleFocused: Bool
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
@@ -33,7 +35,19 @@ struct AddEntryView: View {
                     .padding(.top, 20)
             }
         }
+        // v1.0.4 — without this the keyboard stays parked over the lower
+        // sections (標籤 / 邊個 / 記憶簿) so the user can't see / tap them.
+        // .interactively lets a downward drag dismiss the keyboard, and the
+        // toolbar "完成" gives an explicit dismiss for the title field.
+        .scrollDismissesKeyboard(.interactively)
         .background(theme.paper)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") { titleFocused = false }
+                    .foregroundStyle(theme.rose)
+            }
+        }
     }
 
     private var navBar: some View {
@@ -66,6 +80,7 @@ struct AddEntryView: View {
             TextField("想做啲乜？", text: $title)
                 .font(.system(size: 26, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
+                .focused($titleFocused)
                 .padding(.bottom, 14)
 
             ScrollView(.horizontal, showsIndicators: false) {
