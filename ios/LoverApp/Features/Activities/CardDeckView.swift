@@ -20,24 +20,39 @@ struct CardDeckView: View {
     /// old card could still get drawn again.
     @State private var locallyDoneIds: Set<Int> = []
 
-    /// v1.0.5/.6 (bug 5.3) — exclude cards the couple has already marked as
-    /// done so the deck rotates through fresh ideas. Combines remote history
-    /// + the local just-saved set so the new card excludes IMMEDIATELY on
-    /// tap, not after Supabase round-trip. When everything has been done,
-    /// fall back to the full deck so the screen never goes blank.
+    /// v1.0.5/.6/.7 (bug 5.3) — exclude cards the couple has already marked
+    /// as done. Earlier versions filtered the array first then indexed —
+    /// turned out to be flaky because SwiftUI didn't always re-render
+    /// `availableCards` between flips. v1.0.7 keeps the array stable and
+    /// instead advances `index` past any done card. Combines remote history
+    /// + a local "just saved" set for instant exclusion before the Supabase
+    /// round-trip lands.
     private var doneIds: Set<Int> {
         let remote = Set(playHistory.dateCardHistory.compactMap(\.payload.cardId))
         return remote.union(locallyDoneIds)
     }
 
-    private var availableCards: [DateCard] {
-        let remaining = MockData.dateCards.filter { !doneIds.contains($0.id) }
-        return remaining.isEmpty ? MockData.dateCards : remaining
-    }
+    /// Static list, NOT filtered. We always read by index; advance() does
+    /// the skip-done logic.
+    private var allCards: [DateCard] { MockData.dateCards }
 
     private var card: DateCard {
-        let cards = availableCards
-        return cards[index % cards.count]
+        allCards[index % max(allCards.count, 1)]
+    }
+
+    /// Advance index to the next card that is NOT in doneIds. If everything
+    /// is done, just advance one — the screen never goes blank.
+    private func advanceToNextUndoneCard() {
+        let n = allCards.count
+        guard n > 0 else { return }
+        let done = doneIds
+        var next = (index + 1) % n
+        var attempts = 0
+        while done.contains(allCards[next].id) && attempts < n {
+            next = (next + 1) % n
+            attempts += 1
+        }
+        index = next
     }
 
     var body: some View {
@@ -60,6 +75,14 @@ struct CardDeckView: View {
                 .padding(.bottom, 24)
         }
         .background(theme.paper)
+        .onAppear {
+            // If the very first card we land on is already done, skip past
+            // it before the user even taps. Without this, opening the deck
+            // a second time could show a card the couple has already done.
+            if doneIds.contains(allCards[index % max(allCards.count, 1)].id) {
+                advanceToNextUndoneCard()
+            }
+        }
     }
 
     // MARK: - Top bar
@@ -77,7 +100,7 @@ struct CardDeckView: View {
                 Text("盲盒約會")
                     .font(DSText.ui(theme, 15, weight: .semibold))
                     .foregroundStyle(theme.ink)
-                Text("\(drawn.count)/24 張已抽 · 做過 \(totalDone) 種")
+                Text("\(drawn.count)/\(allCards.count) 張已抽 · 做過 \(totalDone) 種")
                     .font(DSText.mono(theme, 10))
                     .foregroundStyle(theme.inkMuted)
             }
@@ -219,7 +242,11 @@ struct CardDeckView: View {
                     flipped = false
                     lastSavedCardId = nil
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                        index += 1
+                        // v1.0.7 — was `index += 1` which could land on a
+                        // done card. Now advances past any cards that are in
+                        // the done set so re-runs after marking actually
+                        // give a fresh card.
+                        advanceToNextUndoneCard()
                     }
                 } label: {
                     Text("再抽")
