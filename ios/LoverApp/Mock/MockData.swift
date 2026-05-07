@@ -203,7 +203,9 @@ enum MockData {
     static let activities: [Activity] = [
         Activity(id: "a1", title: "盲盒約會", subtitle: "抽一張卡，跟住做", kind: .cards, count: 24),
         Activity(id: "a2", title: "21 條問題", subtitle: "了解多啲對方", kind: .quiz, count: 21),
-        Activity(id: "a3", title: "香港探險地圖", subtitle: "一齊去未去過嘅地方", kind: .map, count: 18),
+        // v1.1.0 — replaces 香港探險地圖 placeholder. 18 districts, journal
+        // each one as you visit. MTR-station version is queued for v1.2.0.
+        Activity(id: "a3", title: "18 區日記", subtitle: "一齊行勻香港，一區一篇", kind: .districts, count: 18),
     ]
 
     static let dateCards: [DateCard] = [

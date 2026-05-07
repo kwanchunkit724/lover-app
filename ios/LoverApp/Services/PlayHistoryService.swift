@@ -14,12 +14,15 @@ struct PlayHistoryPayload: Codable, Equatable {
     var kind: Kind
     /// For .dateCard: the static catalog id we recorded as done.
     var cardId: Int?
-    /// For .dateCard / quiz / journal: free-text reflection or answer.
+    /// For .dateCard / quiz / journal / district: free-text reflection.
     var text: String?
     /// For .journal: which day this entry belongs to ("yyyy-MM-dd").
     var dayISO: String?
     /// For .quizAnswer: which question.
     var questionId: Int?
+    /// v1.1.0 (.district) — which Hong Kong district this entry is for.
+    /// Stable 2-char code, e.g. "CW" for 中西區. Null on non-district kinds.
+    var districtCode: String?
     /// Timestamp the user picked / answered / journaled.
     var atISO: String
 
@@ -27,6 +30,8 @@ struct PlayHistoryPayload: Codable, Equatable {
         case dateCard = "date_card"
         case journal
         case quizAnswer = "quiz_answer"
+        /// v1.1.0 — 18 區日記. One row per district visit.
+        case district
     }
 }
 
@@ -142,6 +147,38 @@ final class PlayHistoryService: ObservableObject {
             && item.senderId == senderId
             && item.payload.dayISO == todayISO
         }
+    }
+
+    // MARK: - Districts (v1.1.0)
+
+    /// Records a district visit. One row per visit; districts can be visited
+    /// multiple times — the UI just cares whether ANY entry exists for the
+    /// code.
+    func recordDistrict(code: String, reflection: String?, senderId: UUID) async {
+        let payload = PlayHistoryPayload(
+            kind: .district,
+            text: reflection,
+            districtCode: code,
+            atISO: ISO8601DateFormatter().string(from: Date())
+        )
+        await add(payload: payload, senderId: senderId)
+    }
+
+    /// All recorded district entries, newest first.
+    var districtHistory: [DecryptedItem] {
+        items
+            .filter { $0.payload.kind == .district }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// Set of district codes the couple has visited at least once.
+    var visitedDistrictCodes: Set<String> {
+        Set(districtHistory.compactMap(\.payload.districtCode))
+    }
+
+    /// Most recent entry for a given district, if any.
+    func latestEntry(forDistrict code: String) -> DecryptedItem? {
+        districtHistory.first { $0.payload.districtCode == code }
     }
 
     // MARK: - Fetch

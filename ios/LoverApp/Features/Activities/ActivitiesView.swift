@@ -28,9 +28,10 @@ struct ActivitiesView: View {
         .background(theme.paper)
         .sheet(item: $presented) { route in
             switch route {
-            case .cards:   CardDeckView(onClose: { presented = nil }).theme(theme)
-            case .quiz:    QuizView(onClose: { presented = nil }).theme(theme)
-            case .journal: JournalView(onClose: { presented = nil }).theme(theme)
+            case .cards:     CardDeckView(onClose: { presented = nil }).theme(theme)
+            case .quiz:      QuizView(onClose: { presented = nil }).theme(theme)
+            case .journal:   JournalView(onClose: { presented = nil }).theme(theme)
+            case .districts: DistrictsView(onClose: { presented = nil }).theme(theme)
             }
         }
     }
@@ -105,10 +106,11 @@ struct ActivitiesView: View {
     private func tile(_ activity: Activity) -> some View {
         Button {
             switch activity.kind {
-            case .cards:   presented = .cards
-            case .quiz:    presented = .quiz
-            case .journal: presented = .journal
-            case .map:     break    // 香港探險地圖 still coming
+            case .cards:     presented = .cards
+            case .quiz:      presented = .quiz
+            case .journal:   presented = .journal
+            case .districts: presented = .districts
+            case .map:       break    // legacy — superseded by .districts
             }
         } label: {
             VStack(alignment: .leading, spacing: 0) {
@@ -149,10 +151,11 @@ struct ActivitiesView: View {
     private func iconBadge(for kind: Activity.Kind) -> some View {
         let (iconName, fgColor, bgColor): (DSIconName, Color, Color) = {
             switch kind {
-            case .cards:   return (.sparkle, theme.rose, theme.roseSoft)
-            case .quiz:    return (.kao, theme.sage, theme.sageSoft)
-            case .map:     return (.pin2, theme.amber, theme.amberSoft)
-            case .journal: return (.edit, theme.amber, theme.amberSoft)
+            case .cards:     return (.sparkle, theme.rose, theme.roseSoft)
+            case .quiz:      return (.kao, theme.sage, theme.sageSoft)
+            case .map:       return (.pin2, theme.amber, theme.amberSoft)
+            case .journal:   return (.edit, theme.amber, theme.amberSoft)
+            case .districts: return (.pin2, theme.rose, theme.roseSoft)
             }
         }()
         return DSIcon(name: iconName, size: 16, color: fgColor)
@@ -163,7 +166,7 @@ struct ActivitiesView: View {
 }
 
 private enum ActivityRoute: String, Identifiable {
-    case cards, quiz, journal
+    case cards, quiz, journal, districts
     var id: String { rawValue }
 }
 
