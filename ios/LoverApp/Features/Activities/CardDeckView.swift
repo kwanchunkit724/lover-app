@@ -13,12 +13,24 @@ struct CardDeckView: View {
     @State private var flipped: Bool = false
     @State private var drawn: Set<Int> = []
     @State private var lastSavedCardId: Int? = nil
+    /// v1.0.6 — local tracking so a just-recorded card is excluded
+    /// IMMEDIATELY, not after the DB roundtrip + decrypt. The earlier
+    /// version only filtered by playHistory.dateCardHistory which depends
+    /// on the round-trip; if the user tapped 再抽 before that landed, the
+    /// old card could still get drawn again.
+    @State private var locallyDoneIds: Set<Int> = []
 
-    /// v1.0.5 (bug 5.3) — exclude cards the couple has already marked as done
-    /// so the deck rotates through fresh ideas. When everything has been
-    /// done, fall back to the full deck so the screen never goes blank.
+    /// v1.0.5/.6 (bug 5.3) — exclude cards the couple has already marked as
+    /// done so the deck rotates through fresh ideas. Combines remote history
+    /// + the local just-saved set so the new card excludes IMMEDIATELY on
+    /// tap, not after Supabase round-trip. When everything has been done,
+    /// fall back to the full deck so the screen never goes blank.
+    private var doneIds: Set<Int> {
+        let remote = Set(playHistory.dateCardHistory.compactMap(\.payload.cardId))
+        return remote.union(locallyDoneIds)
+    }
+
     private var availableCards: [DateCard] {
-        let doneIds = Set(playHistory.dateCardHistory.compactMap(\.payload.cardId))
         let remaining = MockData.dateCards.filter { !doneIds.contains($0.id) }
         return remaining.isEmpty ? MockData.dateCards : remaining
     }
@@ -280,9 +292,12 @@ struct CardDeckView: View {
     private func recordDoneTap() {
         guard case .signedIn(let uuid) = auth.state else { return }
         let cardId = card.id
+        // Mark locally first so availableCards instantly excludes it even if
+        // the network upload takes a while or silently fails.
+        locallyDoneIds.insert(cardId)
+        lastSavedCardId = cardId
         Task {
             await playHistory.recordDateCard(cardId: cardId, reflection: nil, senderId: uuid)
-            await MainActor.run { lastSavedCardId = cardId }
         }
     }
 }
