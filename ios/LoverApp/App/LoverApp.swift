@@ -56,6 +56,7 @@ struct LoverApp: App {
 // start when a couple actually exists — driven by `onChange(of: pairing.isPaired)`.
 
 struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject private var profileStore: UserProfileStore
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var pairing: PairingService
@@ -117,24 +118,45 @@ struct RootView: View {
                 crypto.reset()
             }
         }
-    }
-
-    private func preparePaired(meId: UUID) async {
-        guard let couple = pairing.couple, let partner = pairing.partner else { return }
-        do {
-            try crypto.prepare(coupleId: couple.id, partner: partner)
-            startCoupleServices(coupleId: couple.id)
-        } catch {
-            // Likely partner hasn't uploaded their public key yet (first
-            // sign-in race) — refresh once more to pick it up, then retry.
-            await pairing.refresh(meId: meId)
-            if let partner = pairing.partner {
-                try? crypto.prepare(coupleId: couple.id, partner: partner)
-                startCoupleServices(coupleId: couple.id)
+        // v1.3.1 — bug surfaced in v1.3.0 testing: chatKey often stayed nil
+        // after pairing because crypto.prepare ran ONCE before the partner
+        // had finished uploading their public key. Result: every subsequent
+        // entry / chat message / play history insert silently failed at the
+        // seal step (crypto.notReady), and existing rows showed
+        // "(無法解密)". Re-attempt prepare every time the app comes back to
+        // the foreground if we're paired but still keyless. This is cheap
+        // (one DB read + 1 HKDF) and idempotent.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active,
+               crypto.chatKey == nil,
+               pairing.isPaired,
+               case .signedIn(let id) = auth.state {
+                Task { await preparePaired(meId: id) }
             }
         }
-        // Ask for notification permission + register APNs once paired.
-        PushService.shared.bootstrap()
+    }
+
+    /// v1.3.1 — robust prepare loop. Earlier version retried once and then
+    /// gave up; if the partner hadn't uploaded their public key in those
+    /// ~hundreds of milliseconds, chatKey stayed nil forever (until the
+    /// user reopened the app). Now we poll for up to ~16 seconds, refreshing
+    /// the partner row each pass. Returns immediately on success.
+    private func preparePaired(meId: UUID) async {
+        guard let couple = pairing.couple else { return }
+        for _ in 0..<8 {
+            await pairing.refresh(meId: meId)
+            if let partner = pairing.partner, partner.publicKey != nil {
+                do {
+                    try crypto.prepare(coupleId: couple.id, partner: partner)
+                    startCoupleServices(coupleId: couple.id)
+                    PushService.shared.bootstrap()
+                    return
+                } catch {
+                    // partner row exists but key parse failed — try again
+                }
+            }
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
     }
 
     /// Start every per-couple background service. Idempotent.

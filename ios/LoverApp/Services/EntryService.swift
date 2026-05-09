@@ -91,17 +91,26 @@ final class EntryService: ObservableObject {
     }
 
     /// v1.2.0 — overload that uploads an attached cover photo before
-    /// inserting. The photo is encrypted + stored in chat-media bucket,
-    /// then its handle is baked into the encrypted payload.
+    /// inserting. v1.3.1 fix: if the photo upload fails (e.g. chat key
+    /// not yet ready), still insert the entry without a cover instead of
+    /// losing the whole record. Earlier the photo error short-circuited
+    /// the whole do-block so the entry never made it into the DB and the
+    /// user saw "saved" UI but nothing showed up on the calendar.
     func add(payload: EntryPayload, coverData: Data?, senderId: UUID) async {
         guard let coupleId else { return }
         var p = payload
-        do {
-            if let coverData {
+        if let coverData {
+            do {
                 p.coverHandle = try await media.encryptAndUpload(
                     data: coverData, coupleId: coupleId)
                 p.photoCount = 1
+            } catch {
+                lastError = "封面相片 upload 失敗（entry 仍會儲存）：\(error.localizedDescription)"
+                p.coverHandle = nil
+                p.photoCount = 0
             }
+        }
+        do {
             let cipher = try crypto.seal(p)
             let row = OutgoingRow(couple_id: coupleId,
                                   sender_id: senderId,

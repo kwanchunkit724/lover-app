@@ -67,7 +67,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: michel.kit.us
         PRODUCT_NAME: Us
         CURRENT_PROJECT_VERSION: 1
-        MARKETING_VERSION: 1.3.0
+        MARKETING_VERSION: 1.3.1
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: '1'   # iPhone only
     # XcodeGen-managed Info.plist — the canonical path. Properties below get
@@ -90,7 +90,7 @@ targets:
         # That's why every previous build shipped as "1.0" regardless of
         # MARKETING_VERSION. Update this literal whenever you bump
         # MARKETING_VERSION.
-        CFBundleShortVersionString: 1.3.0
+        CFBundleShortVersionString: 1.3.1
         # Required by App Store / TestFlight ingest. Must match the
         # AppIcon.appiconset name in Assets.xcassets, otherwise upload
         # rejects with: "Missing Info.plist value. A value for the
