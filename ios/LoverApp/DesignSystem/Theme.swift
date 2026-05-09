@@ -130,13 +130,46 @@ struct Theme: Equatable {
         fontMonoName: "JetBrainsMono-Medium"
     )
 
-    static let allThemes: [Theme] = [.jbeam, .notion, .cozy]
+    /// v1.2.1 — Cream × Ink, matches the v1.1.1 app icon palette. Becomes
+    /// the new default. Same warm brown ink as jbeam but with the cleaner
+    /// cream paper (#F2EBE0) instead of jbeam's slightly pink #FBF4EE so
+    /// the in-app vibe matches the icon.
+    static let cream = Theme(
+        id: "cream",
+        name: "Cream × Ink",
+        isDark: false,
+        paper: Color(hex: "#F2EBE0"),
+        paperAlt: Color(hex: "#E8DECF"),
+        surface: Color(hex: "#FBF6EE"),
+        nav: Color(hex: "#F2EBE0").opacity(0.88),
+        ink: Color(hex: "#3D2E27"),
+        inkSoft: Color(hex: "#7A6259"),
+        inkMuted: Color(hex: "#A89384"),
+        line: Color(hex: "#3D2E27").opacity(0.10),
+        lineStrong: Color(hex: "#3D2E27").opacity(0.18),
+        rose: Color(hex: "#D08282"),
+        roseSoft: Color(hex: "#F4DCD7"),
+        sage: Color(hex: "#9CAB8B"),
+        sageSoft: Color(hex: "#E1E8D6"),
+        amber: Color(hex: "#D8A572"),
+        amberSoft: Color(hex: "#F2DEC4"),
+        bubbleMe: Color(hex: "#3D2E27"),
+        bubbleMeText: Color(hex: "#F2EBE0"),
+        bubbleThem: Color(hex: "#FBF6EE"),
+        bubbleThemText: Color(hex: "#3D2E27"),
+        bubbleThemBorder: Color(hex: "#3D2E27").opacity(0.10),
+        fontHeadName: "KleeOne-SemiBold",
+        fontUIName: "ZenMaruGothic-Medium",
+        fontMonoName: "DMMono-Medium"
+    )
+
+    static let allThemes: [Theme] = [.cream, .jbeam, .notion, .cozy]
 }
 
 // MARK: - Environment
 
 private struct ThemeKey: EnvironmentKey {
-    static let defaultValue: Theme = .jbeam
+    static let defaultValue: Theme = .cream
 }
 
 extension EnvironmentValues {

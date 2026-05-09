@@ -27,9 +27,10 @@ final class UserProfileStore: ObservableObject {
 
     var theme: Theme {
         switch profile?.themeId {
+        case "jbeam":  return .jbeam
         case "notion": return .notion
         case "cozy":   return .cozy
-        default:       return .jbeam
+        default:       return .cream   // v1.2.1 — Cream × Ink is now the default
         }
     }
 
