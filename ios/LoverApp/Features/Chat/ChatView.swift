@@ -14,6 +14,7 @@ struct ChatView: View {
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var pairing: PairingService
     @EnvironmentObject private var chat: ChatService
+    @EnvironmentObject private var crypto: CryptoService
 
     @State private var input: String = ""
     @State private var showKaomoji = false
@@ -104,6 +105,13 @@ struct ChatView: View {
     private var pairedBody: some View {
         VStack(spacing: 0) {
             header
+            // v1.3.2 — visible banner when chatKey isn't ready yet. Without
+            // this the user typed and pressed send into a void: ChatService
+            // .sendText threw at the seal step and the message just
+            // disappeared (no bubble on either side, no toast, nothing).
+            if !crypto.isReady {
+                cryptoNotReadyBanner
+            }
             messageList
             if let replyTo {
                 replyPreview(replyTo)
@@ -324,10 +332,42 @@ struct ChatView: View {
         let trimmed = input.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         guard case .signedIn(let uuid) = auth.state else { return }
+        // v1.3.2 — refuse to send until chatKey is ready. Earlier we'd hand
+        // the text off to chat.sendText which would silently throw at the
+        // seal step and lose the message + clear the input. Now: keep the
+        // text in the field so the user can re-tap once the banner clears.
+        guard crypto.isReady else { return }
         let toSend = trimmed
         input = ""
         replyTo = nil
         Task { await chat.sendText(toSend, senderId: uuid) }
+    }
+
+    // v1.3.2 — pinned banner shown while crypto.chatKey is still nil. Tells
+    // the user the system is preparing the encrypted channel instead of
+    // letting them type into a black hole.
+    private var cryptoNotReadyBanner: some View {
+        HStack(spacing: 8) {
+            ProgressView().tint(theme.rose)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("加密通道準備緊…")
+                    .font(DSText.ui(theme, 12, weight: .semibold))
+                    .foregroundStyle(theme.ink)
+                Text(crypto.lastPrepareError.map { "上次嘗試: \($0)" }
+                     ?? "等對方部 phone upload 完 public key 就會自動 ready")
+                    .font(DSText.mono(theme, 10))
+                    .foregroundStyle(theme.inkMuted)
+                    .lineLimit(2)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(theme.amberSoft)
+        .overlay(
+            Rectangle().frame(height: 0.5).foregroundStyle(theme.line),
+            alignment: .bottom
+        )
     }
 }
 

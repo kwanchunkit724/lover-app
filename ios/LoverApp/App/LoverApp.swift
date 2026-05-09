@@ -136,26 +136,35 @@ struct RootView: View {
         }
     }
 
-    /// v1.3.1 — robust prepare loop. Earlier version retried once and then
-    /// gave up; if the partner hadn't uploaded their public key in those
-    /// ~hundreds of milliseconds, chatKey stayed nil forever (until the
-    /// user reopened the app). Now we poll for up to ~16 seconds, refreshing
-    /// the partner row each pass. Returns immediately on success.
+    /// v1.3.2 — relentless prepare loop. v1.3.1's 16-second cap still wasn't
+    /// enough in the wild — partners on slow networks could take longer to
+    /// upload their public key, and once the loop exited the chat key
+    /// stayed nil. Now we keep retrying with backoff until either prepare
+    /// succeeds OR the user navigates away (state goes signedOut /
+    /// unpaired, observed by the .onChange handlers above which would
+    /// invalidate the next iteration's preconditions).
     private func preparePaired(meId: UUID) async {
         guard let couple = pairing.couple else { return }
-        for _ in 0..<8 {
+        var delay: UInt64 = 1_000_000_000   // 1s, doubles up to 8s
+        for attempt in 0..<60 {             // ~5 minutes worst case
+            // Bail if state has changed under us.
+            if !pairing.isPaired { return }
+            if crypto.isReady { return }    // another caller succeeded
             await pairing.refresh(meId: meId)
-            if let partner = pairing.partner, partner.publicKey != nil {
+            if let partner = pairing.partner,
+               let pub = partner.publicKey, !pub.isEmpty {
                 do {
                     try crypto.prepare(coupleId: couple.id, partner: partner)
                     startCoupleServices(coupleId: couple.id)
                     PushService.shared.bootstrap()
                     return
                 } catch {
-                    // partner row exists but key parse failed — try again
+                    // crypto.lastPrepareError already set inside prepare();
+                    // keep looping — partner key may be malformed mid-upload
                 }
             }
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            try? await Task.sleep(nanoseconds: delay)
+            if attempt >= 3, delay < 8_000_000_000 { delay *= 2 }
         }
     }
 
