@@ -21,6 +21,12 @@ struct AddEntryView: View {
     @State private var includeTime: Bool = false
     @State private var location: String = ""
     @State private var isSubmitting: Bool = false
+    // v1.2.0 — optional cover photo. Buffered as Data; uploaded + encrypted
+    // on submit so the entry becomes a real "memory" once its date passes.
+    @State private var coverData: Data? = nil
+    @State private var showPicker: Bool = false
+    @State private var showCamera: Bool = false
+    @State private var showPickerSource: Bool = false   // chooser sheet
 
     private let suggestions = ["食飯", "睇戲", "行山", "散步", "煮嘢食", "紀念日"]
 
@@ -184,6 +190,15 @@ struct AddEntryView: View {
             }
             .padding(.bottom, 22)
 
+            // v1.2.0 — optional cover photo. Past entries with a cover
+            // render as a real-photo memory cell on the calendar instead
+            // of the deterministic gradient placeholder.
+            section(title: "封面相片 (可以唔加)") {
+                photoPickerRow
+                    .padding(14)
+            }
+            .padding(.bottom, 22)
+
             section(title: "記憶簿") {
                 HStack(spacing: 12) {
                     DSIcon(name: .heart, size: 18, color: theme.rose, filled: memorable)
@@ -287,6 +302,77 @@ struct AddEntryView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - Photo picker (v1.2.0)
+
+    @ViewBuilder
+    private var photoPickerRow: some View {
+        if let data = coverData, let ui = UIImage(data: data) {
+            VStack(spacing: 10) {
+                Image(uiImage: ui)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 180)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Button {
+                    coverData = nil
+                } label: {
+                    Text("移除張相")
+                        .font(DSText.mono(theme, 11))
+                        .foregroundStyle(theme.rose)
+                }
+                .buttonStyle(.plain)
+            }
+        } else {
+            HStack(spacing: 10) {
+                Button { showCamera = true } label: {
+                    pickerButton(icon: .cam, label: "影相")
+                }
+                .buttonStyle(.plain)
+                Button { showPicker = true } label: {
+                    pickerButton(icon: .image, label: "由相簿揀")
+                }
+                .buttonStyle(.plain)
+            }
+            .sheet(isPresented: $showPicker) {
+                PhotoPickerSheet(
+                    onPick: { data in
+                        showPicker = false
+                        coverData = data
+                    },
+                    onCancel: { showPicker = false }
+                )
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraSheet(
+                    onPick: { data in
+                        showCamera = false
+                        coverData = data
+                    },
+                    onCancel: { showCamera = false }
+                )
+                .ignoresSafeArea()
+            }
+        }
+    }
+
+    private func pickerButton(icon: DSIconName, label: String) -> some View {
+        VStack(spacing: 6) {
+            DSIcon(name: icon, size: 22, color: theme.rose)
+            Text(label)
+                .font(DSText.ui(theme, 12))
+                .foregroundStyle(theme.ink)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .background(theme.paperAlt)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(theme.line, lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
     private func proposerButton(_ value: String, label: String) -> some View {
         let active = proposer == value
         return Button { proposer = value } label: {
@@ -343,8 +429,9 @@ struct AddEntryView: View {
             reflection: nil
         )
         isSubmitting = true
+        let cover = coverData
         Task {
-            await entryService.add(payload: payload, senderId: uuid)
+            await entryService.add(payload: payload, coverData: cover, senderId: uuid)
             isSubmitting = false
             onClose()
         }

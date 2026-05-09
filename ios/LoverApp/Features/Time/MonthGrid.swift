@@ -101,7 +101,15 @@ struct MonthGrid: View {
     // Past day with memory — photo fills cell.
     private func photoCell(_ entry: Entry, day: Int) -> some View {
         ZStack(alignment: .topLeading) {
-            DSPhotoPlaceholder(id: entry.cover ?? entry.id, height: nil, cornerRadius: 8)
+            // v1.2.0 — if the entry has a real encrypted cover photo, render
+            // it via EncryptedAsyncImage. Otherwise fall back to the
+            // deterministic-hash gradient placeholder. The "couple-" prefix
+            // identifies a chat-media storage path.
+            if let cover = entry.cover, cover.hasPrefix("couple-") {
+                EncryptedAsyncImage(mediaHandle: cover, maxHeight: 200, cornerRadius: 8)
+            } else {
+                DSPhotoPlaceholder(id: entry.cover ?? entry.id, height: nil, cornerRadius: 8)
+            }
 
             LinearGradient(
                 colors: [Color.black.opacity(0.05), .clear, Color.black.opacity(0.55)],

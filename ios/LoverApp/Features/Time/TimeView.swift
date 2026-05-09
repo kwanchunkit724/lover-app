@@ -305,8 +305,16 @@ private struct PastEntryRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 12) {
-                DSPhotoPlaceholder(id: entry.cover ?? entry.id, height: 64, cornerRadius: 10)
-                    .frame(width: 64)
+                // v1.2.0 — real encrypted cover when available.
+                Group {
+                    if let cover = entry.cover, cover.hasPrefix("couple-") {
+                        EncryptedAsyncImage(mediaHandle: cover, maxHeight: 64, cornerRadius: 10)
+                    } else {
+                        DSPhotoPlaceholder(id: entry.cover ?? entry.id, height: 64, cornerRadius: 10)
+                    }
+                }
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {

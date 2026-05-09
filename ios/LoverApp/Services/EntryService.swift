@@ -28,6 +28,12 @@ struct EntryPayload: Codable, Equatable {
     var voiceCount: Int = 0
     var messageCount: Int = 0
     var reflection: ReflectionPayload?
+    /// v1.2.0 — encrypted-storage path for the entry's cover photo, if the
+    /// user attached one when creating the event. Format mirrors chat
+    /// media: "couple-{coupleId}/{uuid}.bin". Past entries with a cover
+    /// render as a real photo cell on the calendar grid; without one they
+    /// fall back to the deterministic-hash gradient placeholder.
+    var coverHandle: String?
 
     struct ReflectionPayload: Codable, Equatable {
         var from: String
@@ -51,11 +57,15 @@ final class EntryService: ObservableObject {
     @Published var lastError: String?
 
     private let crypto: CryptoService
+    private let media: MediaService
     private var pollTask: Task<Void, Never>?
     private var realtimeTask: Task<Void, Never>?
     private var coupleId: UUID?
 
-    init(crypto: CryptoService) { self.crypto = crypto }
+    init(crypto: CryptoService) {
+        self.crypto = crypto
+        self.media = MediaService(crypto: crypto)
+    }
 
     // MARK: - Lifecycle
 
@@ -77,9 +87,22 @@ final class EntryService: ObservableObject {
     // MARK: - Add
 
     func add(payload: EntryPayload, senderId: UUID) async {
+        await add(payload: payload, coverData: nil, senderId: senderId)
+    }
+
+    /// v1.2.0 — overload that uploads an attached cover photo before
+    /// inserting. The photo is encrypted + stored in chat-media bucket,
+    /// then its handle is baked into the encrypted payload.
+    func add(payload: EntryPayload, coverData: Data?, senderId: UUID) async {
         guard let coupleId else { return }
+        var p = payload
         do {
-            let cipher = try crypto.seal(payload)
+            if let coverData {
+                p.coverHandle = try await media.encryptAndUpload(
+                    data: coverData, coupleId: coupleId)
+                p.photoCount = 1
+            }
+            let cipher = try crypto.seal(p)
             let row = OutgoingRow(couple_id: coupleId,
                                   sender_id: senderId,
                                   ciphertext_b64: cipher)
@@ -88,6 +111,11 @@ final class EntryService: ObservableObject {
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    /// Expose decrypted media download for the calendar grid / detail view.
+    func loadCoverImage(handle: String) async throws -> Data {
+        try await media.downloadAndDecrypt(path: handle)
     }
 
     // MARK: - Delete
@@ -206,7 +234,7 @@ final class EntryService: ObservableObject {
                 tag: Entry.Tag(rawValue: d.payload.tag) ?? .outing,
                 isSpecial: d.payload.isSpecial,
                 notes: d.payload.notes,
-                cover: nil,
+                cover: d.payload.coverHandle,
                 photos: d.payload.photoCount,
                 voiceClips: d.payload.voiceCount,
                 messages: d.payload.messageCount,
