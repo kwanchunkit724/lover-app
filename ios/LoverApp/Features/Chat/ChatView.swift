@@ -343,31 +343,64 @@ struct ChatView: View {
         Task { await chat.sendText(toSend, senderId: uuid) }
     }
 
-    // v1.3.2 — pinned banner shown while crypto.chatKey is still nil. Tells
-    // the user the system is preparing the encrypted channel instead of
-    // letting them type into a black hole.
+    // v1.3.2/.3 — pinned diagnostic banner shown while crypto.chatKey is
+    // still nil. v1.3.3 adds the actual state values (partner pubkey
+    // length, last error, my-key status) so when the banner sticks we can
+    // see exactly which precondition is failing — earlier the banner just
+    // said "preparing..." with no signal.
     private var cryptoNotReadyBanner: some View {
-        HStack(spacing: 8) {
-            ProgressView().tint(theme.rose)
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ProgressView().tint(theme.rose)
                 Text("加密通道準備緊…")
                     .font(DSText.ui(theme, 12, weight: .semibold))
                     .foregroundStyle(theme.ink)
-                Text(crypto.lastPrepareError.map { "上次嘗試: \($0)" }
-                     ?? "等對方部 phone upload 完 public key 就會自動 ready")
-                    .font(DSText.mono(theme, 10))
-                    .foregroundStyle(theme.inkMuted)
-                    .lineLimit(2)
+                Spacer()
+                Button {
+                    if case .signedIn(let id) = auth.state {
+                        Task { await pairing.refresh(meId: id) }
+                    }
+                } label: {
+                    Text("重試")
+                        .font(DSText.mono(theme, 10).weight(.semibold))
+                        .foregroundStyle(theme.rose)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .overlay(
+                            Capsule().stroke(theme.rose, lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
             }
-            Spacer()
+            VStack(alignment: .leading, spacing: 2) {
+                Text("• partner.publicKey: \(pairing.partner?.publicKey.map { "✓ \($0.count) chars" } ?? "❌ NIL")")
+                Text("• my key: \(myKeyDiagnostic)")
+                Text("• couple: \(pairing.couple != nil ? "✓" : "❌ NIL")")
+                if let err = crypto.lastPrepareError {
+                    Text("• last error: \(err)")
+                        .foregroundStyle(theme.rose)
+                }
+            }
+            .font(.system(size: 10, weight: .regular, design: .monospaced))
+            .foregroundStyle(theme.inkMuted)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(theme.amberSoft)
         .overlay(
             Rectangle().frame(height: 0.5).foregroundStyle(theme.line),
             alignment: .bottom
         )
+    }
+
+    private var myKeyDiagnostic: String {
+        do {
+            let pk = try KeyManager.shared.myPublicKeyBase64()
+            return "✓ \(pk.count) chars"
+        } catch {
+            return "❌ \(String(describing: error))"
+        }
     }
 }
 
