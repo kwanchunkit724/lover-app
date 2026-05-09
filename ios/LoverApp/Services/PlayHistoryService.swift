@@ -23,6 +23,9 @@ struct PlayHistoryPayload: Codable, Equatable {
     /// v1.1.0 (.district) — which Hong Kong district this entry is for.
     /// Stable 2-char code, e.g. "CW" for 中西區. Null on non-district kinds.
     var districtCode: String?
+    /// v1.3.0 (.mtrStation) — official 3-letter MTR station code, e.g.
+    /// "ADM" for 金鐘. Null on non-MTR kinds.
+    var mtrStationCode: String?
     /// Timestamp the user picked / answered / journaled.
     var atISO: String
 
@@ -32,6 +35,8 @@ struct PlayHistoryPayload: Codable, Equatable {
         case quizAnswer = "quiz_answer"
         /// v1.1.0 — 18 區日記. One row per district visit.
         case district
+        /// v1.3.0 — MTR 站日記. One row per station visit.
+        case mtrStation = "mtr_station"
     }
 }
 
@@ -179,6 +184,32 @@ final class PlayHistoryService: ObservableObject {
     /// Most recent entry for a given district, if any.
     func latestEntry(forDistrict code: String) -> DecryptedItem? {
         districtHistory.first { $0.payload.districtCode == code }
+    }
+
+    // MARK: - MTR stations (v1.3.0)
+
+    func recordMtrStation(code: String, reflection: String?, senderId: UUID) async {
+        let payload = PlayHistoryPayload(
+            kind: .mtrStation,
+            text: reflection,
+            mtrStationCode: code,
+            atISO: ISO8601DateFormatter().string(from: Date())
+        )
+        await add(payload: payload, senderId: senderId)
+    }
+
+    var mtrHistory: [DecryptedItem] {
+        items
+            .filter { $0.payload.kind == .mtrStation }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var visitedMtrCodes: Set<String> {
+        Set(mtrHistory.compactMap(\.payload.mtrStationCode))
+    }
+
+    func latestEntry(forMtr code: String) -> DecryptedItem? {
+        mtrHistory.first { $0.payload.mtrStationCode == code }
     }
 
     // MARK: - Fetch

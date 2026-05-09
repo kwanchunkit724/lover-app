@@ -206,6 +206,8 @@ enum MockData {
         // v1.1.0 — replaces 香港探險地圖 placeholder. 18 districts, journal
         // each one as you visit. MTR-station version is queued for v1.2.0.
         Activity(id: "a3", title: "18 區日記", subtitle: "一齊行勻香港，一區一篇", kind: .districts, count: 18),
+        // v1.3.0 — MTR 站日記. 90 stations across 9 lines.
+        Activity(id: "a4", title: "MTR 站日記", subtitle: "一齊搭遍 MTR，一站一篇", kind: .mtr, count: 90),
     ]
 
     static let dateCards: [DateCard] = [

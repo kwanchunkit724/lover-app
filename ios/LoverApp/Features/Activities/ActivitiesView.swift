@@ -32,6 +32,7 @@ struct ActivitiesView: View {
             case .quiz:      QuizView(onClose: { presented = nil }).theme(theme)
             case .journal:   JournalView(onClose: { presented = nil }).theme(theme)
             case .districts: DistrictsView(onClose: { presented = nil }).theme(theme)
+            case .mtr:       MTRStationsView(onClose: { presented = nil }).theme(theme)
             }
         }
     }
@@ -110,6 +111,7 @@ struct ActivitiesView: View {
             case .quiz:      presented = .quiz
             case .journal:   presented = .journal
             case .districts: presented = .districts
+            case .mtr:       presented = .mtr
             case .map:       break    // legacy — superseded by .districts
             }
         } label: {
@@ -156,6 +158,7 @@ struct ActivitiesView: View {
             case .map:       return (.pin2, theme.amber, theme.amberSoft)
             case .journal:   return (.edit, theme.amber, theme.amberSoft)
             case .districts: return (.pin2, theme.rose, theme.roseSoft)
+            case .mtr:       return (.pin2, theme.sage, theme.sageSoft)
             }
         }()
         return DSIcon(name: iconName, size: 16, color: fgColor)
@@ -166,7 +169,7 @@ struct ActivitiesView: View {
 }
 
 private enum ActivityRoute: String, Identifiable {
-    case cards, quiz, journal, districts
+    case cards, quiz, journal, districts, mtr
     var id: String { rawValue }
 }
 

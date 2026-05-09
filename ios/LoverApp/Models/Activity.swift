@@ -3,7 +3,7 @@ import Foundation
 // Mirrors D.activities in design-import/data.js.
 
 struct Activity: Identifiable, Hashable {
-    enum Kind: String, Codable { case cards, quiz, map, journal, districts }
+    enum Kind: String, Codable { case cards, quiz, map, journal, districts, mtr }
 
     let id: String
     let title: String
