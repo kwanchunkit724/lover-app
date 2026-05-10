@@ -288,6 +288,17 @@ struct ChatView: View {
             .onChange(of: messages.count) { _, _ in
                 withAnimation { proxy.scrollTo(messages.last?.id, anchor: .bottom) }
             }
+            // v1.4.4 — also scroll to the latest message when the chat
+            // tab first appears. Earlier the view kept its previous scroll
+            // position (or stayed at the top on a cold open) so users had
+            // to manually swipe down to see new messages, which felt like
+            // the chat tab was broken on entry.
+            .onAppear {
+                guard let last = messages.last?.id else { return }
+                DispatchQueue.main.async {
+                    proxy.scrollTo(last, anchor: .bottom)
+                }
+            }
         }
     }
 
