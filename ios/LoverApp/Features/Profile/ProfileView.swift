@@ -282,11 +282,15 @@ struct ProfileView: View {
     }
 
     private var settingsSection: some View {
+        // v1.4.1 — removed 共用相簿 (247) + 提醒時間 (08:00). Both were
+        // hardcoded mock placeholders with no tap action. The shared album
+        // is implicit (chat photos + entry covers), and per-entry reminder
+        // time is set on the entry itself in AddEntryView. If we add a
+        // global "default reminder lead time" setting later, this is where
+        // it goes.
         ProfileSection(title: "設定") {
             ProfileRow(icon: .kao, label: "顏文字偏好", value: "日系 →",
                        onTap: { presented = .kao })
-            ProfileRow(icon: .image, label: "共用相簿", value: "247", onTap: nil)
-            ProfileRow(icon: .clock, label: "提醒時間", value: "08:00", onTap: nil)
             ProfileRow(icon: .us, label: "主題", value: "\(theme.name) →",
                        onTap: { presented = .theme }, isLast: true)
         }

@@ -81,6 +81,12 @@ struct TimeView: View {
             }
         }
         .background(theme.paper)
+        // v1.4.1 — surface entries / play-history backend errors so user
+        // can screenshot when something fails silently.
+        .errorToast(Binding(
+            get: { entryService.lastError },
+            set: { entryService.lastError = $0 }
+        ))
         .sheet(isPresented: $addingEntry) {
             AddEntryView(onClose: { addingEntry = false })
                 .theme(theme)

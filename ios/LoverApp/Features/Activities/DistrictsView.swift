@@ -35,6 +35,10 @@ struct DistrictsView: View {
             }
         }
         .background(theme.paper.ignoresSafeArea())
+        .errorToast(Binding(
+            get: { playHistory.lastError },
+            set: { playHistory.lastError = $0 }
+        ))
         .sheet(item: $selectedDistrict) { d in
             DistrictEntrySheet(
                 district: d,

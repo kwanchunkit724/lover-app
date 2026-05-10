@@ -88,6 +88,14 @@ struct MonthGrid: View {
                             labelCell(day: day, upcoming: upcoming, isToday: isToday, isPastEmpty: isPastEmpty)
                         }
                     }
+                    // v1.4.1 — clip the overlay container to the square so
+                    // EncryptedAsyncImage (which has an internal
+                    // .frame(maxHeight: 200)) can't bleed up into the row
+                    // above. The earlier .clipShape on the inner ZStack
+                    // didn't catch this because SwiftUI evaluates overlay
+                    // size BEFORE applying clipShape — it has to be
+                    // .clipped() on the overlay-applied view itself.
+                    .clipped()
                 }
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)

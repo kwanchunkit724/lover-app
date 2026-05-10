@@ -16,7 +16,13 @@ struct EntryDetailView: View {
                 navBar
 
                 if isPast, let cover = entry.cover {
-                    DSPhotoPlaceholder(id: cover, height: 240, cornerRadius: 0)
+                    // v1.4.1 — render real encrypted cover photo if attached;
+                    // otherwise fall back to the gradient placeholder.
+                    if cover.hasPrefix("couple-") {
+                        EncryptedAsyncImage(mediaHandle: cover, maxHeight: 280, cornerRadius: 0)
+                    } else {
+                        DSPhotoPlaceholder(id: cover, height: 240, cornerRadius: 0)
+                    }
                 }
 
                 VStack(alignment: .leading, spacing: 0) {
@@ -217,19 +223,27 @@ struct EntryDetailView: View {
 
             if entry.photos > 0 {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("相片 · \(entry.photos) 張")
-                        .font(DSText.mono(theme, 10))
-                        .foregroundStyle(theme.inkMuted)
-                        .padding(.leading, 4)
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
-                        ForEach(0..<min(entry.photos, 6), id: \.self) { i in
-                            DSPhotoPlaceholder(id: "\(entry.id)-p\(i)", height: 100, cornerRadius: 6)
+                    // v1.4.1 — when there's a real encrypted cover, render
+                    // it once instead of the deterministic-hash placeholder
+                    // grid. Each entry only has one cover photo today; the
+                    // multi-photo album shape is for a future phase.
+                    if let cover = entry.cover, cover.hasPrefix("couple-") {
+                        EncryptedAsyncImage(mediaHandle: cover, maxHeight: 220, cornerRadius: 8)
+                    } else {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3), spacing: 4) {
+                            ForEach(0..<min(entry.photos, 6), id: \.self) { i in
+                                DSPhotoPlaceholder(id: "\(entry.id)-p\(i)", height: 100, cornerRadius: 6)
+                            }
                         }
                     }
                 }
             }
 
-            if entry.voiceClips > 0 {
+            // v1.4.1 — voice + chat-message sections are mocked data and
+            // were confusing users (showing fake "當日嘅笑聲" / "Michel:
+            // 而家行緊嚟" on real entries that had no such media). Hide
+            // them entirely until Phase 4d wires real per-entry media.
+            if false, entry.voiceClips > 0 {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("語音 · \(entry.voiceClips) 段")
                         .font(DSText.mono(theme, 10))
@@ -261,7 +275,7 @@ struct EntryDetailView: View {
                 }
             }
 
-            if entry.messages > 0 {
+            if false, entry.messages > 0 {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("當日對話 · \(entry.messages) 條")
                         .font(DSText.mono(theme, 10))

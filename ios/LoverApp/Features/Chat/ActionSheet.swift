@@ -18,13 +18,15 @@ struct ChatActionSheet: View {
     }
 
     var body: some View {
+        // v1.4.1 — trimmed from 6 tiles to 2. The other 4 (位置 / 加入時間表
+        // / 存到記憶 / 抽卡) had no actions wired and were marked closeOnly,
+        // so users tapped them and the sheet just dismissed silently. The
+        // real entry points are: location is per-entry in AddEntryView,
+        // the Time tab IS the timetable, memory is automatic when an
+        // entry's date passes, and 抽卡 is in 玩樂 → 盲盒約會.
         let items: [Item] = [
             .init(id: "cam", icon: .cam, label: "影相", action: onCamera),
             .init(id: "img", icon: .image, label: "相簿", action: onAlbum),
-            .init(id: "pin", icon: .pin2, label: "位置", action: onClose),
-            .init(id: "cal", icon: .cal, label: "加入時間表", action: onClose),
-            .init(id: "heart", icon: .heart, label: "存到記憶", action: onClose),
-            .init(id: "spark", icon: .sparkle, label: "抽卡", action: onClose),
         ]
 
         return ZStack(alignment: .bottom) {

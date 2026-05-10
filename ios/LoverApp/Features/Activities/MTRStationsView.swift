@@ -38,6 +38,10 @@ struct MTRStationsView: View {
             }
         }
         .background(theme.paper.ignoresSafeArea())
+        .errorToast(Binding(
+            get: { playHistory.lastError },
+            set: { playHistory.lastError = $0 }
+        ))
         .sheet(item: $selected) { station in
             MTRStationEntrySheet(
                 station: station,
