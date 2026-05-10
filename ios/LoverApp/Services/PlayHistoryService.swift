@@ -26,6 +26,10 @@ struct PlayHistoryPayload: Codable, Equatable {
     /// v1.3.0 (.mtrStation) — official 3-letter MTR station code, e.g.
     /// "ADM" for 金鐘. Null on non-MTR kinds.
     var mtrStationCode: String?
+    /// v1.4.0 — encrypted-storage path for an attached cover photo
+    /// ("couple-{id}/{uuid}.bin"). Currently used by .district and
+    /// .mtrStation so a journal entry can carry the photo from that visit.
+    var coverHandle: String?
     /// Timestamp the user picked / answered / journaled.
     var atISO: String
 
@@ -55,11 +59,21 @@ final class PlayHistoryService: ObservableObject {
     @Published var lastError: String?
 
     private let crypto: CryptoService
+    private let media: MediaService
     private var pollTask: Task<Void, Never>?
     private var realtimeTask: Task<Void, Never>?
     private var coupleId: UUID?
 
-    init(crypto: CryptoService) { self.crypto = crypto }
+    init(crypto: CryptoService) {
+        self.crypto = crypto
+        self.media = MediaService(crypto: crypto)
+    }
+
+    /// v1.4.0 — exposes encrypted media decrypt for district / MTR tile
+    /// thumbnails. Same chat-media bucket + chat key as ChatService.
+    func loadCoverImage(handle: String) async throws -> Data {
+        try await media.downloadAndDecrypt(path: handle)
+    }
 
     // MARK: - Lifecycle
 
@@ -159,11 +173,25 @@ final class PlayHistoryService: ObservableObject {
     /// Records a district visit. One row per visit; districts can be visited
     /// multiple times — the UI just cares whether ANY entry exists for the
     /// code.
-    func recordDistrict(code: String, reflection: String?, senderId: UUID) async {
+    /// v1.4.0 — accepts an optional cover photo. Upload happens up front;
+    /// on failure we still write the journal entry without a photo so the
+    /// reflection isn't lost.
+    func recordDistrict(code: String, reflection: String?,
+                        coverData: Data? = nil, senderId: UUID) async {
+        var coverHandle: String?
+        if let coverData, let coupleId {
+            do {
+                coverHandle = try await media.encryptAndUpload(
+                    data: coverData, coupleId: coupleId)
+            } catch {
+                lastError = "封面相片 upload 失敗（日記仍會儲存）：\(error.localizedDescription)"
+            }
+        }
         let payload = PlayHistoryPayload(
             kind: .district,
             text: reflection,
             districtCode: code,
+            coverHandle: coverHandle,
             atISO: ISO8601DateFormatter().string(from: Date())
         )
         await add(payload: payload, senderId: senderId)
@@ -188,11 +216,23 @@ final class PlayHistoryService: ObservableObject {
 
     // MARK: - MTR stations (v1.3.0)
 
-    func recordMtrStation(code: String, reflection: String?, senderId: UUID) async {
+    /// v1.4.0 — accepts an optional cover photo (same pattern as district).
+    func recordMtrStation(code: String, reflection: String?,
+                          coverData: Data? = nil, senderId: UUID) async {
+        var coverHandle: String?
+        if let coverData, let coupleId {
+            do {
+                coverHandle = try await media.encryptAndUpload(
+                    data: coverData, coupleId: coupleId)
+            } catch {
+                lastError = "封面相片 upload 失敗（日記仍會儲存）：\(error.localizedDescription)"
+            }
+        }
         let payload = PlayHistoryPayload(
             kind: .mtrStation,
             text: reflection,
             mtrStationCode: code,
+            coverHandle: coverHandle,
             atISO: ISO8601DateFormatter().string(from: Date())
         )
         await add(payload: payload, senderId: senderId)

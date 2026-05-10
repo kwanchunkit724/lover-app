@@ -224,10 +224,10 @@ struct ChatView: View {
 
             Spacer()
 
-            Button { } label: { DSIcon(name: .camera, size: 20, color: theme.rose) }
-                .buttonStyle(.plain)
-            Button { } label: { DSIcon(name: .more, size: 22, color: theme.inkSoft) }
-                .buttonStyle(.plain)
+            // v1.4.0 — removed the dead camera + more icons that lived
+            // here as design placeholders. They had no actions wired and
+            // confused users who tapped them expecting something. The +
+            // and camera icons in the Composer are the real entry points.
         }
         .padding(.horizontal, 14)
         .padding(.top, 4)

@@ -72,10 +72,7 @@ struct EntryDetailView: View {
 
             Spacer()
 
-            Button {} label: {
-                DSIcon(name: .more, size: 22, color: theme.inkSoft).padding(6)
-            }
-            .buttonStyle(.plain)
+            // v1.4.0 — removed dead "more" placeholder button.
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
@@ -200,7 +197,9 @@ struct EntryDetailView: View {
                 .background(theme.roseSoft)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                if r.from == "kit" {
+                // v1.4.0 — removed dead "+ Michel 仲未寫感想" placeholder
+                // (the partner reflection feature isn't built yet).
+                if false, r.from == "kit" {
                     Button {} label: {
                         Text("＋ Michel 仲未寫感想")
                             .font(DSText.ui(theme, 13))
@@ -290,12 +289,11 @@ struct EntryDetailView: View {
                 }
             }
 
-            HStack(spacing: 8) {
-                addChip(icon: .image, label: "＋ 加相")
-                addChip(icon: .edit, label: "＋ 補感想")
-                addChip(icon: .pin2, label: "＋ 地點")
-            }
-            .padding(.top, 6)
+            // v1.4.0 — removed the "+ 加相 / 補感想 / 地點" chip row. They
+            // were design placeholders with empty actions; the real photo
+            // upload now lives in AddEntryView's 封面相片 section, location
+            // is set on creation, and partner reflection is queued for a
+            // later phase.
         }
         .padding(.top, 18)
     }

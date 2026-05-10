@@ -147,6 +147,11 @@ struct MonthGrid: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
         }
+        // v1.4.0 — clip the whole photo cell to the rounded square so the
+        // EncryptedAsyncImage (which uses .frame(maxHeight: 200) internally)
+        // doesn't bleed into the row above when rendered in a ~50pt
+        // calendar cell.
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     // Today / upcoming / empty-past day cell.

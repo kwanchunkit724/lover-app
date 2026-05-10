@@ -14,6 +14,9 @@ struct MTRStationEntrySheet: View {
 
     @State private var reflection: String = ""
     @State private var isSubmitting: Bool = false
+    @State private var coverData: Data? = nil
+    @State private var showPicker = false
+    @State private var showCamera = false
     @FocusState private var reflectionFocused: Bool
 
     private var lineColor: Color { Color(hex: station.line.colorHex) }
@@ -87,7 +90,70 @@ struct MTRStationEntrySheet: View {
                     .focused($reflectionFocused)
                     .padding(14)
             }
+
+            section(title: "封面相片 (可以唔加)") {
+                photoPickerRow.padding(14)
+            }
         }
+    }
+
+    // MARK: - Photo picker (v1.4.0)
+
+    @ViewBuilder
+    private var photoPickerRow: some View {
+        if let data = coverData, let ui = UIImage(data: data) {
+            VStack(spacing: 10) {
+                Image(uiImage: ui)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 180)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                Button { coverData = nil } label: {
+                    Text("移除張相")
+                        .font(DSText.mono(theme, 11))
+                        .foregroundStyle(theme.rose)
+                }
+                .buttonStyle(.plain)
+            }
+        } else {
+            HStack(spacing: 10) {
+                Button { showCamera = true } label: { pickerButton(icon: .cam, label: "影相") }
+                    .buttonStyle(.plain)
+                Button { showPicker = true } label: { pickerButton(icon: .image, label: "由相簿揀") }
+                    .buttonStyle(.plain)
+            }
+            .sheet(isPresented: $showPicker) {
+                PhotoPickerSheet(
+                    onPick: { d in showPicker = false; coverData = d },
+                    onCancel: { showPicker = false }
+                )
+            }
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraSheet(
+                    onPick: { d in showCamera = false; coverData = d },
+                    onCancel: { showCamera = false }
+                )
+                .ignoresSafeArea()
+            }
+        }
+    }
+
+    private func pickerButton(icon: DSIconName, label: String) -> some View {
+        VStack(spacing: 6) {
+            DSIcon(name: icon, size: 22, color: theme.rose)
+            Text(label)
+                .font(DSText.ui(theme, 12))
+                .foregroundStyle(theme.ink)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 18)
+        .background(theme.paperAlt)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(theme.line, lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var heroCard: some View {
@@ -156,9 +222,12 @@ struct MTRStationEntrySheet: View {
         guard case .signedIn(let uuid) = auth.state else { return }
         let text = reflection.trimmingCharacters(in: .whitespacesAndNewlines)
         let code = station.id
+        let cover = coverData
         isSubmitting = true
         Task {
-            await playHistory.recordMtrStation(code: code, reflection: text, senderId: uuid)
+            await playHistory.recordMtrStation(
+                code: code, reflection: text,
+                coverData: cover, senderId: uuid)
             await MainActor.run {
                 isSubmitting = false
                 onClose()

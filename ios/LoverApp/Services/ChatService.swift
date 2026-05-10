@@ -144,7 +144,13 @@ final class ChatService: ObservableObject {
     private func runPollLoop() async {
         await fetchOnce()
         while !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: 30_000_000_000)   // 30s — slow fallback
+            // v1.4.0 — was 30s, which made messages feel laggy on the
+            // receiver side whenever Realtime dropped (and Realtime
+            // occasionally drops on cellular). 5s is the sweet spot:
+            // still cheap on quota (~720 fetches/hour while chat is open
+            // vs Realtime's free push) but the receiver never waits more
+            // than a 5s blink even if Realtime is silent.
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
             if Task.isCancelled { break }
             await fetchOnce()
         }
