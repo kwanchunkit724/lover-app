@@ -81,7 +81,16 @@ final class PlayHistoryService: ObservableObject {
         if self.coupleId == coupleId, realtimeTask != nil { return }
         self.coupleId = coupleId
         pollTask?.cancel(); realtimeTask?.cancel()
-        pollTask = Task { [weak self] in await self?.fetchOnce() }
+        // v1.4.2 — 10s polling fallback so play history (district / MTR /
+        // date card) stays fresh even when realtime is reconnecting.
+        pollTask = Task { [weak self] in
+            await self?.fetchOnce()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                if Task.isCancelled { break }
+                await self?.fetchOnce()
+            }
+        }
         realtimeTask = Task { [weak self] in
             await self?.runRealtimeLoop(coupleId: coupleId)
         }
@@ -284,6 +293,13 @@ final class PlayHistoryService: ObservableObject {
     // MARK: - Realtime
 
     private func runRealtimeLoop(coupleId: UUID) async {
+        // v1.4.2 — auto-reconnect outer loop (mirror EntryService fix).
+        // Realtime "Maximum retry attempts reached" no longer leaves the
+        // channel dead until app restart; we keep retrying with backoff
+        // and rely on the parent's polling fallback for data freshness in
+        // between attempts.
+        var delay: UInt64 = 2_000_000_000
+        while !Task.isCancelled {
         let channel = SB.client.channel("play_history-\(coupleId.uuidString)")
         let inserts = channel.postgresChange(
             InsertAction.self,
@@ -297,9 +313,11 @@ final class PlayHistoryService: ObservableObject {
         )
         do {
             try await channel.subscribeWithError()
+            delay = 2_000_000_000
         } catch {
-            lastError = "play_history realtime: \(error.localizedDescription)"
-            return
+            try? await Task.sleep(nanoseconds: delay)
+            if delay < 60_000_000_000 { delay *= 2 }
+            continue
         }
         await withTaskGroup(of: Void.self) { group in
             group.addTask { [weak self] in
@@ -314,6 +332,8 @@ final class PlayHistoryService: ObservableObject {
                     await self?.fetchOnce()
                 }
             }
+        }
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
     }
 

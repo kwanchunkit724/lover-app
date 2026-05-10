@@ -8,7 +8,10 @@ struct EntryDetailView: View {
     let entry: Entry
     let onClose: () -> Void
 
-    private var isPast: Bool { entry.isPast(today: MockData.todayISO) }
+    // v1.4.2 — was using MockData.todayISO (hardcoded constant from a
+    // dev day in 2026), so any entry whose date was BEFORE that constant
+    // never flipped to "已發生 · 記憶". Use the real current day.
+    private var isPast: Bool { entry.isPast(today: LocalDate.string(from: Date())) }
 
     var body: some View {
         ScrollView {

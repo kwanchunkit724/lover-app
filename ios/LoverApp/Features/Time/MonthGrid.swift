@@ -78,35 +78,77 @@ struct MonthGrid: View {
             // SwiftUI lets the child's intrinsic height win, so cells turned
             // into tall vertical columns. Color.clear has no intrinsic size so
             // the aspect ratio actually sticks here.
-            Color.clear
-                .aspectRatio(1, contentMode: .fit)
-                .overlay {
-                    ZStack(alignment: .topLeading) {
-                        if let past {
-                            photoCell(past, day: day)
-                        } else {
-                            labelCell(day: day, upcoming: upcoming, isToday: isToday, isPastEmpty: isPastEmpty)
-                        }
+            // v1.4.2 — switched to GeometryReader so we know the exact cell
+            // side (column width) and can pin the photo to width × width
+            // and clip. Earlier .clipped() on the overlay container did
+            // NOT clip EncryptedAsyncImage's content — its internal
+            // .frame(maxHeight: 200) and the 180pt placeholder kept
+            // bleeding into the previous row.
+            // Also: only render the photo cell when there is a REAL
+            // attached cover photo (couple-... handle). Past entries with
+            // no real photo now show as a normal day cell instead of the
+            // gradient placeholder, which users were misreading as
+            // "random photo".
+            GeometryReader { geo in
+                let realCover: String? = {
+                    if let p = past, let c = p.cover, c.hasPrefix("couple-") { return c }
+                    return nil
+                }()
+                ZStack(alignment: .topLeading) {
+                    if let cover = realCover, let p = past {
+                        photoCellReal(p, cover: cover, day: day, side: geo.size.width)
+                    } else {
+                        labelCell(day: day, upcoming: upcoming, isToday: isToday,
+                                  isPastEmpty: isPastEmpty)
+                            .frame(width: geo.size.width, height: geo.size.width)
                     }
-                    // v1.4.1 — clip the overlay container to the square so
-                    // EncryptedAsyncImage (which has an internal
-                    // .frame(maxHeight: 200)) can't bleed up into the row
-                    // above. The earlier .clipShape on the inner ZStack
-                    // didn't catch this because SwiftUI evaluates overlay
-                    // size BEFORE applying clipShape — it has to be
-                    // .clipped() on the overlay-applied view itself.
-                    .clipped()
                 }
+                .frame(width: geo.size.width, height: geo.size.width)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .stroke(isSelected ? theme.rose : .clear, lineWidth: 2)
                 )
-                .contentShape(Rectangle())
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
 
-    // Past day with memory — photo fills cell.
+    // v1.4.2 — past day with REAL encrypted cover, sized to the exact cell.
+    private func photoCellReal(_ entry: Entry, cover: String, day: Int, side: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            EncryptedAsyncImage(mediaHandle: cover, maxHeight: side, cornerRadius: 0)
+                .frame(width: side, height: side)
+                .clipped()
+
+            LinearGradient(
+                colors: [Color.black.opacity(0.05), .clear, Color.black.opacity(0.55)],
+                startPoint: .top, endPoint: .bottom
+            )
+
+            Text("\(day)")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.4), radius: 1, y: 1)
+                .padding(.leading, 5)
+                .padding(.top, 4)
+
+            if entry.isSpecial {
+                Text("♡")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white)
+                    .padding(.trailing, 5)
+                    .padding(.top, 4)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .frame(width: side, height: side)
+    }
+
+    // Past day with memory — gradient placeholder fills cell.
+    // (No longer used by .cell since v1.4.2; kept for reference.)
     private func photoCell(_ entry: Entry, day: Int) -> some View {
         ZStack(alignment: .topLeading) {
             // v1.2.0 — if the entry has a real encrypted cover photo, render

@@ -73,7 +73,16 @@ final class EntryService: ObservableObject {
         if self.coupleId == coupleId, realtimeTask != nil { return }
         self.coupleId = coupleId
         pollTask?.cancel(); realtimeTask?.cancel()
-        pollTask = Task { [weak self] in await self?.fetchOnce() }
+        // v1.4.2 — was a one-shot fetch; now a 10-second poll loop so
+        // entries stay fresh even if Realtime is between reconnects.
+        pollTask = Task { [weak self] in
+            await self?.fetchOnce()
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                if Task.isCancelled { break }
+                await self?.fetchOnce()
+            }
+        }
         realtimeTask = Task { [weak self] in
             await self?.runRealtimeLoop(coupleId: coupleId)
         }
@@ -173,6 +182,14 @@ final class EntryService: ObservableObject {
     // MARK: - Realtime
 
     private func runRealtimeLoop(coupleId: UUID) async {
+        // v1.4.2 — auto-reconnect outer loop. Earlier this returned on
+        // first failure ("Maximum retry attempts reached"), leaving the
+        // realtime channel dead until app restart. Now we keep retrying
+        // with exponential backoff (capped at 60 s). Polling every 5 s
+        // is the immediate fallback so the user sees fresh data even
+        // while we're between reconnect attempts.
+        var delay: UInt64 = 2_000_000_000   // 2 s, doubles up to 60 s
+        while !Task.isCancelled {
         let channel = SB.client.channel("entries-\(coupleId.uuidString)")
         let inserts = channel.postgresChange(
             InsertAction.self,
@@ -186,9 +203,14 @@ final class EntryService: ObservableObject {
         )
         do {
             try await channel.subscribeWithError()
+            // Subscribe succeeded → reset backoff for the next failure.
+            delay = 2_000_000_000
         } catch {
-            lastError = "entries realtime: \(error.localizedDescription)"
-            return
+            // v1.4.2 — don't surface every transient realtime hiccup;
+            // polling already covers the data path. Sleep + retry.
+            try? await Task.sleep(nanoseconds: delay)
+            if delay < 60_000_000_000 { delay *= 2 }
+            continue
         }
         await withTaskGroup(of: Void.self) { group in
             group.addTask { [weak self] in
@@ -203,6 +225,10 @@ final class EntryService: ObservableObject {
                     await self?.fetchOnce()
                 }
             }
+        }
+        // Channel ended (cancelled or dropped) — outer while loop
+        // re-subscribes after a short pause.
+        try? await Task.sleep(nanoseconds: 1_000_000_000)
         }
     }
 

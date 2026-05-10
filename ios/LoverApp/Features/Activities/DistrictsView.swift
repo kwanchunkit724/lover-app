@@ -127,35 +127,56 @@ struct DistrictsView: View {
     private func tile(_ d: District) -> some View {
         let isDone = visited.contains(d.id)
         let tint = tintColor(for: d.tint)
+        // v1.4.2 — surface the saved photo (if any) as the tile background.
+        let cover: String? = playHistory.latestEntry(forDistrict: d.id)?.payload.coverHandle
         return Button {
             selectedDistrict = d
         } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(d.name)
-                        .font(.system(size: 16, weight: .semibold, design: .serif))
-                        .foregroundStyle(theme.ink)
-                    Spacer()
-                    if isDone {
-                        DSIcon(name: .check, size: 14, color: theme.sage, strokeWidth: 2.4)
-                    }
+            ZStack(alignment: .topLeading) {
+                // Photo background, if attached
+                if let cover, cover.hasPrefix("couple-") {
+                    EncryptedAsyncImage(mediaHandle: cover, maxHeight: 160, cornerRadius: 14)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .clipped()
+                    LinearGradient(
+                        colors: [Color.black.opacity(0.05), .clear, Color.black.opacity(0.55)],
+                        startPoint: .top, endPoint: .bottom
+                    )
                 }
 
-                Text(d.kaomoji)
-                    .font(DSText.mono(theme, 18))
-                    .foregroundStyle(tint)
-                    .padding(.top, 8)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(d.name)
+                            .font(.system(size: 16, weight: .semibold, design: .serif))
+                            .foregroundStyle(cover != nil ? .white : theme.ink)
+                        Spacer()
+                        if isDone {
+                            DSIcon(name: .check, size: 14,
+                                   color: cover != nil ? .white : theme.sage,
+                                   strokeWidth: 2.4)
+                        }
+                    }
 
-                Spacer(minLength: 0)
+                    Text(d.kaomoji)
+                        .font(DSText.mono(theme, 18))
+                        .foregroundStyle(cover != nil ? .white : tint)
+                        .padding(.top, 8)
 
-                Text(isDone ? "已記低 ♡" : "tap 寫日記")
-                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(isDone ? theme.sage : theme.inkMuted)
-                    .padding(.top, 8)
+                    Spacer(minLength: 0)
+
+                    Text(isDone ? "已記低 ♡" : "tap 寫日記")
+                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(cover != nil
+                                         ? .white.opacity(0.9)
+                                         : (isDone ? theme.sage : theme.inkMuted))
+                        .padding(.top, 8)
+                }
+                .padding(14)
             }
             .frame(maxWidth: .infinity, minHeight: 96, alignment: .topLeading)
-            .padding(14)
-            .background(isDone ? tint.opacity(0.13) : theme.surface)
+            .background(cover != nil
+                        ? AnyView(Color.clear)
+                        : AnyView(isDone ? tint.opacity(0.13) : theme.surface))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .stroke(isDone ? tint.opacity(0.5) : theme.line,

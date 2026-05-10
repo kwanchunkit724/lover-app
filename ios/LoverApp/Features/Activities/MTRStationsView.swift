@@ -142,6 +142,10 @@ struct MTRStationsView: View {
 
     private func stationRow(_ s: MTRStation, lineColor: Color, showDivider: Bool) -> some View {
         let isDone = visited.contains(s.id)
+        // v1.4.2 — pull the saved photo (if any) into a small thumbnail on
+        // the trailing edge. List rows are short so we don't try a full
+        // background like the district grid; a 36×36 chip works fine here.
+        let cover: String? = playHistory.latestEntry(forMtr: s.id)?.payload.coverHandle
         return Button { selected = s } label: {
             HStack(spacing: 12) {
                 Circle()
@@ -159,7 +163,11 @@ struct MTRStationsView: View {
 
                 Spacer()
 
-                if isDone {
+                if let cover, cover.hasPrefix("couple-") {
+                    EncryptedAsyncImage(mediaHandle: cover, maxHeight: 36, cornerRadius: 6)
+                        .frame(width: 36, height: 36)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                } else if isDone {
                     DSIcon(name: .check, size: 14, color: theme.sage, strokeWidth: 2.4)
                 } else {
                     Text("tap →")
