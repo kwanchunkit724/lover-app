@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support — Us</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+         background: #F2EBE0; color: #3D2E27; margin: 0; padding: 40px 20px; line-height: 1.65; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-family: Georgia, serif; font-size: 32px; margin: 0 0 24px; }
+  h2 { font-family: Georgia, serif; font-size: 20px; margin-top: 32px; }
+  .card { background: #FBF6EE; border: 0.5px solid rgba(61,46,39,0.10); border-radius: 14px;
+          padding: 20px; margin-bottom: 16px; }
+  .card p { margin: 8px 0; }
+  a { color: #D08282; }
+  .nav { margin-bottom: 16px; font-size: 13px; }
+  .nav a { color: #7A6259; text-decoration: none; }
+  details { margin: 12px 0; }
+  summary { font-weight: 600; cursor: pointer; padding: 6px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="nav"><a href="index.html">← Us</a></p>
+  <h1>Support · 客服</h1>
+
+  <div class="card">
+    <h2>Contact us</h2>
+    <p>Email: <a href="mailto:kck980724@gmail.com?subject=%5BUs%20support%5D">kck980724@gmail.com</a></p>
+    <p>Subject prefix: <code>[Us support]</code> for general issues, <code>[Us privacy]</code> for data requests.</p>
+    <p>We aim to respond within 7 days.</p>
+  </div>
+
+  <div class="card">
+    <h2>Common questions</h2>
+
+    <details>
+      <summary>How do I pair with my partner?</summary>
+      <p>One person taps "係 my partner already on Us" → "Generate code" to create a 6-digit code. The other person enters that code plus your shared anniversary date. Both phones unlock the chat tab once paired.</p>
+    </details>
+
+    <details>
+      <summary>Why does chat say "(無法解密 — 對方換咗 device)"?</summary>
+      <p>This means the message was encrypted with a different keypair than the one currently on your device — usually because either you or your partner reinstalled the app or signed in on a new phone. Past messages can no longer be decrypted; new messages will work normally. To start fresh: Profile → 解除配對 then re-pair.</p>
+    </details>
+
+    <details>
+      <summary>I'm not getting push notifications</summary>
+      <p>Settings → Notifications → Us → make sure "Allow Notifications" is on. Also confirm you've completed pairing (push only works for paired couples) and that you've granted the notification permission when the app first asked.</p>
+    </details>
+
+    <details>
+      <summary>How do I delete my account?</summary>
+      <p>Email <a href="mailto:kck980724@gmail.com?subject=%5BUs%20privacy%5D%20Account%20deletion">kck980724@gmail.com</a> with the subject "[Us privacy] Account deletion". We'll erase your auth record + all your couple/message/entry/anniversary/play-history rows within 30 days.</p>
+      <p>If you only want to start over (not delete the account), use Profile → 重設個人資料 inside the app.</p>
+    </details>
+
+    <details>
+      <summary>Can I use Us on the web / iPad / Android?</summary>
+      <p>Currently iPhone only (iOS 17+). The end-to-end encryption design is iPhone-specific because the private key lives in iOS Keychain. iPad / Android / web are not on the immediate roadmap.</p>
+    </details>
+
+    <details>
+      <summary>What if I lose my phone or get a new one?</summary>
+      <p>Your private encryption key is non-syncing (stays on the original device) so a fresh install on a new phone generates a new keypair. You'll see your past messages as "(無法解密)" — by design, so that lost devices can't be used to read your history. Just re-pair with your partner to start fresh.</p>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>Privacy</h2>
+    <p>Read our <a href="privacy.html">Privacy Policy</a> for details on what data we collect (and don't collect).</p>
+  </div>
+</div>
+</body>
+</html>

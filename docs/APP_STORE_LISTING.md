@@ -32,7 +32,7 @@ Use these strings when filling in App Store Connect's metadata for the first sub
 | Data Collection: Diagnostics | None |
 | Data sold to third parties? | No |
 | Data used for tracking? | No |
-| Privacy Policy URL | _TBD — host PRIVACY_POLICY.md on a public URL (e.g. GitHub Pages, your own site)_ |
+| Privacy Policy URL | `https://kwanchunkit724.github.io/lover-app/privacy.html` |
 
 ## Description (zh-Hant)
 
@@ -88,14 +88,17 @@ couples,relationship,chat,messaging,journal,anniversary,e2ee,private,kawaii,date
 情侶限定 ♡ 端到端加密嘅對話、共同行事曆、紀念日倒數、約會盲盒、感激清單。Server 都讀唔到 — 真正只有你哋兩個睇到。
 ```
 
-## What's New in this version (v1.0)
+## What's New in this version (v1.4.4)
 
 ```
-✦ 第一版！
-• 端到端加密對話：文字、相片、語音
-• 共同行事曆 + 紀念日同步
-• 玩樂：盲盒約會卡、感激清單、情侶問題
-• 三個主題：日系奶油、Notion 暖紙、深夜暖色
+✦ 第一版上架！
+• 端到端加密對話：文字、相片、語音、push 通知
+• 共同行事曆 + 真相片做記憶 — 過咗嗰日就自動變紀念
+• 紀念日 同步倒數
+• 18 區日記：一齊行勻香港，一區一篇
+• MTR 站日記：90 個站，9 條線，一齊搭遍
+• 盲盒約會卡：24 張，做過嘅唔再出
+• 4 個主題：Cream × Ink、日系奶油、Notion 暖紙、深夜暖色
 ```
 
 ## Screenshots required
@@ -145,8 +148,8 @@ If the reviewer needs anything else, contact kck980724@gmail.com — we typicall
 
 ## Support / Marketing URLs
 
-- Support URL: _TBD — could be a simple GitHub Pages page with the privacy policy + contact email_
-- Marketing URL: _Optional. Same as support for v1._
+- Support URL: `https://kwanchunkit724.github.io/lover-app/support.html`
+- Marketing URL: `https://kwanchunkit724.github.io/lover-app/`
 
 ## Pre-submission checklist
 

@@ -1,0 +1,18 @@
+# GitHub Pages config — only the public-facing pages get rendered.
+# Internal docs stay in repo but are excluded from the published site.
+
+title: Us
+description: A small private space for two
+url: "https://kwanchunkit724.github.io/lover-app"
+
+# Don't run Jekyll on the internal docs (we serve hand-written HTML instead).
+exclude:
+  - APP_STORE_LISTING.md
+  - ARCHITECTURE.md
+  - CODEMAGIC_SETUP.md
+  - PAIRING.md
+  - PROJECT.md
+  - PUSH_NOTIFICATIONS_SETUP.md
+  - ROADMAP.md
+  - WINDOWS_DEV.md
+  - PRIVACY_POLICY.md

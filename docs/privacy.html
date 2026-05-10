@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — Us</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", sans-serif;
+         background: #F2EBE0; color: #3D2E27; margin: 0; padding: 40px 20px; line-height: 1.65; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-family: Georgia, serif; font-size: 32px; margin: 0 0 4px; }
+  .updated { color: #7A6259; font-size: 13px; margin-bottom: 24px; }
+  h2 { font-family: Georgia, serif; font-size: 22px; margin-top: 40px; }
+  h3 { margin-top: 24px; }
+  p, li { font-size: 15px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 12px 0; }
+  th, td { border: 1px solid rgba(61,46,39,0.18); padding: 8px 10px; text-align: left; vertical-align: top; }
+  th { background: #FBF6EE; }
+  code { background: #FBF6EE; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  hr { border: none; border-top: 1px solid rgba(61,46,39,0.12); margin: 32px 0; }
+  a { color: #D08282; }
+  .nav { margin-bottom: 16px; font-size: 13px; }
+  .nav a { color: #7A6259; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="nav"><a href="index.html">← Us</a></p>
+  <h1>Privacy Policy — Us (我哋)</h1>
+  <p class="updated">Last updated: 2026-05-10</p>
+
+  <h2>Plain-language summary</h2>
+  <p>Us is a private, end-to-end encrypted app for two people. We are designed so the developer literally cannot read your messages, photos, voice notes, anniversaries, calendar entries, journal entries, or quiz answers. Everything sensitive is encrypted on your device with a key derived from your partner's public key, and the server only ever sees opaque ciphertext.</p>
+  <p>We do not sell your data. We do not share it with anyone. We do not run third-party ads or analytics SDKs. We do not track you across other apps or websites.</p>
+
+  <hr>
+
+  <h2>What we collect and why</h2>
+  <table>
+    <tr><th>Data</th><th>Source</th><th>Purpose</th><th>Stored where</th><th>Encrypted?</th></tr>
+    <tr><td>Apple ID (stable user identifier)</td><td>Sign in with Apple</td><td>Account identity</td><td>Supabase auth</td><td>At-rest</td></tr>
+    <tr><td>Email address</td><td>Sign in with Apple / email OTP</td><td>Recovery / contact</td><td>Supabase auth</td><td>At-rest</td></tr>
+    <tr><td>Display name + partner's nickname</td><td>You enter during onboarding</td><td>Show in app</td><td>Supabase users table</td><td>At-rest</td></tr>
+    <tr><td>Anniversary date</td><td>You enter during onboarding + pairing</td><td>Couple verification + shared display</td><td>Supabase users + anniversaries (E2EE)</td><td>At-rest + E2EE</td></tr>
+    <tr><td>Theme preference</td><td>You pick during onboarding</td><td>Render the app</td><td>Supabase users</td><td>At-rest</td></tr>
+    <tr><td>Public key (X25519, 32 bytes)</td><td>Generated on your device</td><td>Partner derives shared chat key</td><td>Supabase users.public_key</td><td>Public by design</td></tr>
+    <tr><td><strong>Chat messages</strong></td><td>You write</td><td>Send to partner</td><td>Supabase messages.ciphertext_b64</td><td><strong>End-to-end encrypted (AES-GCM)</strong></td></tr>
+    <tr><td><strong>Photos shared in chat</strong></td><td>You select</td><td>Share with partner</td><td>Supabase Storage chat-media (encrypted blob)</td><td><strong>End-to-end encrypted (AES-GCM)</strong></td></tr>
+    <tr><td><strong>Voice messages</strong></td><td>You record</td><td>Send to partner</td><td>Supabase Storage chat-media (encrypted blob)</td><td><strong>End-to-end encrypted (AES-GCM)</strong></td></tr>
+    <tr><td><strong>Shared calendar entries (incl. cover photos)</strong></td><td>You add</td><td>Share with partner</td><td>Supabase entries.ciphertext_b64 + Storage</td><td><strong>End-to-end encrypted (AES-GCM)</strong></td></tr>
+    <tr><td><strong>Date-card history, journal, quiz answers, district / MTR visit logs</strong></td><td>You record</td><td>Share with partner</td><td>Supabase play_history.ciphertext_b64</td><td><strong>End-to-end encrypted (AES-GCM)</strong></td></tr>
+    <tr><td>APNs device token</td><td>iOS provides after permission</td><td>Deliver lock-screen notifications</td><td>Supabase users.device_token</td><td>At-rest</td></tr>
+  </table>
+  <p>The private half of your encryption keypair lives only in your iPhone's Keychain (<code>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</code>, non-syncing). It never leaves your device. If you reinstall the app or sign in on a new device, you generate a fresh keypair and your previous chat history will display as "(無法解密)" — by design.</p>
+
+  <h2>What we do NOT collect</h2>
+  <ul>
+    <li>We do not collect location.</li>
+    <li>We do not collect contacts.</li>
+    <li>We do not collect device identifiers for advertising.</li>
+    <li>We do not run third-party analytics, attribution, or ad SDKs.</li>
+    <li>We do not have access to your encryption keys.</li>
+    <li>We do not back up your decrypted chat content anywhere.</li>
+    <li>We do not read, train on, or transcribe your messages, photos, or voice notes.</li>
+  </ul>
+
+  <h2>Push notifications</h2>
+  <p>When your partner sends you something, our server-side function generates a generic notification (<em>"[partner's name] · 傳咗訊息畀你 ♡"</em>) and sends it to Apple's APNs service for delivery to your device. The notification body contains no chat content — the server cannot read it.</p>
+
+  <h2>Permissions we request and why</h2>
+  <table>
+    <tr><th>Permission</th><th>Used for</th><th>When</th></tr>
+    <tr><td>Camera</td><td>Take a photo to send / attach to a memory</td><td>When you tap the camera icon</td></tr>
+    <tr><td>Microphone</td><td>Record a voice message</td><td>When you tap the mic icon in chat</td></tr>
+    <tr><td>Photo library</td><td>Pick a photo to send / attach to a memory / district / MTR journal</td><td>When you tap the album icon</td></tr>
+    <tr><td>Notifications</td><td>Lock-screen alerts when partner sends something</td><td>After you sign in (you can decline)</td></tr>
+  </table>
+
+  <h2>Data deletion</h2>
+  <p>You can:</p>
+  <ul>
+    <li><strong>Unpair</strong> at any time (Profile → 解除配對) — deletes the couple row, both partners drop back to the pairing screen. Old encrypted messages remain on the server but neither side can decrypt them anymore.</li>
+    <li><strong>Reset your local profile</strong> (Profile → 重設個人資料) — clears all on-device state and signs you out.</li>
+    <li><strong>Permanently delete your account + all data</strong> — email <a href="mailto:kck980724@gmail.com?subject=%5BUs%20privacy%5D%20Account%20deletion">kck980724@gmail.com</a> and we'll erase your auth row, your users row, and any couple/messages/entries/anniversaries/play_history rows you're a member of, within 30 days.</li>
+  </ul>
+
+  <h2>Children</h2>
+  <p>Us is not directed at children under 13. We do not knowingly collect data from anyone under 13. If you believe a child has provided data, please contact us so we can delete it.</p>
+
+  <h2>Where data is stored</h2>
+  <p>Supabase project (Postgres + Storage) hosted on AWS in the <strong>Asia-Pacific (Tokyo)</strong> region (<code>ap-northeast-1</code>). Apple Push Notification service is provided by Apple Inc.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>We'll bump the "Last updated" date at the top and post the new version at the same URL. For material changes (e.g. new data categories), we'll show an in-app notice on next launch.</p>
+
+  <h2>Contact</h2>
+  <p>For privacy questions or deletion requests:</p>
+  <ul>
+    <li>Email: <a href="mailto:kck980724@gmail.com">kck980724@gmail.com</a></li>
+    <li>Subject prefix: <code>[Us privacy]</code></li>
+  </ul>
+  <p>We aim to respond within 7 days.</p>
+</div>
+</body>
+</html>
