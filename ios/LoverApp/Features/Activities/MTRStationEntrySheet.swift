@@ -71,12 +71,12 @@ struct MTRStationEntrySheet: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            heroCard
+        // v1.4.3 — show full visit history below the form (parallel to
+        // DistrictEntrySheet).
+        let history = playHistory.entries(forMtr: station.id)
 
-            if let prev = latestEntry, let prevText = prev.payload.text, !prevText.isEmpty {
-                lastVisitCard(text: prevText, at: prev.createdAt)
-            }
+        return VStack(alignment: .leading, spacing: 22) {
+            heroCard
 
             section(title: "今次嘅日記") {
                 TextField("",
@@ -94,7 +94,58 @@ struct MTRStationEntrySheet: View {
             section(title: "封面相片 (可以唔加)") {
                 photoPickerRow.padding(14)
             }
+
+            if !history.isEmpty {
+                section(title: "之前嘅日記 (\(history.count))") {
+                    VStack(spacing: 0) {
+                        ForEach(history.indices, id: \.self) { i in
+                            historyRow(history[i],
+                                       isLast: i == history.count - 1)
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    private func historyRow(_ item: PlayHistoryService.DecryptedItem,
+                            isLast: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text(longDate(item.createdAt))
+                    .font(DSText.mono(theme, 10).weight(.semibold))
+                    .foregroundStyle(lineColor)
+                Text(relativeDate(item.createdAt))
+                    .font(DSText.mono(theme, 10))
+                    .foregroundStyle(theme.inkMuted)
+            }
+            if let text = item.payload.text, !text.isEmpty {
+                Text(text)
+                    .font(DSText.ui(theme, 13))
+                    .foregroundStyle(theme.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if let cover = item.payload.coverHandle, cover.hasPrefix("couple-") {
+                EncryptedAsyncImage(mediaHandle: cover, maxHeight: 180, cornerRadius: 10)
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(
+            Rectangle()
+                .frame(height: isLast ? 0 : 0.5)
+                .foregroundStyle(theme.line),
+            alignment: .bottom
+        )
+    }
+
+    private func longDate(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh-Hant")
+        f.dateFormat = "yyyy.MM.dd"
+        return f.string(from: d)
     }
 
     // MARK: - Photo picker (v1.4.0)

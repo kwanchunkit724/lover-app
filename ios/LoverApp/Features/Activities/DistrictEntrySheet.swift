@@ -89,12 +89,14 @@ struct DistrictEntrySheet: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            heroCard
+        // v1.4.3 — pulled all visits for this district so we can render
+        // the full history below the new-entry form. Previously we showed
+        // only the single most recent visit ("上次去") which hid earlier
+        // memories the couple had recorded.
+        let history = playHistory.entries(forDistrict: district.id)
 
-            if let prev = latestEntry, let prevText = prev.payload.text, !prevText.isEmpty {
-                lastVisitCard(text: prevText, at: prev.createdAt)
-            }
+        return VStack(alignment: .leading, spacing: 22) {
+            heroCard
 
             section(title: "今次嘅日記") {
                 TextField("",
@@ -112,7 +114,62 @@ struct DistrictEntrySheet: View {
             section(title: "封面相片 (可以唔加)") {
                 photoPickerRow.padding(14)
             }
+
+            // v1.4.3 — full history below the form. Each row = one visit.
+            if !history.isEmpty {
+                section(title: "之前嘅日記 (\(history.count))") {
+                    VStack(spacing: 0) {
+                        ForEach(history.indices, id: \.self) { i in
+                            historyRow(history[i],
+                                       isLast: i == history.count - 1)
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    // v1.4.3 — single past-visit row. Date header + text + optional photo.
+    private func historyRow(_ item: PlayHistoryService.DecryptedItem,
+                            isLast: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Text(longDate(item.createdAt))
+                    .font(DSText.mono(theme, 10).weight(.semibold))
+                    .foregroundStyle(theme.rose)
+                Text(relativeDate(item.createdAt))
+                    .font(DSText.mono(theme, 10))
+                    .foregroundStyle(theme.inkMuted)
+            }
+
+            if let text = item.payload.text, !text.isEmpty {
+                Text(text)
+                    .font(DSText.ui(theme, 13))
+                    .foregroundStyle(theme.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if let cover = item.payload.coverHandle, cover.hasPrefix("couple-") {
+                EncryptedAsyncImage(mediaHandle: cover, maxHeight: 180, cornerRadius: 10)
+                    .frame(maxWidth: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .overlay(
+            Rectangle()
+                .frame(height: isLast ? 0 : 0.5)
+                .foregroundStyle(theme.line),
+            alignment: .bottom
+        )
+    }
+
+    private func longDate(_ d: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh-Hant")
+        f.dateFormat = "yyyy.MM.dd"
+        return f.string(from: d)
     }
 
     // MARK: - Photo picker (v1.4.0)

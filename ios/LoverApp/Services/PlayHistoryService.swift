@@ -223,6 +223,12 @@ final class PlayHistoryService: ObservableObject {
         districtHistory.first { $0.payload.districtCode == code }
     }
 
+    /// v1.4.3 — full history of visits for a given district, newest first.
+    /// Used by DistrictEntrySheet to show the "之前嘅日記" timeline.
+    func entries(forDistrict code: String) -> [DecryptedItem] {
+        districtHistory.filter { $0.payload.districtCode == code }
+    }
+
     // MARK: - MTR stations (v1.3.0)
 
     /// v1.4.0 — accepts an optional cover photo (same pattern as district).
@@ -259,6 +265,11 @@ final class PlayHistoryService: ObservableObject {
 
     func latestEntry(forMtr code: String) -> DecryptedItem? {
         mtrHistory.first { $0.payload.mtrStationCode == code }
+    }
+
+    /// v1.4.3 — full history of visits for a given MTR station, newest first.
+    func entries(forMtr code: String) -> [DecryptedItem] {
+        mtrHistory.filter { $0.payload.mtrStationCode == code }
     }
 
     // MARK: - Fetch

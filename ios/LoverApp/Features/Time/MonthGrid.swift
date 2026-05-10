@@ -98,7 +98,13 @@ struct MonthGrid: View {
                     if let cover = realCover, let p = past {
                         photoCellReal(p, cover: cover, day: day, side: geo.size.width)
                     } else {
-                        labelCell(day: day, upcoming: upcoming, isToday: isToday,
+                        // v1.4.3 — when a past day has entries but no
+                        // attached photo, still surface their titles in
+                        // the cell. Previously we showed only `upcoming`
+                        // labels so past entries without a photo gave the
+                        // user no in-grid clue what was on that day.
+                        let labels = dayEntries.isEmpty ? upcoming : dayEntries
+                        labelCell(day: day, upcoming: labels, isToday: isToday,
                                   isPastEmpty: isPastEmpty)
                             .frame(width: geo.size.width, height: geo.size.width)
                     }
