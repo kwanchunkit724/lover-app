@@ -297,6 +297,9 @@ struct ProfileView: View {
     }
 
     private var accountSection: some View {
+        // v1.4.5 — added「永久刪除帳戶」row to satisfy Apple App Review
+        // Guideline 5.1.1(v) (in-app account deletion is mandatory; the
+        // privacy policy "email us" path is NOT sufficient).
         ProfileSection(title: "帳戶") {
             if pairing.isPaired {
                 ProfileRow(icon: .more, label: "解除配對", value: "→", subtle: true,
@@ -306,6 +309,8 @@ struct ProfileView: View {
                        onTap: { confirmSignOut = true })
             ProfileRow(icon: .more, label: "重設個人資料", value: "→", subtle: true,
                        onTap: { confirmReset = true })
+            ProfileRow(icon: .more, label: "永久刪除帳戶", value: "→", subtle: true,
+                       onTap: { presented = .deleteAccount })
             ProfileRow(icon: .more, label: "關於", value: bundleVersion, onTap: nil, isLast: true)
         }
     }
@@ -321,12 +326,14 @@ struct ProfileView: View {
             KaoSettingsView(onClose: { presented = nil })
         case .theme:
             ThemeSettingsView(onClose: { presented = nil })
+        case .deleteAccount:
+            DeleteAccountSheet(onClose: { presented = nil })
         }
     }
 }
 
 enum SettingsRoute: String, Identifiable {
-    case anniversaries, kao, theme
+    case anniversaries, kao, theme, deleteAccount
     var id: String { rawValue }
 }
 

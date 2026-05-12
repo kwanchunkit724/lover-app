@@ -102,6 +102,32 @@ final class AuthService: NSObject, ObservableObject {
         emailLinkSent = nil
     }
 
+    /// v1.4.5 — permanent account deletion. Required by Apple App Review
+    /// guideline 5.1.1(v): apps that allow account creation must allow
+    /// in-app account deletion (emailing support is NOT enough).
+    ///
+    /// Calls the Postgres RPC `delete_my_account()` which deletes:
+    ///   - public.users row + the auth.users row (cascades to identities)
+    ///   - couple row I'm in (partner is dropped back to unpaired)
+    ///   - all my messages / entries / anniversaries / play_history rows
+    /// The RPC runs as security definer using auth.uid().
+    /// On success: signs out locally, returns true. Caller routes to
+    /// onboarding/sign-in.
+    func deleteAccount() async -> Bool {
+        do {
+            try await SB.client.rpc("delete_my_account").execute()
+            // Even though the RPC nuked the auth row, our session is now
+            // invalid; explicit signOut clears the local session token.
+            try? await SB.client.auth.signOut()
+            state = .signedOut
+            emailLinkSent = nil
+            return true
+        } catch {
+            state = .error("刪除帳戶失敗：\(error.localizedDescription)")
+            return false
+        }
+    }
+
     // MARK: - Email magic link (Phase 8 v0.8.0)
     //
     // Apple's App Review rule: any app that offers a third-party social
