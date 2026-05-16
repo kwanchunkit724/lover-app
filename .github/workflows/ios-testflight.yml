@@ -1,0 +1,179 @@
+name: iOS → TestFlight
+
+# Mirrors codemagic.yaml `testflight` workflow on GitHub Actions macOS runner.
+# Trigger: push tag v*.*.*  (same as Codemagic).
+#
+# Why this exists: Codemagic free tier ran out of build minutes. GitHub Actions
+# macOS-14 runner has the same toolchain (Xcode 16/26, xcodebuild, security,
+# plutil) and can use Codemagic's CLI tools (`app-store-connect`, `keychain`,
+# `xcode-project`) installed via pip. The build/sign/upload steps are
+# byte-equivalent — Apple ingests the same IPA either way.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   APP_STORE_CONNECT_PRIVATE_KEY    — full .p8 file contents (PEM with
+#                                      -----BEGIN PRIVATE KEY----- header)
+#   APP_STORE_CONNECT_KEY_IDENTIFIER — 10-char Key ID from App Store Connect
+#   APP_STORE_CONNECT_ISSUER_ID      — UUID Issuer ID
+#   CERTIFICATE_PRIVATE_KEY          — distribution cert private key in PEM
+#                                      (same value Codemagic uses)
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch: {}   # allow manual run from Actions tab
+
+jobs:
+  testflight:
+    name: Archive + Upload to TestFlight
+    runs-on: macos-14
+    timeout-minutes: 60
+
+    env:
+      XCODE_PROJECT: LoverApp.xcodeproj
+      XCODE_SCHEME:  LoverApp
+      BUNDLE_ID:     michel.kit.us
+      TEAM_ID:       C22JSRYW54
+      APP_STORE_CONNECT_PRIVATE_KEY:    ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+      APP_STORE_CONNECT_KEY_IDENTIFIER: ${{ secrets.APP_STORE_CONNECT_KEY_IDENTIFIER }}
+      APP_STORE_CONNECT_ISSUER_ID:      ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      CERTIFICATE_PRIVATE_KEY:          ${{ secrets.CERTIFICATE_PRIVATE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 16 (or latest available)
+        run: |
+          # Pin a known-stable Xcode. The macos-14 runner image bundles
+          # multiple versions; pick the newest installed in /Applications.
+          NEWEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$NEWEST" ]; then
+            sudo xcode-select -s "$NEWEST/Contents/Developer"
+          fi
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Install Codemagic CLI tools
+        run: |
+          # The same `app-store-connect`, `keychain`, `xcode-project` CLIs
+          # Codemagic uses internally — open-source on PyPI.
+          # https://github.com/codemagic-ci-cd/cli-tools
+          python3 -m pip install --upgrade pip
+          python3 -m pip install codemagic-cli-tools
+          app-store-connect --version
+          keychain --version
+          xcode-project --version
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Set build + marketing version
+        run: |
+          # Build number = unix timestamp → strictly monotonic, no API call.
+          BUILD_NUMBER=$(date +%s)
+          echo "Setting build number to $BUILD_NUMBER"
+          agvtool new-version -all $BUILD_NUMBER
+
+          # Marketing version from project.yml (single source of truth).
+          MARKETING_VERSION=$(grep "MARKETING_VERSION:" project.yml | head -1 | sed 's/.*MARKETING_VERSION: *//' | tr -d '[:space:]')
+          if [ -z "$MARKETING_VERSION" ]; then
+            echo "ERROR: could not parse MARKETING_VERSION from project.yml"
+            exit 1
+          fi
+          echo "Setting marketing version to $MARKETING_VERSION"
+          plutil -replace CFBundleShortVersionString -string "$MARKETING_VERSION" ios/LoverApp/Info.plist
+          plutil -p ios/LoverApp/Info.plist | grep -E "CFBundleShortVersionString|CFBundleVersion"
+
+      - name: Fetch App Store signing files
+        run: |
+          # Codemagic-equivalent: initialize a temporary keychain, fetch (or
+          # create) the distribution certificate + provisioning profile via
+          # ASC API, install both into the keychain, write per-target signing
+          # config into the .xcodeproj.
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create \
+            --certificate-key "@env:CERTIFICATE_PRIVATE_KEY"
+          keychain add-certificates
+          # Force-update xcodeproj gem so it understands Xcode 16/26 project
+          # format (same workaround as Codemagic).
+          gem update xcodeproj --no-document || sudo gem update xcodeproj --no-document
+          xcode-project use-profiles
+
+      - name: Archive app
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -archivePath /tmp/Us.xcarchive \
+            archive \
+            -destination "generic/platform=iOS" \
+            COMPILER_INDEX_STORE_ENABLE=NO
+
+      - name: Export IPA
+        run: |
+          PROFILE_UUID=$(security cms -D -i /tmp/Us.xcarchive/Products/Applications/Us.app/embedded.mobileprovision | plutil -extract UUID raw -)
+          echo "Exporting with profile UUID: $PROFILE_UUID"
+          cat > /tmp/ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>$TEAM_ID</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$BUNDLE_ID</key><string>$PROFILE_UUID</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+            <key>compileBitcode</key><false/>
+          </dict>
+          </plist>
+          EOF
+          mkdir -p build/ios/ipa
+          xcodebuild \
+            -exportArchive \
+            -archivePath /tmp/Us.xcarchive \
+            -exportPath build/ios/ipa \
+            -exportOptionsPlist /tmp/ExportOptions.plist
+          ls -la build/ios/ipa/
+
+      - name: Upload to TestFlight
+        run: |
+          # Stash the .p8 to a tempfile so altool can read it. Codemagic does
+          # this internally; on GHA we do it explicitly.
+          KEY_DIR="$HOME/private_keys"
+          mkdir -p "$KEY_DIR"
+          KEY_PATH="$KEY_DIR/AuthKey_${APP_STORE_CONNECT_KEY_IDENTIFIER}.p8"
+          printf '%s' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+
+          IPA=$(ls build/ios/ipa/*.ipa | head -1)
+          echo "Uploading $IPA to TestFlight..."
+          xcrun altool --upload-app \
+            -f "$IPA" \
+            -t ios \
+            --apiKey "$APP_STORE_CONNECT_KEY_IDENTIFIER" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
+          echo "Upload submitted — Apple processing typically 10–15 min."
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: |
+            build/ios/ipa/*.ipa
+          if-no-files-found: warn
+          retention-days: 7
