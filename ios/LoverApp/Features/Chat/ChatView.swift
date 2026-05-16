@@ -27,6 +27,8 @@ struct ChatView: View {
     // used for both camera + album paths.
     @State private var pendingPhoto: Data? = nil
     @State private var replyTo: Message? = nil
+    // v1.5 — IG features
+    @State private var reactionTarget: Message? = nil   // long-press target for emoji picker
 
     // Derived identities — fall back to mock for previews / unsigned state.
     private var meId: String {
@@ -48,27 +50,54 @@ struct ChatView: View {
     /// ChatService DecryptedMessage → Message adapter so MessageBubble code
     /// keeps working unchanged.
     private var messages: [Message] {
-        chat.messages.map { dm in
-            Message(
+        // Build a lookup so reply previews can resolve to the original bubble.
+        let byId = Dictionary(uniqueKeysWithValues:
+            chat.messages.map { ($0.id, $0) })
+
+        return chat.messages.map { dm in
+            // Reply preview lookup
+            var reply: Message.ReplyPreview? = nil
+            if let rid = dm.replyToId, let orig = byId[rid] {
+                let kind = messageKind(from: orig.payload.kind)
+                let text: String = {
+                    if orig.deletedAt != nil { return "已撤回嘅訊息" }
+                    switch kind {
+                    case .text, .kaomoji: return orig.payload.text ?? ""
+                    case .photo: return orig.payload.text ?? "📷 相片"
+                    case .voice: return "🎙 語音訊息"
+                    }
+                }()
+                reply = Message.ReplyPreview(
+                    messageID: orig.id.uuidString,
+                    kind: kind,
+                    preview: text
+                )
+            }
+
+            // Aggregate reactions: dedup by emoji (couples app: ≤2 users so
+            // the row reads "❤️ 😂" not "❤️❤️ 😂").
+            let uniqueEmojis = Array(Set(dm.reactions.map(\.emoji))).sorted()
+            let reactions = uniqueEmojis.map { e in
+                Message.Reaction(from: dm.senderId.uuidString, kao: e)
+            }
+
+            return Message(
                 id: dm.id.uuidString,
                 from: dm.senderId.uuidString,
                 kind: messageKind(from: dm.payload.kind),
                 timestamp: HHmm.format(dm.createdAt),
-                read: true,
+                read: dm.readAt != nil,
                 text: dm.payload.text,
-                // For photo + voice messages the storage path goes into
-                // photoSrc so MessageBubble can hand it to either
-                // EncryptedAsyncImage or EncryptedAudioPlayback.
-                // voiceDurationSec is parsed from the payload text "0:NN"
-                // sent by ChatService.sendVoice.
                 photoSrc: (dm.payload.kind == .photo || dm.payload.kind == .voice)
                     ? dm.payload.mediaHandle : nil,
                 caption: dm.payload.kind == .photo ? dm.payload.text : nil,
                 voiceDurationSec: dm.payload.kind == .voice
                     ? parseVoiceDuration(dm.payload.text) : nil,
                 voiceTranscript: nil,
-                replyTo: nil,
-                reactions: []
+                replyTo: reply,
+                reactions: reactions,
+                isEdited: dm.isEdited,
+                isDeleted: dm.isDeleted
             )
         }
     }
@@ -112,6 +141,9 @@ struct ChatView: View {
             if !crypto.isReady {
                 cryptoNotReadyBanner
             }
+            if chat.vanishMode {
+                vanishBanner
+            }
             messageList
             if let replyTo {
                 replyPreview(replyTo)
@@ -147,6 +179,19 @@ struct ChatView: View {
             }
         }
         .background(theme.paper.ignoresSafeArea())
+        .overlay {
+            if let target = reactionTarget {
+                ReactionPickerSheet(
+                    onPick: { emoji in
+                        guard case .signedIn(let uuid) = auth.state,
+                              let mid = UUID(uuidString: target.id) else { return }
+                        Task { await chat.addReaction(messageId: mid, emoji: emoji, userId: uuid) }
+                    },
+                    onClose: { reactionTarget = nil }
+                )
+                .transition(.opacity)
+            }
+        }
         .overlay {
             if showActions {
                 ChatActionSheet(
@@ -224,10 +269,17 @@ struct ChatView: View {
 
             Spacer()
 
-            // v1.4.0 — removed the dead camera + more icons that lived
-            // here as design placeholders. They had no actions wired and
-            // confused users who tapped them expecting something. The +
-            // and camera icons in the Composer are the real entry points.
+            // v1.5 — Vanish mode toggle. Pinkish heart-with-slash icon when on.
+            Button {
+                let next = !chat.vanishMode
+                Task { await chat.setVanishMode(enabled: next) }
+            } label: {
+                Image(systemName: chat.vanishMode ? "timer" : "timer.circle")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(chat.vanishMode ? theme.rose : theme.inkMuted)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(chat.vanishMode ? "關閉閱後即焚" : "開啟閱後即焚")
         }
         .padding(.horizontal, 14)
         .padding(.top, 4)
@@ -267,11 +319,22 @@ struct ChatView: View {
                             message: m,
                             isFromMe: m.from == me.id,
                             isContinuation: prev?.from == m.from,
-                            onReact: { },
-                            onReply: { replyTo = m }
+                            onReact: { reactionTarget = m },
+                            onReply: { replyTo = m },
+                            onUnsend: {
+                                guard let uuid = UUID(uuidString: m.id) else { return }
+                                Task { await chat.unsend(messageId: uuid) }
+                            }
                         )
                         .id(m.id)
                         .padding(.horizontal, 14)
+                        .onAppear {
+                            // Auto mark-read when an incoming bubble scrolls
+                            // into view. Idempotent server-side.
+                            guard m.from != me.id, !m.read,
+                                  let uuid = UUID(uuidString: m.id) else { return }
+                            Task { await chat.markRead(messageId: uuid) }
+                        }
                     }
 
                     if messages.isEmpty {
@@ -349,9 +412,10 @@ struct ChatView: View {
         // text in the field so the user can re-tap once the banner clears.
         guard crypto.isReady else { return }
         let toSend = trimmed
+        let replyId: UUID? = replyTo.flatMap { UUID(uuidString: $0.id) }
         input = ""
         replyTo = nil
-        Task { await chat.sendText(toSend, senderId: uuid) }
+        Task { await chat.sendText(toSend, senderId: uuid, replyToId: replyId) }
     }
 
     // v1.3.2/.3 — pinned diagnostic banner shown while crypto.chatKey is
@@ -399,6 +463,25 @@ struct ChatView: View {
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(theme.amberSoft)
+        .overlay(
+            Rectangle().frame(height: 0.5).foregroundStyle(theme.line),
+            alignment: .bottom
+        )
+    }
+
+    private var vanishBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "timer")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(theme.rose)
+            Text("閱後即焚 · 訊息 24 小時後自動消失")
+                .font(DSText.mono(theme, 11).weight(.medium))
+                .foregroundStyle(theme.ink)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+        .background(theme.roseSoft)
         .overlay(
             Rectangle().frame(height: 0.5).foregroundStyle(theme.line),
             alignment: .bottom

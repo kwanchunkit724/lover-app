@@ -11,6 +11,7 @@ struct MessageBubble: View {
     let isContinuation: Bool
     let onReact: () -> Void
     let onReply: () -> Void
+    var onUnsend: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: isFromMe ? .trailing : .leading, spacing: 0) {
@@ -23,8 +24,15 @@ struct MessageBubble: View {
 
                 bubbleContent
                     .contextMenu {
-                        Button { onReact() } label: { Label("回應", systemImage: "face.smiling") }
-                        Button { onReply() } label: { Label("回覆", systemImage: "arrowshape.turn.up.left") }
+                        if !message.isDeleted {
+                            Button { onReact() } label: { Label("回應", systemImage: "face.smiling") }
+                            Button { onReply() } label: { Label("回覆", systemImage: "arrowshape.turn.up.left") }
+                        }
+                        if isFromMe, !message.isDeleted, let onUnsend {
+                            Button(role: .destructive) { onUnsend() } label: {
+                                Label("撤回", systemImage: "trash")
+                            }
+                        }
                     }
 
                 timestamp
@@ -50,14 +58,34 @@ struct MessageBubble: View {
 
     @ViewBuilder
     private var bubbleContent: some View {
-        switch message.kind {
-        case .text, .kaomoji:
-            textBubble
-        case .photo:
-            photoBubble
-        case .voice:
-            voiceBubble
+        if message.isDeleted {
+            deletedBubble
+        } else {
+            switch message.kind {
+            case .text, .kaomoji:
+                textBubble
+            case .photo:
+                photoBubble
+            case .voice:
+                voiceBubble
+            }
         }
+    }
+
+    private var deletedBubble: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "slash.circle")
+                .font(.system(size: 12))
+            Text("已撤回")
+                .font(DSText.ui(theme, 14).italic())
+        }
+        .foregroundStyle(theme.inkMuted)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .background(
+            BubbleShape(isFromMe: isFromMe)
+                .stroke(theme.line, style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+        )
     }
 
     private var textBubble: some View {
@@ -146,6 +174,11 @@ struct MessageBubble: View {
 
     private var timestamp: some View {
         HStack(spacing: 4) {
+            if message.isEdited && !message.isDeleted {
+                Text("已編輯")
+                    .font(DSText.mono(theme, 9))
+                    .foregroundStyle(theme.inkMuted)
+            }
             Text(message.timestamp)
                 .font(DSText.mono(theme, 10))
                 .foregroundStyle(theme.inkMuted)

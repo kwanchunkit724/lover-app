@@ -33,10 +33,15 @@ struct Message: Identifiable, Hashable {
 
     var replyTo: ReplyPreview?
     var reactions: [Reaction] = []
+
+    // v1.5 — IG-style chat features
+    var isEdited: Bool = false
+    var isDeleted: Bool = false   // soft-delete (unsend); render "已撤回" placeholder
 }
 
 extension Message {
     var previewText: String {
+        if isDeleted { return "已撤回嘅訊息" }
         switch kind {
         case .text, .kaomoji: return text ?? ""
         case .photo: return caption ?? "📷 相片"
