@@ -65,8 +65,14 @@ jobs:
           # The same `app-store-connect`, `keychain`, `xcode-project` CLIs
           # Codemagic uses internally — open-source on PyPI.
           # https://github.com/codemagic-ci-cd/cli-tools
-          python3 -m pip install --upgrade pip
-          python3 -m pip install codemagic-cli-tools
+          #
+          # macos-14 runner ships a Homebrew-managed Python that enforces
+          # PEP 668 (externally-managed-environment). System-wide `pip install`
+          # is blocked. Use pipx — already preinstalled on the GHA macOS image.
+          pipx install codemagic-cli-tools
+          # pipx puts shims under ~/.local/bin; expose on PATH for later steps.
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.local/bin:$PATH"
           app-store-connect --version
           keychain --version
           xcode-project --version
