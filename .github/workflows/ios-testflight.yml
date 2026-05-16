@@ -26,7 +26,10 @@ on:
 jobs:
   testflight:
     name: Archive + Upload to TestFlight
-    runs-on: macos-14
+    # macos-15 ships Xcode 26 by default — required since Apple's 2026
+    # cutoff: all uploads must be built with iOS 26 SDK / Xcode 26 or later
+    # (altool returns IrisAPI 409 STATE_ERROR.VALIDATION_ERROR otherwise).
+    runs-on: macos-15
     timeout-minutes: 60
 
     env:
