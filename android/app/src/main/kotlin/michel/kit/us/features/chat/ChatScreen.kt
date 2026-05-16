@@ -1,0 +1,356 @@
+package michel.kit.us.features.chat
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Send
+import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.TimerOff
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import michel.kit.us.LocalAppContainer
+import michel.kit.us.R
+import michel.kit.us.data.ChatPayload
+import michel.kit.us.domain.DecryptedMessage
+import michel.kit.us.domain.Person
+import michel.kit.us.ui.components.DSAvatar
+import michel.kit.us.ui.theme.DSText
+import michel.kit.us.ui.theme.LocalLoverColors
+import java.util.UUID
+
+/**
+ * Chat tab. Port of ios/.../ChatView.swift. Renders a LazyColumn of bubbles,
+ * a composer at the bottom, with reply preview + vanish banner + reaction
+ * picker overlay.
+ *
+ * Photo + voice send/recording are Phase B (the bubble *renders* both kinds
+ * but Android composer doesn't expose the camera / voice recorder pickers
+ * yet — that needs the system camera intent + audio MediaRecorder wiring).
+ */
+@Composable
+fun ChatScreen() {
+    val container = LocalAppContainer.current
+    val meId by container.auth.currentUserId.collectAsStateWithLifecycle(initialValue = null)
+    val partner by container.pairing.partner.collectAsStateWithLifecycle()
+    val cryptoReady by container.crypto.isReady.collectAsStateWithLifecycle()
+
+    val vm: ChatViewModel = viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T =
+                ChatViewModel(container.chat, meIdProvider = { meId }) as T
+        }
+    )
+
+    val palette = LocalLoverColors.current
+    val messages by vm.chat.messages.collectAsStateWithLifecycle()
+    val vanish by vm.chat.vanishMode.collectAsStateWithLifecycle()
+    val input by vm.input.collectAsStateWithLifecycle()
+    val replyTo by vm.replyTo.collectAsStateWithLifecycle()
+    val reactionTarget by vm.reactionTarget.collectAsStateWithLifecycle()
+
+    val partnerPerson = remember(partner, meId) {
+        val n = partner?.myName ?: "另一半"
+        Person(
+            id = partner?.id ?: "partner",
+            name = n,
+            initial = n.firstOrNull()?.toString() ?: "?",
+            tint = Person.Tint.sage
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(palette.paper)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            ChatHeader(
+                partner = partnerPerson,
+                vanishOn = vanish,
+                onToggleVanish = vm::toggleVanish
+            )
+
+            if (!cryptoReady) {
+                CryptoPreparingBanner()
+            }
+            if (vanish) {
+                VanishBanner()
+            }
+
+            MessageList(
+                messages = messages,
+                meId = meId,
+                modifier = Modifier.weight(1f),
+                onReact = vm::openReactionPicker,
+                onReply = vm::setReplyTo,
+                onUnsend = vm::unsend,
+                onMarkRead = vm::markRead
+            )
+
+            replyTo?.let { ReplyComposingRow(it, meId, onCancel = { vm.setReplyTo(null) }) }
+
+            Composer(
+                value = input,
+                onValueChange = vm::setInput,
+                enabled = cryptoReady,
+                onSend = vm::send
+            )
+        }
+
+        reactionTarget?.let { target ->
+            ReactionPickerSheet(
+                onPick = { vm.react(target, it) },
+                onClose = vm::closeReactionPicker
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChatHeader(
+    partner: Person,
+    vanishOn: Boolean,
+    onToggleVanish: () -> Unit
+) {
+    val palette = LocalLoverColors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(palette.nav)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        DSAvatar(partner, size = 36.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(partner.name, style = DSText.ui(16, androidx.compose.ui.text.font.FontWeight.SemiBold).copy(color = palette.ink))
+                Spacer(Modifier.width(6.dp))
+                Text("♡", style = DSText.mono(11).copy(color = palette.rose))
+            }
+            Text("● 在線", style = DSText.mono(10).copy(color = palette.sage))
+        }
+        IconButton(onClick = onToggleVanish) {
+            Icon(
+                imageVector = if (vanishOn) Icons.Outlined.Timer else Icons.Outlined.TimerOff,
+                contentDescription = stringResource(
+                    if (vanishOn) R.string.chat_vanish_on else R.string.chat_vanish_off
+                ),
+                tint = if (vanishOn) palette.rose else palette.inkMuted
+            )
+        }
+    }
+    HorizontalDivider(thickness = 0.5.dp, color = palette.line)
+}
+
+@Composable
+private fun VanishBanner() {
+    val palette = LocalLoverColors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(palette.roseSoft)
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+    ) {
+        Icon(Icons.Outlined.Timer, contentDescription = null, modifier = Modifier.size(14.dp), tint = palette.rose)
+        Text(
+            stringResource(R.string.chat_vanish_banner),
+            style = DSText.mono(11, androidx.compose.ui.text.font.FontWeight.Medium).copy(color = palette.ink)
+        )
+    }
+    HorizontalDivider(thickness = 0.5.dp, color = palette.line)
+}
+
+@Composable
+private fun CryptoPreparingBanner() {
+    val palette = LocalLoverColors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(palette.amberSoft)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        CircularProgressIndicator(color = palette.rose, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+        Text(
+            stringResource(R.string.chat_crypto_preparing),
+            style = DSText.ui(12, androidx.compose.ui.text.font.FontWeight.SemiBold).copy(color = palette.ink)
+        )
+    }
+    HorizontalDivider(thickness = 0.5.dp, color = palette.line)
+}
+
+@Composable
+private fun MessageList(
+    messages: List<DecryptedMessage>,
+    meId: UUID?,
+    modifier: Modifier,
+    onReact: (DecryptedMessage) -> Unit,
+    onReply: (DecryptedMessage) -> Unit,
+    onUnsend: (DecryptedMessage) -> Unit,
+    onMarkRead: (DecryptedMessage) -> Unit,
+) {
+    val palette = LocalLoverColors.current
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+
+    // Lookup table so reply previews can resolve.
+    val byId = remember(messages) { messages.associateBy { it.id } }
+
+    // Auto-scroll to bottom on new message + on first composition.
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            scope.launch { listState.animateScrollToItem(messages.lastIndex) }
+        }
+    }
+
+    if (messages.isEmpty()) {
+        Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Text(
+                stringResource(R.string.chat_empty),
+                style = DSText.mono(12).copy(color = palette.inkMuted),
+                modifier = Modifier.padding(top = 80.dp)
+            )
+        }
+        return
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 6.dp, start = 14.dp, end = 14.dp)
+    ) {
+        items(messages, key = { it.id.toString() }) { m ->
+            val isFromMe = meId != null && m.senderId == meId
+            val prevIndex = messages.indexOf(m) - 1
+            val prev = if (prevIndex >= 0) messages[prevIndex] else null
+            val isContinuation = prev?.senderId == m.senderId
+
+            val replyPreview = m.replyToId?.let { rid ->
+                byId[rid]?.let { orig ->
+                    ReplyPreviewData(
+                        originalId = orig.id,
+                        isFromMe = meId != null && orig.senderId == meId,
+                        preview = when {
+                            orig.isDeleted -> "已撤回嘅訊息"
+                            orig.payload.kind == ChatPayload.Kind.photo -> orig.payload.text ?: "📷 相片"
+                            orig.payload.kind == ChatPayload.Kind.voice -> "🎙 語音訊息"
+                            else -> orig.payload.text.orEmpty()
+                        }
+                    )
+                }
+            }
+
+            MessageBubble(
+                message = m,
+                isFromMe = isFromMe,
+                isContinuation = isContinuation,
+                replyPreview = replyPreview,
+                onReact = { onReact(m) },
+                onReply = { onReply(m) },
+                onUnsend = { onUnsend(m) }
+            )
+
+            // Auto mark-read when an incoming bubble first appears.
+            LaunchedEffect(m.id) { onMarkRead(m) }
+        }
+    }
+}
+
+@Composable
+private fun ReplyComposingRow(
+    target: DecryptedMessage,
+    meId: UUID?,
+    onCancel: () -> Unit
+) {
+    val palette = LocalLoverColors.current
+    val displayName = if (meId != null && target.senderId == meId) "你自己" else "對方"
+    val preview = when {
+        target.isDeleted -> stringResource(R.string.chat_deleted_message)
+        target.payload.kind == ChatPayload.Kind.photo -> target.payload.text ?: "📷 相片"
+        target.payload.kind == ChatPayload.Kind.voice -> "🎙 語音訊息"
+        else -> target.payload.text.orEmpty()
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(palette.paperAlt)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Box(modifier = Modifier.size(width = 3.dp, height = 28.dp).clip(RoundedCornerShape(50)).background(palette.rose))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                stringResource(R.string.chat_reply_to, displayName),
+                style = DSText.mono(11, androidx.compose.ui.text.font.FontWeight.SemiBold).copy(color = palette.rose)
+            )
+            Text(preview, style = DSText.ui(12).copy(color = palette.inkSoft), maxLines = 1)
+        }
+        IconButton(onClick = onCancel) {
+            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.common_cancel), tint = palette.inkMuted, modifier = Modifier.size(16.dp))
+        }
+    }
+    HorizontalDivider(thickness = 0.5.dp, color = palette.line)
+}
+
+@Composable
+private fun Composer(
+    value: String,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean,
+    onSend: () -> Unit
+) {
+    val palette = LocalLoverColors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(palette.nav)
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            enabled = enabled,
+            placeholder = { Text(stringResource(R.string.chat_input_hint), style = DSText.ui(14).copy(color = palette.inkMuted)) },
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(22.dp),
+            singleLine = false,
+            maxLines = 4,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = palette.lineStrong,
+                unfocusedBorderColor = palette.line,
+                focusedContainerColor = palette.surface,
+                unfocusedContainerColor = palette.surface
+            )
+        )
+        Spacer(Modifier.width(8.dp))
+        FilledIconButton(
+            onClick = onSend,
+            enabled = enabled && value.isNotBlank(),
+            colors = IconButtonDefaults.filledIconButtonColors(
+                containerColor = palette.rose,
+                contentColor = palette.bubbleMeText,
+                disabledContainerColor = palette.line
+            )
+        ) {
+            Icon(Icons.Outlined.Send, contentDescription = stringResource(R.string.chat_send), modifier = Modifier.size(18.dp))
+        }
+    }
+}

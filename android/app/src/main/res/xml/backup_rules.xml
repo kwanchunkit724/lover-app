@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- API ≤31 legacy auto-backup rules. Same exclusions as data_extraction_rules.xml. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="lover_secure_prefs.xml" />
+    <exclude domain="file" path="datastore/" />
+</full-backup-content>

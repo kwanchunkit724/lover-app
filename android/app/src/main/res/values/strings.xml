@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Default locale is Traditional Chinese (zh-Hant / Hong Kong Cantonese).
+  values-en/ overrides for English. values-ja/ overrides for Japanese.
+
+  Strings here mirror the literals used in the iOS source (ChatView.swift,
+  PairingService.swift error map, OnboardingView, etc.). Keep them in sync.
+-->
+<resources>
+    <string name="app_name">Us</string>
+
+    <!-- Tabs -->
+    <string name="tab_chat">傾偈</string>
+    <string name="tab_activities">活動</string>
+    <string name="tab_memory">回憶</string>
+    <string name="tab_time">時間</string>
+    <string name="tab_settings">設定</string>
+
+    <!-- Auth -->
+    <string name="auth_title">登入 Us</string>
+    <string name="auth_email_hint">電郵地址</string>
+    <string name="auth_password_hint">密碼</string>
+    <string name="auth_signin">登入</string>
+    <string name="auth_signup">註冊新帳戶</string>
+    <string name="auth_switch_to_signup">未有帳戶？註冊一個</string>
+    <string name="auth_switch_to_signin">已經有帳戶？登入</string>
+    <string name="auth_error_invalid_email">唔似一個 email 地址喎</string>
+    <string name="auth_error_short_password">密碼至少要 6 個字符</string>
+
+    <!-- Pairing -->
+    <string name="pairing_title">配對你嘅另一半</string>
+    <string name="pairing_subtitle">兩個人都揀同一個紀念日先 pair 到</string>
+    <string name="pairing_generate">生成配對碼</string>
+    <string name="pairing_redeem">輸入對方嘅配對碼</string>
+    <string name="pairing_code_hint">六位數字</string>
+    <string name="pairing_anniversary">紀念日</string>
+    <string name="pairing_confirm">配對</string>
+    <string name="pairing_share_hint">同對方講呢個碼 (10 分鐘內有效)：</string>
+    <string name="pairing_err_mismatch">紀念日對唔上 — 兩個人輸入嘅日子要一樣</string>
+    <string name="pairing_err_invalid_code">配對碼錯咗 — 再對下</string>
+    <string name="pairing_err_expired">配對碼過期 — 重新生成一個</string>
+    <string name="pairing_err_already">已經配對咗 — 唔可以再 pair</string>
+    <string name="pairing_err_self">唔可以同自己 pair 喎 ｡°(°.◜ᯅ◝°)°｡</string>
+
+    <!-- Chat -->
+    <string name="chat_empty">仲未有訊息 — 講句嘢試下 (´｡• ω •｡`)</string>
+    <string name="chat_unpaired_title">仲未配對</string>
+    <string name="chat_unpaired_subtitle">配對先可以同對方傾偈、send 相、send 語音。</string>
+    <string name="chat_unpaired_kaomoji">(´｡• ω •｡`)</string>
+    <string name="chat_input_hint">講啲嘢…</string>
+    <string name="chat_send">傳送</string>
+    <string name="chat_vanish_on">關閉閱後即焚</string>
+    <string name="chat_vanish_off">開啟閱後即焚</string>
+    <string name="chat_vanish_banner">閱後即焚 · 訊息 24 小時後自動消失</string>
+    <string name="chat_reply_to">回覆 %1$s</string>
+    <string name="chat_deleted_placeholder">已撤回</string>
+    <string name="chat_deleted_message">已撤回嘅訊息</string>
+    <string name="chat_edited_marker">已編輯</string>
+    <string name="chat_action_react">回應</string>
+    <string name="chat_action_reply">回覆</string>
+    <string name="chat_action_unsend">撤回</string>
+    <string name="chat_crypto_preparing">加密通道準備緊…</string>
+    <string name="chat_crypto_retry">重試</string>
+    <string name="chat_decrypt_failed">(無法解密 — 可能對方換咗 device)</string>
+
+    <!-- Misc -->
+    <string name="common_cancel">取消</string>
+    <string name="common_ok">好</string>
+    <string name="common_close">關閉</string>
+    <string name="common_coming_soon">即將推出</string>
+    <string name="common_signout">登出</string>
+</resources>

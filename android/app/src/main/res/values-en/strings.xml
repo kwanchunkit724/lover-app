@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Us</string>
+
+    <string name="tab_chat">Chat</string>
+    <string name="tab_activities">Activities</string>
+    <string name="tab_memory">Memory</string>
+    <string name="tab_time">Time</string>
+    <string name="tab_settings">Settings</string>
+
+    <string name="auth_title">Sign in to Us</string>
+    <string name="auth_email_hint">Email</string>
+    <string name="auth_password_hint">Password</string>
+    <string name="auth_signin">Sign in</string>
+    <string name="auth_signup">Create account</string>
+    <string name="auth_switch_to_signup">No account? Sign up</string>
+    <string name="auth_switch_to_signin">Have an account? Sign in</string>
+    <string name="auth_error_invalid_email">That doesn\'t look like an email</string>
+    <string name="auth_error_short_password">Password must be at least 6 characters</string>
+
+    <string name="pairing_title">Pair with your partner</string>
+    <string name="pairing_subtitle">Both of you must pick the same anniversary</string>
+    <string name="pairing_generate">Generate code</string>
+    <string name="pairing_redeem">Enter partner\'s code</string>
+    <string name="pairing_code_hint">6 digits</string>
+    <string name="pairing_anniversary">Anniversary</string>
+    <string name="pairing_confirm">Pair</string>
+    <string name="pairing_share_hint">Share this code (valid 10 min):</string>
+    <string name="pairing_err_mismatch">Anniversary doesn\'t match — both must enter the same date</string>
+    <string name="pairing_err_invalid_code">Wrong code — try again</string>
+    <string name="pairing_err_expired">Code expired — generate a new one</string>
+    <string name="pairing_err_already">Already paired — can\'t pair again</string>
+    <string name="pairing_err_self">Can\'t pair with yourself ｡°(°.◜ᯅ◝°)°｡</string>
+
+    <string name="chat_empty">No messages yet — say hi (´｡• ω •｡`)</string>
+    <string name="chat_unpaired_title">Not paired yet</string>
+    <string name="chat_unpaired_subtitle">Pair first to chat, send photos and voice.</string>
+    <string name="chat_unpaired_kaomoji">(´｡• ω •｡`)</string>
+    <string name="chat_input_hint">Say something…</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_vanish_on">Turn off vanish mode</string>
+    <string name="chat_vanish_off">Turn on vanish mode</string>
+    <string name="chat_vanish_banner">Vanish mode · messages disappear after 24 h</string>
+    <string name="chat_reply_to">Reply to %1$s</string>
+    <string name="chat_deleted_placeholder">Unsent</string>
+    <string name="chat_deleted_message">Unsent message</string>
+    <string name="chat_edited_marker">edited</string>
+    <string name="chat_action_react">React</string>
+    <string name="chat_action_reply">Reply</string>
+    <string name="chat_action_unsend">Unsend</string>
+    <string name="chat_crypto_preparing">Preparing secure channel…</string>
+    <string name="chat_crypto_retry">Retry</string>
+    <string name="chat_decrypt_failed">(decryption failed — partner may have switched device)</string>
+
+    <string name="common_cancel">Cancel</string>
+    <string name="common_ok">OK</string>
+    <string name="common_close">Close</string>
+    <string name="common_coming_soon">Coming soon</string>
+    <string name="common_signout">Sign out</string>
+</resources>

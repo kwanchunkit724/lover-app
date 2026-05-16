@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Us</string>
+
+    <string name="tab_chat">トーク</string>
+    <string name="tab_activities">アクティビティ</string>
+    <string name="tab_memory">思い出</string>
+    <string name="tab_time">時間</string>
+    <string name="tab_settings">設定</string>
+
+    <string name="auth_title">Us にサインイン</string>
+    <string name="auth_email_hint">メールアドレス</string>
+    <string name="auth_password_hint">パスワード</string>
+    <string name="auth_signin">サインイン</string>
+    <string name="auth_signup">アカウントを作成</string>
+    <string name="auth_switch_to_signup">アカウントがない？登録</string>
+    <string name="auth_switch_to_signin">アカウントある？サインイン</string>
+    <string name="auth_error_invalid_email">メールアドレスではないみたい</string>
+    <string name="auth_error_short_password">パスワードは6文字以上</string>
+
+    <string name="pairing_title">パートナーとペアリング</string>
+    <string name="pairing_subtitle">2人で同じ記念日を選んでね</string>
+    <string name="pairing_generate">ペアリングコードを生成</string>
+    <string name="pairing_redeem">相手のコードを入力</string>
+    <string name="pairing_code_hint">6桁</string>
+    <string name="pairing_anniversary">記念日</string>
+    <string name="pairing_confirm">ペアリング</string>
+    <string name="pairing_share_hint">このコードを共有（10分間有効）：</string>
+    <string name="pairing_err_mismatch">記念日が一致しません — 同じ日を入力してね</string>
+    <string name="pairing_err_invalid_code">コードが違うみたい — もう一度</string>
+    <string name="pairing_err_expired">コードの有効期限切れ — 新しく生成して</string>
+    <string name="pairing_err_already">すでにペアリング済み</string>
+    <string name="pairing_err_self">自分とはペアリングできないよ ｡°(°.◜ᯅ◝°)°｡</string>
+
+    <string name="chat_empty">まだメッセージがない — 挨拶してみよう (´｡• ω •｡`)</string>
+    <string name="chat_unpaired_title">まだペアリングしていない</string>
+    <string name="chat_unpaired_subtitle">ペアリング後にチャット・写真・音声が使えるよ。</string>
+    <string name="chat_unpaired_kaomoji">(´｡• ω •｡`)</string>
+    <string name="chat_input_hint">何か話そう…</string>
+    <string name="chat_send">送信</string>
+    <string name="chat_vanish_on">バニッシュモードをオフ</string>
+    <string name="chat_vanish_off">バニッシュモードをオン</string>
+    <string name="chat_vanish_banner">バニッシュモード · メッセージは24時間で消えます</string>
+    <string name="chat_reply_to">%1$s に返信</string>
+    <string name="chat_deleted_placeholder">取り消し済み</string>
+    <string name="chat_deleted_message">取り消されたメッセージ</string>
+    <string name="chat_edited_marker">編集済み</string>
+    <string name="chat_action_react">リアクション</string>
+    <string name="chat_action_reply">返信</string>
+    <string name="chat_action_unsend">取り消す</string>
+    <string name="chat_crypto_preparing">暗号化チャンネルを準備中…</string>
+    <string name="chat_crypto_retry">再試行</string>
+    <string name="chat_decrypt_failed">(復号化失敗 — パートナーが端末を変えたかも)</string>
+
+    <string name="common_cancel">キャンセル</string>
+    <string name="common_ok">OK</string>
+    <string name="common_close">閉じる</string>
+    <string name="common_coming_soon">近日公開</string>
+    <string name="common_signout">サインアウト</string>
+</resources>

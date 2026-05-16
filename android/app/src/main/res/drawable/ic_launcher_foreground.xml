@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- "Us" wordmark placeholder in #3D2E27 ink. Replace with the real iOS app
+     icon vector export in Phase B. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#3D2E27"
+        android:pathData="M40,42 L40,62 Q40,72 54,72 Q68,72 68,62 L68,42 L62,42 L62,62 Q62,66 54,66 Q46,66 46,62 L46,42 Z" />
+    <path
+        android:fillColor="#D08282"
+        android:pathData="M54,76 m-3,0 a3,3 0 1,1 6,0 a3,3 0 1,1 -6,0" />
+</vector>

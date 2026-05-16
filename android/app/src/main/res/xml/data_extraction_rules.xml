@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Exclude DataStore + EncryptedSharedPreferences from cloud backup / device
+  transfer. The X25519 private key is bound to this device only — copying it
+  to a new device would let the new device decrypt prior partner messages,
+  which violates the "wipe-on-device-change" property we rely on for the
+  decrypt-failure placeholder.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="lover_secure_prefs.xml" />
+        <exclude domain="file" path="datastore/" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="lover_secure_prefs.xml" />
+        <exclude domain="file" path="datastore/" />
+    </device-transfer>
+</data-extraction-rules>

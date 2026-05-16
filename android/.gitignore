@@ -1,0 +1,32 @@
+# Built output
+build/
+app/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+# Local config — never commit
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+captures/
+.navigation/
+
+# NDK / native
+.externalNativeBuild/
+.cxx/
+
+# Misc
+*.log
+.DS_Store
