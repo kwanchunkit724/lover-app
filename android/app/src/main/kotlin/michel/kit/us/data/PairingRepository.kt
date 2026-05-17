@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.time.LocalDate
 import java.util.UUID
 
@@ -103,8 +105,11 @@ class PairingRepository {
         _lastError.value = null
         try {
             val iso = anniversary.toString()
+            // Supabase Kotlin 3.x `rpc(name, params)` requires JsonObject.
             val code: String = client.postgrest
-                .rpc("create_pairing_code", CreateArgs(iso))
+                .rpc("create_pairing_code", buildJsonObject {
+                    put("p_anniversary_iso", iso)
+                })
                 .decodeAs<String>()
             _activeCode.value = ActiveCode(
                 code = code,
@@ -129,7 +134,10 @@ class PairingRepository {
         _isLoading.value = true
         _lastError.value = null
         return try {
-            client.postgrest.rpc("redeem_pairing_code", RedeemArgs(code, anniversary.toString()))
+            client.postgrest.rpc("redeem_pairing_code", buildJsonObject {
+                put("p_code", code)
+                put("p_anniversary_iso", anniversary.toString())
+            })
             refresh(meId)
             true
         } catch (t: Throwable) {

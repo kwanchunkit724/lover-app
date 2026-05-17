@@ -11,6 +11,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import michel.kit.us.domain.DecryptedMessage
 import michel.kit.us.domain.ReactionAtom
 import java.time.Instant
@@ -121,11 +123,12 @@ class ChatRepository(
 
     suspend fun markRead(messageId: UUID) {
         // Silent — read receipts are best-effort.
+        // Supabase Kotlin 3.x `rpc(name, params)` requires params: JsonObject —
+        // the older `<T : Any>` reified overload is gone. Build the JSON inline.
         runCatching {
-            client.postgrest.rpc(
-                "mark_message_read",
-                MarkReadArgs(messageId.toString())
-            )
+            client.postgrest.rpc("mark_message_read", buildJsonObject {
+                put("p_message_id", messageId.toString())
+            })
         }
     }
 
@@ -163,7 +166,9 @@ class ChatRepository(
 
     suspend fun setVanishMode(enabled: Boolean) {
         try {
-            client.postgrest.rpc("set_vanish_mode", VanishArgs(enabled))
+            client.postgrest.rpc("set_vanish_mode", buildJsonObject {
+                put("p_enabled", enabled)
+            })
             _vanishMode.value = enabled
         } catch (t: Throwable) {
             _lastError.value = t.message
