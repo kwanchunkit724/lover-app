@@ -107,6 +107,10 @@ dependencies {
     // --- Core ---
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
+    // Material View library — supplies res/values/themes.xml parent
+    // `Theme.Material3.DayNight.NoActionBar`. Compose itself doesn't
+    // need it, but the host Activity theme does.
+    implementation("com.google.android.material:material:1.12.0")
 
     // --- Coroutines ---
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
