@@ -96,7 +96,7 @@ class PairingRepository {
     }
 
     @Serializable
-    private data class CreateArgs(val p_anniversary_iso: String)
+    internal data class CreateArgs(val p_anniversary_iso: String)
 
     suspend fun createCode(anniversary: LocalDate) {
         _isLoading.value = true
@@ -123,7 +123,7 @@ class PairingRepository {
     }
 
     @Serializable
-    private data class RedeemArgs(val p_code: String, val p_anniversary_iso: String)
+    internal data class RedeemArgs(val p_code: String, val p_anniversary_iso: String)
 
     suspend fun redeem(code: String, anniversary: LocalDate, meId: UUID): Boolean {
         _isLoading.value = true

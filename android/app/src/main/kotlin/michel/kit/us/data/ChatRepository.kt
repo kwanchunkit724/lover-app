@@ -2,6 +2,7 @@ package michel.kit.us.data
 
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.Order
+import io.github.jan.supabase.postgrest.query.filter.FilterOperator
 import io.github.jan.supabase.realtime.PostgresAction
 import io.github.jan.supabase.realtime.channel
 import io.github.jan.supabase.realtime.postgresChangeFlow
@@ -188,9 +189,9 @@ class ChatRepository(
 
     private suspend fun runPollLoop() {
         fetchOnce()
-        while (coroutineContext.isActive) {
+        while (currentCoroutineContext().isActive) {
             delay(5_000)
-            if (!coroutineContext.isActive) break
+            if (!currentCoroutineContext().isActive) break
             fetchOnce()
         }
     }
@@ -204,15 +205,15 @@ class ChatRepository(
         val realtime = client.realtime
         val channel = realtime.channel("messages-${coupleId.toString().lowercase()}") {}
 
-        val coupleFilter = "couple_id=eq.${coupleId.toString().lowercase()}"
+        val coupleIdString = coupleId.toString().lowercase()
 
         val msgInserts = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
             table = "messages"
-            filter = coupleFilter
+            filter("couple_id", FilterOperator.EQ, coupleIdString)
         }
         val msgUpdates = channel.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
             table = "messages"
-            filter = coupleFilter
+            filter("couple_id", FilterOperator.EQ, coupleIdString)
         }
         val reactInserts = channel.postgresChangeFlow<PostgresAction.Insert>(schema = "public") {
             table = "message_reactions"
@@ -376,13 +377,13 @@ class ChatRepository(
     private data class UnsendPayload(val deleted_at: String)
 
     @Serializable
-    private data class MarkReadArgs(val p_message_id: String)
+    internal data class MarkReadArgs(val p_message_id: String)
 
     @Serializable
-    private data class VanishArgs(val p_enabled: Boolean)
+    internal data class VanishArgs(val p_enabled: Boolean)
 
     @Serializable
-    private data class VanishRow(val vanish_mode: Boolean)
+    internal data class VanishRow(val vanish_mode: Boolean)
 
     @Serializable
     private data class ReactionRow(
