@@ -19,12 +19,16 @@ plugins {
 
 android {
     namespace = "michel.kit.us"
-    compileSdk = 34
+    // compileSdk 35 = Android 15 / V. AndroidX 1.15.0 (core, core-ktx,
+    // lifecycle, activity-compose) hard-requires it; AGP otherwise fails
+    // checkDebugAarMetadata with "Dependency requires a newer compileSdk".
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "michel.kit.us"
         minSdk = 26
-        targetSdk = 34
+        // targetSdk 35 keeps us aligned with Play Store's 2025+ floor.
+        targetSdk = 35
         versionCode = 1
         versionName = "1.5.0"
 
