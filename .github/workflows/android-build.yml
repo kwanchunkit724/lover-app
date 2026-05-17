@@ -1,0 +1,62 @@
+name: Android → APK
+
+# Builds the Android app (Phase A) on every push that touches android/.
+# Produces a debug APK uploadable as a GHA artifact — sideload onto any
+# Android 8.0+ device for testing without needing Android Studio locally.
+#
+# Release builds (signed AAB for Play Store) come in Phase B once the
+# user generates an upload keystore.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/android-build.yml'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        working-directory: android
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-34 build-tools;34.0.0 platform-tools'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # The agent did not commit gradle-wrapper.jar (Studio writes it on
+      # first sync). On CI we bootstrap it with `gradle wrapper`, which
+      # uses the version pinned in gradle-wrapper.properties.
+      - name: Bootstrap Gradle wrapper
+        run: gradle wrapper --gradle-version 8.10.2
+
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lover-app-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: warn
+          retention-days: 14
