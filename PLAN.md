@@ -47,19 +47,20 @@ chat (reply / reactions / edit / unsend / vanish / read receipts).
 - [x] supabase/migrations/0013_chat_ig_features.sql (reply / edit / unsend / vanish / reactions / read)
 - [x] iOS ChatService rewrite + UI (MessageBubble, ReactionPickerSheet, vanish banner)
 - [x] iOS TestFlight live
+- [x] iOS v1.5.1 patch shipped (mock-data leaks)
 - [x] Android Phase A scaffold (52 files) — auth + pairing + chat
 - [x] APK built via GHA, sideloaded onto BlueStacks, UI + signup roundtrip validated
 - [ ] iOS↔Android cross-platform chat E2E test (needs paired accounts)
 
-### v1.5.1 — Bug patch (IN PROGRESS)
+### v1.5.1 — Bug patch (SHIPPED)
 Source: `BUG-AUDIT-v1.5.1.md` (audit complete). View-layer fixes only, no schema.
-- [ ] Remove `● 在線` hardcoded indicator in `ChatView.swift:303,306`
-- [ ] Strip `MockData.entries` fallback in `TimeView.swift:28-31`
-- [ ] Strip `MockData.anniversaries` fallback in `TimeView.swift:45` + `ProfileView.swift:42`
-- [ ] Strip `MockData.me/partner/togetherSinceISO` in `ProfileView.swift:49,57,72` + `ChatView.swift:36,39,45,46`
-- [ ] Rename legit catalogs out of `MockData` (`MockData.activities` → `ActivityCatalog`, etc.)
-- [ ] Bump `MARKETING_VERSION` 1.5.0 → 1.5.1 in `project.yml`
-- [ ] Tag `v1.5.1` → GHA → TestFlight
+- [x] Remove `● 在線` hardcoded indicator in `ChatView.swift:303,306`
+- [x] Strip `MockData.entries` fallback in `TimeView.swift:28-31`
+- [x] Strip `MockData.anniversaries` fallback in `TimeView.swift:45` + `ProfileView.swift:42`
+- [x] Strip `MockData.me/partner/togetherSinceISO` in `ProfileView.swift:49,57,72` + `ChatView.swift:36,39,45,46`
+- [x] Rename legit catalogs out of `MockData` (`MockData.activities` → `ActivityCatalog`, etc.)
+- [x] Bump `MARKETING_VERSION` 1.5.0 → 1.5.1 in `project.yml`
+- [x] Tag `v1.5.1` → GHA → TestFlight
 
 ### Phase B — Android feature parity (PENDING)
 - [ ] Activities tab (catalog + saved)
