@@ -1,0 +1,103 @@
+# Lover-app Project Plan
+
+> Living roadmap. Updated each working session. Daily 6 am cron reads this
+> file + recent git log + recent GHA runs to produce a status report.
+
+## North-star goal
+
+Ship **"Us 我哋"** — bilingual (zh-Hant default, en/ja) couples app — on both
+iOS App Store and Google Play Store, feature-parity, with Instagram-style
+chat (reply / reactions / edit / unsend / vanish / read receipts).
+
+## Architecture
+
+| Layer | iOS | Android |
+|---|---|---|
+| UI | SwiftUI (Xcode 26 / iOS 26 SDK) | Jetpack Compose (Kotlin 2.0, Material3, AGP 8.7) |
+| State | `@Observable` Stores | `ViewModel` + `StateFlow` |
+| Backend | Supabase Postgres (ap-northeast-1) — schema in `supabase/migrations/` | same |
+| Realtime | Supabase Realtime channels per couple | same channel naming + filter |
+| Crypto | CryptoKit X25519 + HKDF-SHA256 + AES-GCM-256 | BouncyCastle X25519 + javax.crypto AES-GCM — byte-compatible with iOS |
+| Push | APNs via Edge Function + pg_net trigger | FCM (Phase B) |
+| CI | GitHub Actions macos-15 → TestFlight via codemagic-cli-tools | GitHub Actions ubuntu-latest → GH Release APK (Play AAB in Phase B) |
+
+## Milestones
+
+### M0 — Foundation (DONE)
+- [x] Supabase schema + RLS + storage buckets
+- [x] X25519 + HKDF + AES-GCM crypto pipeline
+- [x] iOS SwiftUI shell + auth + pairing + chat
+- [x] APNs push via Edge Function
+- [x] Codemagic CI (later replaced — Phase A.5)
+
+### M1 — Catalog features (DONE on iOS, pending Android Phase B)
+- [x] Activities catalog + saved
+- [x] Memory book entries
+- [x] Time / calendar / anniversaries
+- [x] Profile + theme picker
+- [x] Settings + account deletion (Apple App Review 5.1.1(v))
+
+### Phase A.5 — Migration off Codemagic (DONE, this session)
+- [x] Diagnosed Codemagic build-minutes exhaustion
+- [x] Built GHA `ios-testflight.yml` (macos-15 + codemagic-cli-tools via pipx)
+- [x] Resolved 4-step credential mismatch (issuer / key-id / .p8 / 2FA)
+- [x] Shipped iOS v1.5.0 via GHA (build 1778973217)
+
+### v1.5.0 — IG-style chat upgrade (DONE on iOS, parity on Android)
+- [x] supabase/migrations/0013_chat_ig_features.sql (reply / edit / unsend / vanish / reactions / read)
+- [x] iOS ChatService rewrite + UI (MessageBubble, ReactionPickerSheet, vanish banner)
+- [x] iOS TestFlight live
+- [x] Android Phase A scaffold (52 files) — auth + pairing + chat
+- [x] APK built via GHA, sideloaded onto BlueStacks, UI + signup roundtrip validated
+- [ ] iOS↔Android cross-platform chat E2E test (needs paired accounts)
+
+### v1.5.1 — Bug patch (IN PROGRESS)
+Source: `BUG-AUDIT-v1.5.1.md` (audit complete). View-layer fixes only, no schema.
+- [ ] Remove `● 在線` hardcoded indicator in `ChatView.swift:303,306`
+- [ ] Strip `MockData.entries` fallback in `TimeView.swift:28-31`
+- [ ] Strip `MockData.anniversaries` fallback in `TimeView.swift:45` + `ProfileView.swift:42`
+- [ ] Strip `MockData.me/partner/togetherSinceISO` in `ProfileView.swift:49,57,72` + `ChatView.swift:36,39,45,46`
+- [ ] Rename legit catalogs out of `MockData` (`MockData.activities` → `ActivityCatalog`, etc.)
+- [ ] Bump `MARKETING_VERSION` 1.5.0 → 1.5.1 in `project.yml`
+- [ ] Tag `v1.5.1` → GHA → TestFlight
+
+### Phase B — Android feature parity (PENDING)
+- [ ] Activities tab (catalog + saved)
+- [ ] Memory Book tab
+- [ ] Time tab (calendar + anniversaries + entries)
+- [ ] Settings tab + account deletion (Play Store data-deletion URL)
+- [ ] Profile tab (theme picker, partner profile, sign-out)
+- [ ] Photo + camera + voice composer in chat (`ActivityResultContracts` + `MediaRecorder`)
+- [ ] Encrypted photo display (Coil custom `Fetcher` + decrypt-in-memory)
+- [ ] Encrypted audio playback (ExoPlayer + decrypt-stream)
+- [ ] FCM push (mirror APNs Edge Function with `fcm_token` discriminator column)
+- [ ] Google Sign-In via Credential Manager (Apple Sign In parity)
+- [ ] Custom Japanese fonts (Klee One / Zen Maru Gothic / DM Mono)
+- [ ] Per-couple theme variant from `users.theme_id`
+- [ ] Auth screen header label flips 登入↔註冊 (cosmetic bug from B test)
+
+### Phase C — Real presence (PENDING)
+- [ ] Supabase Realtime presence channel (`presence:couple_id=<uuid>`)
+- [ ] `last_seen` column maintained client-side via heartbeat
+- [ ] iOS `PresenceService` + green dot wiring
+- [ ] Android equivalent
+
+### Phase D — Play Store release (PENDING)
+- [ ] Generate upload keystore (long-life RSA 2048+, store in Play Console)
+- [ ] Switch GHA Android workflow to build signed AAB
+- [ ] Play Console developer account ($25 one-time)
+- [ ] App listing copy + screenshots + privacy policy URL (already on GH Pages)
+- [ ] First internal-testing track upload
+- [ ] Closed-testing → open-testing → production progression
+
+### Phase E — Polish (BACKLOG)
+- [ ] Crash reporting (Crashlytics? Sentry?)
+- [ ] Analytics (PostHog? skip on privacy grounds?)
+- [ ] Onboarding tutorial overlays
+- [ ] Widget extensions (iOS WidgetKit + Android Glance)
+- [ ] Apple Watch / Wear OS companion (long-term)
+
+## Daily ritual
+
+The 6 am cron job (`daily-status`) summarizes this file plus recent git log,
+GHA run outcomes, and any open work items in the active session's todo list.
