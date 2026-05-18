@@ -26,7 +26,7 @@ struct QuizView: View {
     @State private var draft: String = ""
     @State private var isSubmitting: Bool = false
 
-    private var questions: [QuizQuestion] { MockData.quizQuestions }
+    private var questions: [QuizQuestion] { QuizCatalog.all }
     private var question: QuizQuestion { questions[step % questions.count] }
 
     private var meId: UUID? {

@@ -30,20 +30,22 @@ struct ChatView: View {
     // v1.5 — IG features
     @State private var reactionTarget: Message? = nil   // long-press target for emoji picker
 
-    // Derived identities — fall back to mock for previews / unsigned state.
+    // v1.5.1 — Mock fallbacks stripped. When real data isn't loaded yet,
+    // show neutral placeholders ("…") rather than fake identities like
+    // 米雪 / Kit which mislead the user about who they are talking to.
     private var meId: String {
         if case .signedIn(let uuid) = auth.state { return uuid.uuidString }
-        return MockData.me.id
+        return ""
     }
     private var me: Person {
-        let name = profileStore.profile?.myName ?? MockData.me.name
+        let name = profileStore.profile?.myName ?? "…"
         return Person(id: meId, name: name, initial: String(name.prefix(1)), tint: .rose)
     }
     private var partner: Person {
         let name = pairing.partner?.myName
                 ?? profileStore.profile?.partnerName
-                ?? MockData.partner.name
-        let id   = pairing.partner?.id.uuidString ?? MockData.partner.id
+                ?? "…"
+        let id   = pairing.partner?.id.uuidString ?? ""
         return Person(id: id, name: name, initial: String(name.prefix(1)), tint: .sage)
     }
 
@@ -300,10 +302,14 @@ struct ChatView: View {
             if let mine, let theirs { return min(mine, theirs) }
             return mine ?? theirs
         }()
-        guard let iso else { return "● 在線" }
+        // v1.5.1 — removed hardcoded "● 在線" prefix. No presence
+        // infrastructure backs it (no PresenceService, no last_seen). Real
+        // presence wiring is Phase C; until then show only the relationship
+        // length, or nothing at all if anniversary isn't set yet.
+        guard let iso else { return "" }
         let today = LocalDate.string(from: Date())
         let days = TimeFormatting.daysBetween(iso, today)
-        return "● 在線 · 一齊 \(days) 日"
+        return "一齊 \(days) 日"
     }
 
     // MARK: - Message stream

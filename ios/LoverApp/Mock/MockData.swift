@@ -1,7 +1,13 @@
 import Foundation
 
-// Direct port of design-import/data.js for use in SwiftUI Previews and dev builds.
-// Production builds will replace this with real Supabase + decrypted data.
+// Direct port of design-import/data.js. v1.5.1: scoped DOWN to PREVIEW /
+// TEST use ONLY. Anything that was a real production fallback was stripped
+// in v1.5.1. Feature catalogs (activities, date cards, quiz questions) were
+// moved to Core/Catalogs.swift since those are static feature definitions,
+// not mock user data.
+//
+// Audit rule: `MockData.*` may only be referenced inside `#Preview { … }`
+// macros and `LoverAppTests`. Any reference from a real screen = bug.
 
 enum MockData {
     static let me = Person.mockMe
@@ -43,7 +49,7 @@ enum MockData {
     ]
 
     // MARK: - Entries (time tab)
-    // 1:1 mirror of data.js D.entries.
+    // 1:1 mirror of data.js D.entries. Preview-only after v1.5.1.
 
     static let entries: [Entry] = [
         // ── UPCOMING ──
@@ -88,24 +94,6 @@ enum MockData {
                                      text: "你話我落鹽落多咗 (¬‿¬) 但係你食晒成碟",
                                      kaomoji: "(っ´ω`c)"),
               onThisDay: false),
-        Entry(id: "m1", date: "2026-04-26", time: "15:00",
-              title: "荔枝角散步", location: "荔枝角公園",
-              proposedBy: "michel", who: .both, tag: .walk, isSpecial: false, notes: nil,
-              cover: "walk", photos: 4, voiceClips: 1, messages: 23,
-              kaomoji: "(´｡• ω •｡`)",
-              reflection: Reflection(from: "michel",
-                                     text: "個日好曬但係陽光好靚",
-                                     kaomoji: "(´｡• ω •｡`)"),
-              onThisDay: false),
-        Entry(id: "m2", date: "2026-04-19", time: "20:00",
-              title: "第一次煮意粉", location: "我哋屋企",
-              proposedBy: "kit", who: .both, tag: .home, isSpecial: false, notes: nil,
-              cover: "pasta-first", photos: 7, voiceClips: 0, messages: 41,
-              kaomoji: "(っ˘ڡ˘ς)",
-              reflection: Reflection(from: "kit",
-                                     text: "燒燶咗少少但係好開心 — Michel 話下次佢嚟煮",
-                                     kaomoji: "(*ˊᗜˋ*)"),
-              onThisDay: false),
         Entry(id: "m3", date: "2026-04-12", time: "10:30",
               title: "南丫島一日遊", location: "南丫島",
               proposedBy: "kit", who: .both, tag: .outing, isSpecial: false, notes: nil,
@@ -115,67 +103,11 @@ enum MockData {
                                      text: "搭船嗰陣風好大，你頭髮好亂但好得意 (´♡‿♡`)",
                                      kaomoji: "(≧▽≦)"),
               onThisDay: false),
-        Entry(id: "m4", date: "2026-04-05", time: "19:00",
-              title: "Michel 生日會", location: "我哋屋企",
-              proposedBy: "kit", who: .both, tag: .special, isSpecial: true, notes: nil,
-              cover: "birthday", photos: 9, voiceClips: 0, messages: 102,
-              kaomoji: "(♡˙︶˙♡)",
-              reflection: Reflection(from: "kit",
-                                     text: "Surprise 成功，你喊咗 — 我都喊埋",
-                                     kaomoji: "(♡˙︶˙♡)"),
-              onThisDay: false),
-
-        // ── 一年前嘅今日 — surfaces in 回望 panel ──
-        Entry(id: "mly", date: "2025-05-02", time: "14:00",
-              title: "第一次去你屋企見家姐", location: "Michel 屋企",
-              proposedBy: "michel", who: .both, tag: .special, isSpecial: false, notes: nil,
-              cover: "family", photos: 6, voiceClips: 0, messages: 38,
-              kaomoji: "(´｡• ω •｡`)",
-              reflection: Reflection(from: "kit",
-                                     text: "我緊張到食唔落飯，家姐話我好乖",
-                                     kaomoji: "(´；ω；`)"),
-              onThisDay: true),
-
-        // ── More past entries to populate the month grid ──
-        Entry(id: "m5", date: "2026-04-29", time: nil,
-              title: "街市買餸", location: nil,
-              proposedBy: "kit", who: .both, tag: .home, isSpecial: false, notes: nil,
-              cover: "market", photos: 2, voiceClips: 0, messages: 12,
-              kaomoji: "(´｡• ᵕ •｡`)", reflection: nil, onThisDay: false),
-        Entry(id: "m6", date: "2026-04-27", time: nil,
-              title: "夜晚散步", location: nil,
-              proposedBy: "michel", who: .both, tag: .walk, isSpecial: false, notes: nil,
-              cover: "night", photos: 3, voiceClips: 0, messages: 8,
-              kaomoji: "(˘ω˘)", reflection: nil, onThisDay: false),
-        Entry(id: "m7", date: "2026-04-22", time: nil,
-              title: "週年月誌 ♡", location: nil,
-              proposedBy: "kit", who: .both, tag: .special, isSpecial: true, notes: nil,
-              cover: "monthly", photos: 4, voiceClips: 0, messages: 22,
-              kaomoji: "(♡˙︶˙♡)", reflection: nil, onThisDay: false),
-        Entry(id: "m8", date: "2026-04-17", time: nil,
-              title: "茶餐廳食 lunch", location: nil,
-              proposedBy: "kit", who: .both, tag: .food, isSpecial: false, notes: nil,
-              cover: "cha", photos: 1, voiceClips: 0, messages: 5,
-              kaomoji: "(っ˘ڡ˘ς)", reflection: nil, onThisDay: false),
-        Entry(id: "m9", date: "2026-04-15", time: nil,
-              title: "揀盆栽", location: nil,
-              proposedBy: "michel", who: .both, tag: .outing, isSpecial: false, notes: nil,
-              cover: "plants", photos: 5, voiceClips: 0, messages: 19,
-              kaomoji: "(´｡• ω •｡`)", reflection: nil, onThisDay: false),
-        Entry(id: "m10", date: "2026-04-09", time: nil,
-              title: "睇日落 @ 西環", location: nil,
-              proposedBy: "kit", who: .both, tag: .walk, isSpecial: false, notes: nil,
-              cover: "sunset", photos: 6, voiceClips: 0, messages: 15,
-              kaomoji: "(◕‿◕)", reflection: nil, onThisDay: false),
-        Entry(id: "m11", date: "2026-04-02", time: nil,
-              title: "咖啡店打 work", location: nil,
-              proposedBy: "michel", who: .both, tag: .outing, isSpecial: false, notes: nil,
-              cover: "cafe", photos: 2, voiceClips: 0, messages: 7,
-              kaomoji: "(˘ω˘)", reflection: nil, onThisDay: false),
     ]
 
     // MARK: - Anniversaries
     // Mirrors data.js D.anniversaries — yearly + monthly recurrence.
+    // Preview-only after v1.5.1.
 
     static let anniversaries: [Anniversary] = [
         Anniversary(id: "an1", title: "我哋一齊嘅日子",
@@ -184,117 +116,8 @@ enum MockData {
         Anniversary(id: "an2", title: "第一次見面",
                     baseDate: "2023-11-08", recur: .yearly,
                     kaomoji: "(´｡• ω •｡`)", emoji: "☕", subtitle: nil),
-        Anniversary(id: "an3", title: "搬入嚟一齊住",
-                    baseDate: "2025-09-14", recur: .yearly,
-                    kaomoji: "(´♡‿♡`)", emoji: "🏠", subtitle: nil),
-        Anniversary(id: "an4", title: "每月 22 號",
-                    baseDate: "2024-05-22", recur: .monthly,
-                    kaomoji: "(˘∇˘)♡", emoji: "♡", subtitle: "月誌"),
         Anniversary(id: "an5", title: "Michel 生日",
                     baseDate: "1996-04-05", recur: .yearly,
                     kaomoji: "(≧▽≦)", emoji: "🎂", subtitle: nil),
-        Anniversary(id: "an6", title: "Kit 生日",
-                    baseDate: "1997-08-19", recur: .yearly,
-                    kaomoji: "(*ˊᗜˋ*)", emoji: "🎂", subtitle: nil),
-    ]
-
-    // MARK: - Activities (玩樂 tab)
-
-    static let activities: [Activity] = [
-        Activity(id: "a1", title: "盲盒約會", subtitle: "抽一張卡，跟住做", kind: .cards, count: 24),
-        Activity(id: "a2", title: "21 條問題", subtitle: "了解多啲對方", kind: .quiz, count: 21),
-        // v1.1.0 — replaces 香港探險地圖 placeholder. 18 districts, journal
-        // each one as you visit. MTR-station version is queued for v1.2.0.
-        Activity(id: "a3", title: "18 區日記", subtitle: "一齊行勻香港，一區一篇", kind: .districts, count: 18),
-        // v1.3.0 — MTR 站日記. 90 stations across 9 lines.
-        Activity(id: "a4", title: "MTR 站日記", subtitle: "一齊搭遍 MTR，一站一篇", kind: .mtr, count: 90),
-    ]
-
-    static let dateCards: [DateCard] = [
-        DateCard(id: 1, title: "夜遊維港",
-                 detail: "搭天星小輪，喺甲板上面影返張合照",
-                 mood: "浪漫", kaomoji: "(♡˙︶˙♡)", tint: .rose, cost: "$$"),
-        DateCard(id: 2, title: "一齊整 pancake",
-                 detail: "揀一個未試過嘅口味，最差嗰個負責洗碗",
-                 mood: "屋企", kaomoji: "(っ˘ڡ˘ς)", tint: .amber, cost: "$"),
-        DateCard(id: 3, title: "影貼紙相",
-                 detail: "銅鑼灣或旺角，搞笑款 4 連張",
-                 mood: "玩樂", kaomoji: "(≧▽≦)", tint: .rose, cost: "$"),
-        DateCard(id: 4, title: "行一條未行過嘅街",
-                 detail: "Google Maps 隨機 drop pin，去最近嗰條",
-                 mood: "探險", kaomoji: "(´｡• ω •｡`)", tint: .sage, cost: "$"),
-        DateCard(id: 5, title: "寫信俾未來自己",
-                 detail: "一年後拆，封住放入記憶簿",
-                 mood: "靜", kaomoji: "(◍•ᴗ•◍)", tint: .amber, cost: "$"),
-        DateCard(id: 6, title: "盲交換禮物",
-                 detail: "$50 budget，30 分鐘內入便利店揀",
-                 mood: "玩樂", kaomoji: "(¬‿¬)", tint: .sage, cost: "$"),
-        // v1.0.7 — 18 張新 cards 令 deck 更豐富，亦避免做幾張就全部循環
-        DateCard(id: 7, title: "搭叮叮一程",
-                 detail: "上層頭排，由筲箕灣坐去堅尼地城",
-                 mood: "懷舊", kaomoji: "(◕‿◕)", tint: .sage, cost: "$"),
-        DateCard(id: 8, title: "夜晚行山睇夜景",
-                 detail: "獅子山或大潭，記得帶電筒",
-                 mood: "探險", kaomoji: "(•̀ᴗ•́)و", tint: .sage, cost: "$"),
-        DateCard(id: 9, title: "一齊煲劇 marathon",
-                 detail: "揀一套兩個都未睇過嘅，一晚煲完",
-                 mood: "屋企", kaomoji: "(─‿─)", tint: .amber, cost: "$"),
-        DateCard(id: 10, title: "去街市買餸",
-                 detail: "唔講食乜，望住有咩買咩，返屋企 freestyle",
-                 mood: "屋企", kaomoji: "(￣ω￣)", tint: .amber, cost: "$"),
-        DateCard(id: 11, title: "影黑白菲林",
-                 detail: "買一筒可棄菲林，行半日，影晒佢",
-                 mood: "靜", kaomoji: "(◍•ᴗ•◍)", tint: .rose, cost: "$$"),
-        DateCard(id: 12, title: "去離島放空",
-                 detail: "南丫、長洲、坪洲，揀一個冇去過",
-                 mood: "靜", kaomoji: "(´｡• ω •｡`)", tint: .sage, cost: "$"),
-        DateCard(id: 13, title: "去 IKEA 諗將來層樓",
-                 detail: "唔買，淨係望，諗下將來想點佈置",
-                 mood: "夢想", kaomoji: "(♡˙︶˙♡)", tint: .rose, cost: "$"),
-        DateCard(id: 14, title: "整一餐情人節食物",
-                 detail: "今晚煮個 valentine special，唔理乜日子",
-                 mood: "浪漫", kaomoji: "(♡´︶`♡)", tint: .rose, cost: "$"),
-        DateCard(id: 15, title: "去茶餐廳食 brunch",
-                 detail: "揀間冇去過嘅，每人叫一個 set，分嚟食",
-                 mood: "玩樂", kaomoji: "(っ˘ڡ˘ς)", tint: .amber, cost: "$"),
-        DateCard(id: 16, title: "一齊去做運動",
-                 detail: "踩單車／瑜珈／游水，揀一樣兩個都未試過",
-                 mood: "玩樂", kaomoji: "(•̀ᴗ•́)و", tint: .sage, cost: "$"),
-        DateCard(id: 17, title: "重做第一次 date",
-                 detail: "去返第一次 date 嘅地方，影同樣 pose",
-                 mood: "懷舊", kaomoji: "(´｡• ᵕ •｡`)", tint: .rose, cost: "$$"),
-        DateCard(id: 18, title: "玩 board game café",
-                 detail: "佐敦或太子，揀一隻冇玩過嘅",
-                 mood: "玩樂", kaomoji: "(◕‿◕)", tint: .sage, cost: "$"),
-        DateCard(id: 19, title: "睇夜場戲",
-                 detail: "11pm 後嗰場，散場行返屋企",
-                 mood: "靜", kaomoji: "(─‿─)", tint: .amber, cost: "$$"),
-        DateCard(id: 20, title: "係屋企整 cocktail",
-                 detail: "YouTube 學一隻新嘅，互相試味",
-                 mood: "屋企", kaomoji: "(¬‿¬)", tint: .rose, cost: "$"),
-        DateCard(id: 21, title: "做心理測驗",
-                 detail: "搵一個 personality test，互相估對方答",
-                 mood: "玩樂", kaomoji: "(≧▽≦)", tint: .amber, cost: "$"),
-        DateCard(id: 22, title: "去石澤睇日落",
-                 detail: "或者任何海邊，帶杯熱嘢飲",
-                 mood: "浪漫", kaomoji: "(♡˙︶˙♡)", tint: .rose, cost: "$"),
-        DateCard(id: 23, title: "一齊砌 LEGO",
-                 detail: "買一套兩個一齊砌，邊砌邊吹水",
-                 mood: "屋企", kaomoji: "(◍•ᴗ•◍)", tint: .amber, cost: "$$"),
-        DateCard(id: 24, title: "寫一封情書畀對方",
-                 detail: "10 分鐘 timer，唔可以 google，交換睇",
-                 mood: "靜", kaomoji: "(´｡• ᵕ •｡`)", tint: .rose, cost: "$"),
-    ]
-
-    static let quizQuestions: [QuizQuestion] = [
-        QuizQuestion(id: 1, question: "你最鍾意我邊度？",
-                     kitAnswer: "你笑嗰陣眼仔彎彎",
-                     michelAnswer: "你成日諗住其他人嘅心情"),
-        QuizQuestion(id: 2, question: "我哋第一次去嘅餐廳叫乜？",
-                     kitAnswer: "銅鑼灣嗰間意大利餐",
-                     michelAnswer: "銅鑼灣嗰間意大利餐"),
-        QuizQuestion(id: 3, question: "我最怕乜？",
-                     kitAnswer: "蟑螂",
-                     michelAnswer: "高度"),
     ]
 }

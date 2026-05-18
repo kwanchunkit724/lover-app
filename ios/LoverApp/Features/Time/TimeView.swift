@@ -23,15 +23,14 @@ struct TimeView: View {
 
     private var todayISO: String { LocalDate.string(from: Date()) }
 
-    /// v0.5.1: real entries from EntryService when paired (E2EE). Fall back
-    /// to MockData when service is empty so previews still render.
+    /// v1.5.1: real entries only — no MockData fallback. Empty state is
+    /// rendered by emptyDayBox() in selectedDaySection.
     private var entries: [Entry] {
-        let real = entryService.asEntries
-        return real.isEmpty ? MockData.entries : real
+        entryService.asEntries
     }
 
     private var anniversaries: [Anniversary] {
-        let real = anniversaryService.items.map { d in
+        anniversaryService.items.map { d in
             Anniversary(
                 id: d.id.uuidString,
                 title: d.payload.title,
@@ -42,7 +41,6 @@ struct TimeView: View {
                 subtitle: d.payload.subtitle
             )
         }
-        return real.isEmpty ? MockData.anniversaries : real
     }
 
     var body: some View {
@@ -430,26 +428,23 @@ private struct UpcomingCardRow: View {
         .padding(.bottom, 8)
     }
 
+    // v1.5.1 — was rendering MockData.me / MockData.partner avatars +
+    // hardcoded "Kit" / "Michel" labels. Stripped to neutral text-only
+    // labels; real per-couple avatars in entry rows can be wired in a
+    // follow-up once entry.who carries the real participant ids.
     private var whoCluster: some View {
         HStack(spacing: 8) {
             switch entry.who {
             case .both:
-                ZStack(alignment: .leading) {
-                    DSAvatar(person: MockData.partner, size: 18)
-                    DSAvatar(person: MockData.me, size: 18).offset(x: 12)
-                }
-                .frame(width: 30)
                 Text("我哋兩個")
                     .font(DSText.mono(theme, 10))
                     .foregroundStyle(theme.inkMuted)
             case .mine:
-                DSAvatar(person: MockData.me, size: 18)
-                Text("只係 Kit")
+                Text("只係我")
                     .font(DSText.mono(theme, 10))
                     .foregroundStyle(theme.inkMuted)
             case .theirs:
-                DSAvatar(person: MockData.partner, size: 18)
-                Text("只係 Michel")
+                Text("只係對方")
                     .font(DSText.mono(theme, 10))
                     .foregroundStyle(theme.inkMuted)
             }

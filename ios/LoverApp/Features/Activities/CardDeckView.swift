@@ -34,7 +34,7 @@ struct CardDeckView: View {
 
     /// Static list, NOT filtered. We always read by index; advance() does
     /// the skip-done logic.
-    private var allCards: [DateCard] { MockData.dateCards }
+    private var allCards: [DateCard] { DateCardCatalog.all }
 
     private var card: DateCard {
         allCards[index % max(allCards.count, 1)]

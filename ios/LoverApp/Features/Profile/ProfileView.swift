@@ -24,11 +24,10 @@ struct ProfileView: View {
         return "v\(v)"
     }
 
-    /// v0.5.0: real anniversaries from backend (E2EE). When unsigned-in or
-    /// before the service has fetched, fall back to MockData so the
-    /// anniversaries section isn't empty in previews.
+    /// v1.5.1: real anniversaries only — no MockData fallback. Empty state
+    /// is handled in anniversariesSection.
     private var anniversaries: [Anniversary] {
-        let real = anniversaryService.items.map { d in
+        anniversaryService.items.map { d in
             Anniversary(
                 id: d.id.uuidString,
                 title: d.payload.title,
@@ -39,14 +38,12 @@ struct ProfileView: View {
                 subtitle: d.payload.subtitle
             )
         }
-        return real.isEmpty ? MockData.anniversaries : real
     }
 
-    // Avatar tints stay from MockData (same kawaii palette); name/initial
-    // resolve from the freshest source: real partner row (Phase 3c) → local
-    // onboarding profile (Phase 2) → mock data (no auth, no profile).
+    // v1.5.1 — MockData identity fallbacks stripped. Show "…" placeholder
+    // when real data hasn't loaded so users never see 米雪 / Kit by mistake.
     private var me: Person {
-        let name = profileStore.profile?.myName ?? MockData.me.name
+        let name = profileStore.profile?.myName ?? "…"
         return Person(id: "me", name: name, initial: String(name.prefix(1)), tint: .rose)
     }
     private var partner: Person {
@@ -54,11 +51,11 @@ struct ProfileView: View {
         // their device — preferred over our local "what I think they're called".
         let name = pairing.partner?.myName
                 ?? profileStore.profile?.partnerName
-                ?? MockData.partner.name
+                ?? "…"
         return Person(id: "partner", name: name, initial: String(name.prefix(1)), tint: .sage)
     }
 
-    private var anniversaryISO: String {
+    private var anniversaryISO: String? {
         // v1.0.5 — bug 5.1: each phone was showing the OTHER user's
         // onboarding-entered date, so the two devices disagreed (one read
         // 2026-05-04, the other 2025-12-08). Pairing was supposed to
@@ -69,12 +66,13 @@ struct ProfileView: View {
         let mine   = profileStore.profile?.anniversaryISO
         let theirs = pairing.partner?.anniversaryISO
         if let mine, let theirs { return min(mine, theirs) }
-        return mine ?? theirs ?? MockData.togetherSinceISO
+        return mine ?? theirs
     }
 
-    private var daysTogether: Int {
+    private var daysTogether: Int? {
+        guard let iso = anniversaryISO else { return nil }
         let todayISO = LocalDate.string(from: Date())
-        return TimeFormatting.daysBetween(anniversaryISO, todayISO)
+        return TimeFormatting.daysBetween(iso, todayISO)
     }
 
     private var nextAnniv: (anniversary: Anniversary, days: Int, ordinal: Int?)? {
@@ -221,7 +219,15 @@ struct ProfileView: View {
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
 
-            Text("一齊 \(daysTogether) 日 · 自 \(DisplayDate.from(iso: anniversaryISO))")
+            // v1.5.1 — show "…" placeholder when anniversary hasn't loaded
+            // or hasn't been set yet, instead of MockData.togetherSinceISO.
+            Group {
+                if let days = daysTogether, let iso = anniversaryISO {
+                    Text("一齊 \(days) 日 · 自 \(DisplayDate.from(iso: iso))")
+                } else {
+                    Text("…")
+                }
+            }
                 .font(DSText.mono(theme, 11))
                 .foregroundStyle(theme.inkMuted)
                 .padding(.top, 4)
@@ -263,21 +269,35 @@ struct ProfileView: View {
 
     private var anniversariesSection: some View {
         ProfileSection(title: "紀念日") {
-            if let next = nextAnniv {
+            // v1.5.1 — when empty, show ONE prompt row that opens the
+            // anniversaries detail (which has the real add UI). Previously
+            // we rendered "所有紀念日 (6)" from MockData → user tapped in and
+            // saw the empty state.
+            if anniversaries.isEmpty {
                 ProfileRow(
-                    icon: .heart,
-                    label: "下一個：\(next.anniversary.title)",
-                    value: "\(next.days) 日後 →",
-                    onTap: { presented = .anniversaries }
+                    icon: .cal,
+                    label: "未有紀念日 · 入 + 添加",
+                    value: "→",
+                    onTap: { presented = .anniversaries },
+                    isLast: true
+                )
+            } else {
+                if let next = nextAnniv {
+                    ProfileRow(
+                        icon: .heart,
+                        label: "下一個：\(next.anniversary.title)",
+                        value: "\(next.days) 日後 →",
+                        onTap: { presented = .anniversaries }
+                    )
+                }
+                ProfileRow(
+                    icon: .cal,
+                    label: "所有紀念日 (\(anniversaries.count))",
+                    value: "→",
+                    onTap: { presented = .anniversaries },
+                    isLast: true
                 )
             }
-            ProfileRow(
-                icon: .cal,
-                label: "所有紀念日 (\(anniversaries.count))",
-                value: "→",
-                onTap: { presented = .anniversaries },
-                isLast: true
-            )
         }
     }
 

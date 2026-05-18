@@ -98,7 +98,7 @@ struct ActivitiesView: View {
             GridItem(.flexible(), spacing: 10),
             GridItem(.flexible(), spacing: 10)
         ], spacing: 10) {
-            ForEach(MockData.activities) { activity in
+            ForEach(ActivityCatalog.all) { activity in
                 tile(activity)
             }
         }
