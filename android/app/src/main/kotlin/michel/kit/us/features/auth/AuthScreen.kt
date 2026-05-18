@@ -12,10 +12,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+import kotlinx.coroutines.launch
 import michel.kit.us.LocalAppContainer
 import michel.kit.us.R
+import michel.kit.us.data.SupabaseConfig
 import michel.kit.us.ui.components.ErrorToast
 import michel.kit.us.ui.theme.DSText
 import michel.kit.us.ui.theme.LocalLoverColors
@@ -31,6 +39,8 @@ fun AuthScreen() {
         }
     )
     val palette = LocalLoverColors.current
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val mode by vm.mode.collectAsStateWithLifecycle()
     val email by vm.email.collectAsStateWithLifecycle()
     val password by vm.password.collectAsStateWithLifecycle()
@@ -98,6 +108,49 @@ fun AuthScreen() {
                     style = DSText.ui(15)
                 )
             }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        // --- Continue with Google (Phase B Round 2) ---
+        OutlinedButton(
+            onClick = {
+                val webClientId = SupabaseConfig.GOOGLE_WEB_CLIENT_ID
+                if (webClientId.startsWith("TODO")) {
+                    vm.showError("Google 登入未設定 — Web Client ID 仲未填")
+                    return@OutlinedButton
+                }
+                coroutineScope.launch {
+                    runCatching {
+                        val credentialManager = CredentialManager.create(context)
+                        val googleIdOption = GetGoogleIdOption.Builder()
+                            .setFilterByAuthorizedAccounts(false)
+                            .setServerClientId(webClientId)
+                            .setAutoSelectEnabled(true)
+                            .build()
+                        val request = GetCredentialRequest.Builder()
+                            .addCredentialOption(googleIdOption)
+                            .build()
+                        val result = credentialManager.getCredential(context, request)
+                        val cred = result.credential
+                        if (cred is CustomCredential &&
+                            cred.type == TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                        ) {
+                            val googleCred = GoogleIdTokenCredential.createFrom(cred.data)
+                            vm.submitGoogleIdToken(googleCred.idToken)
+                        } else {
+                            vm.showError("唔識嘅憑證類型")
+                        }
+                    }.onFailure { vm.showError(it.message ?: "Google 登入失敗") }
+                }
+            },
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) {
+            Text(
+                text = "Continue with Google",
+                style = DSText.ui(14).copy(color = palette.ink)
+            )
         }
 
         Spacer(Modifier.height(14.dp))

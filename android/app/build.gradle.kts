@@ -15,6 +15,12 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+    // Phase B Round 2 — Firebase. The google-services plugin parses
+    // app/google-services.json at build time and emits a generated
+    // values/values.xml so FirebaseApp.initializeApp() finds the project.
+    // A real google-services.json must be placed at app/google-services.json
+    // for runtime calls (FCM token fetch, etc.) to actually work.
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -23,6 +29,40 @@ android {
     // lifecycle, activity-compose) hard-requires it; AGP otherwise fails
     // checkDebugAarMetadata with "Dependency requires a newer compileSdk".
     compileSdk = 35
+
+    // Release signing config.
+    //
+    // In CI (.github/workflows/android-release.yml) we DO NOT register a
+    // signingConfig here; the workflow passes Gradle's
+    // `android.injected.signing.*` properties via -P flags and AGP picks
+    // them up automatically for the release variant. Plaintext credentials
+    // never enter the repo.
+    //
+    // For local signed builds, drop `app/keystore.properties` (gitignored
+    // via the *.secret pattern + android-keystore/ entry) with:
+    //
+    //   storeFile=../../android-keystore/upload.keystore
+    //   storePassword=…
+    //   keyAlias=upload
+    //   keyPassword=…
+    //
+    // If the file is absent, no `release` signingConfig is registered and
+    // `:app:bundleRelease` requires the -P injected props from the CLI.
+    val keystorePropsFile = rootProject.file("app/keystore.properties")
+    val keystoreProps = java.util.Properties().apply {
+        if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
+    }
+
+    signingConfigs {
+        if (keystorePropsFile.exists()) {
+            create("release") {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "michel.kit.us"
@@ -50,6 +90,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            // Local-only: when keystore.properties is present we wire the
+            // signingConfig declared above. CI relies on the
+            // -Pandroid.injected.signing.* props passed by the workflow and
+            // does NOT need this assignment.
+            if (keystorePropsFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 
@@ -146,4 +193,20 @@ dependencies {
 
     // --- Encrypted prefs (for X25519 private key at rest) ---
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // --- Firebase (FCM push) — Phase B Round 2 ---
+    // BOM keeps Firebase library versions in lockstep. Only Messaging is
+    // pulled in; analytics + crashlytics aren't shipped (privacy stance).
+    implementation(platform("com.google.firebase:firebase-bom:33.5.1"))
+    implementation("com.google.firebase:firebase-messaging-ktx")
+
+    // --- Google Sign-In via Credential Manager — Phase B Round 2 ---
+    // CredentialManager is the post-2024 replacement for the deprecated
+    // GoogleSignInClient. googleid ships the GetGoogleIdOption builder.
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
+    // --- Coroutines Play Services adapter (FirebaseMessaging.token.await()) ---
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
 }

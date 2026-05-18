@@ -30,6 +30,8 @@ import michel.kit.us.features.time.AnniversariesScreen
 import michel.kit.us.features.time.TimeScreen
 import michel.kit.us.ui.theme.DSText
 import michel.kit.us.ui.theme.LocalLoverColors
+import michel.kit.us.ui.theme.LoverAppTheme
+import michel.kit.us.ui.theme.LoverPalette
 
 /**
  * Root composable. Decides which top-level screen to show based on auth +
@@ -59,6 +61,15 @@ private fun RootRouter() {
     val scope = rememberCoroutineScope()
     val userId by container.auth.currentUserId.collectAsStateWithLifecycle(initialValue = null)
     val couple by container.pairing.couple.collectAsStateWithLifecycle()
+    val profile by container.userProfile.profile.collectAsStateWithLifecycle()
+
+    // Per-couple theme variant — Phase B Round 2. Pick the palette by the
+    // theme_id stored on the partner's user row (or my own — same value
+    // because both partners share a theme). Re-wrap with LoverAppTheme so
+    // LocalLoverColors + Material color scheme both update.
+    val partnerThemeId = container.pairing.partner.collectAsStateWithLifecycle().value?.themeId
+    val themeId = profile?.themeId ?: partnerThemeId
+    val palette = remember(themeId) { LoverPalette.forId(themeId) }
 
     // One-time: show onboarding splash on very first launch.
     var seenOnboarding by rememberSaveable { mutableStateOf(false) }
@@ -113,14 +124,16 @@ private fun RootRouter() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
-    when {
-        !seenOnboarding && userId == null -> OnboardingScreen(onContinue = { seenOnboarding = true })
-        userId == null -> AuthScreen()
-        couple == null -> PairingScreen(
-            meId = userId!!,
-            onPaired = { /* LaunchedEffect above re-fires when couple changes */ }
-        )
-        else -> MainTabs()
+    LoverAppTheme(variant = palette) {
+        when {
+            !seenOnboarding && userId == null -> OnboardingScreen(onContinue = { seenOnboarding = true })
+            userId == null -> AuthScreen()
+            couple == null -> PairingScreen(
+                meId = userId!!,
+                onPaired = { /* LaunchedEffect above re-fires when couple changes */ }
+            )
+            else -> MainTabs()
+        }
     }
 }
 

@@ -47,6 +47,26 @@
             </intent-filter>
         </activity>
 
+        <!-- Phase B Round 2 — Firebase Cloud Messaging. The service handles
+             token rotation (onNewToken) and foreground / data-only push
+             delivery (onMessageReceived). Notification-style pushes received
+             while the app is backgrounded are auto-handled by the FCM SDK
+             into the `messages` channel (created in PushRepository). -->
+        <service
+            android:name="michel.kit.us.service.LoverFcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- Default FCM notification channel id — used by FCM SDK when a
+             notification-style push arrives in background. Must match
+             PushRepository.MESSAGES_CHANNEL_ID. -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="messages" />
+
         <!-- FileProvider for ActivityResultContracts.TakePicture — the
              system camera needs a content:// URI it can write the captured
              JPEG into. Authority matches what PhotoPicker builds. -->

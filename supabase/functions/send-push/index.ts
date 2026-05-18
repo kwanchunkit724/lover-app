@@ -1,14 +1,15 @@
-// Supabase Edge Function — APNs push when a message is inserted.
+// Supabase Edge Function — APNs + FCM push when a message is inserted.
 //
 // Trigger: Database webhook on public.messages INSERT.
 // Body shape (sent by Supabase webhook): { type, table, record, schema, old_record? }
 //
 // What it does:
 //   1. Read couple_id + sender_id from the inserted row.
-//   2. Look up the OTHER user's row in users → grab their device_token + the
-//      sender's myName for the alert title.
-//   3. Mint an APNs JWT using the .p8 key + key_id + team_id (env secrets).
-//   4. POST to APNs production endpoint with bundle id `michel.kit.us`.
+//   2. Look up the OTHER user's row in users → grab their device_token (APNs)
+//      + fcm_token (FCM) + the sender's myName for the alert title.
+//   3. Fan out to whichever platform tokens are present:
+//        device_token set → APNs (.p8 JWT, existing path)
+//        fcm_token set    → FCM HTTPv1 (service-account OAuth token)
 //
 // What it intentionally does NOT do:
 //   • Decrypt the message body. The server can't — it doesn't have the
@@ -19,7 +20,7 @@
 // Supabase Dashboard editor's clipboard paste path mangles multi-byte UTF-8
 // characters and produces "Unterminated string constant" deploy errors.
 // Escapes are equivalent at runtime and survive the round-trip.
-//   • Retry on failure. APNs failures are silent — the chat still works
+//   • Retry on failure. Push failures are silent — the chat still works
 //     in foreground via Realtime, push is best-effort.
 //
 // Secrets the function expects (set via `supabase secrets set …` or in the
@@ -28,6 +29,15 @@
 //   APNS_KEY_ID          — 10-char Key ID from Apple Developer
 //   APNS_TEAM_ID         — C22JSRYW54
 //   APNS_BUNDLE_ID       — michel.kit.us
+//   FCM_SERVICE_ACCOUNT_JSON — full JSON of a Firebase service account with
+//                              the cloudmessaging.messages.create permission.
+//                              Download from Firebase Console → Project
+//                              Settings → Service accounts → Generate new
+//                              private key. Paste the entire JSON file.
+//   FCM_PROJECT_ID       — Firebase project id (e.g. lover-app-xxxxx). Found
+//                              in Firebase Console → Project Settings →
+//                              General → Project ID. Same as the
+//                              project_id field of the service-account JSON.
 //   SUPABASE_URL         — auto-injected by Supabase
 //   SUPABASE_SERVICE_ROLE_KEY  — auto-injected (server-only key for users lookup)
 
@@ -80,9 +90,9 @@ serve(async (req: Request) => {
   const couple = couples[0];
   const recipientId = couple.user_a_id === record.sender_id ? couple.user_b_id : couple.user_a_id;
 
-  // Look up recipient's device_token + sender's display name.
+  // Look up recipient's device_token + fcm_token + sender's display name.
   const usersRes = await fetch(
-    `${supabaseUrl}/rest/v1/users?id=in.(${recipientId},${record.sender_id})&select=id,my_name,device_token`,
+    `${supabaseUrl}/rest/v1/users?id=in.(${recipientId},${record.sender_id})&select=id,my_name,device_token,fcm_token`,
     {
       headers: {
         apikey: serviceKey,
@@ -90,13 +100,69 @@ serve(async (req: Request) => {
       },
     }
   );
-  const users: Array<{ id: string; my_name: string; device_token: string | null }> = await usersRes.json();
+  const users: Array<{ id: string; my_name: string; device_token: string | null; fcm_token: string | null }> = await usersRes.json();
 
   const recipient = users.find((u) => u.id === recipientId);
   const sender = users.find((u) => u.id === record.sender_id);
-  if (!recipient?.device_token) return new Response("No device token", { status: 200 });
+  if (!recipient) return new Response("Recipient not found", { status: 200 });
+  if (!recipient.device_token && !recipient.fcm_token) {
+    return new Response("No push tokens", { status: 200 });
+  }
 
-  // Mint the APNs JWT (valid for ~1 hour; we mint per-call, simple).
+  // Fallback display name = "the other one" (Chinese chars escaped to keep
+  // this file ASCII-safe for the Supabase Dashboard paste path, which mangles
+  // multi-byte UTF-8 and produces "Unterminated string constant" deploy
+  // errors). Runtime values pulled from DB are unaffected — only literals.
+  // 對方 = "the other one"
+  const senderName = sender?.my_name ?? "對方";
+  // 傳咗訊息畀你 ♡ = "sent you a message <heart>"
+  const alertBody = "傳咗訊息畢你 ♡";
+
+  const results: Record<string, unknown> = { recipient: recipientId };
+
+  // -- APNs branch --------------------------------------------------------
+  if (recipient.device_token) {
+    try {
+      const apnsStatus = await sendApns({
+        deviceToken: recipient.device_token,
+        title: senderName,
+        body: alertBody,
+        threadId: record.couple_id,
+      });
+      results.apns_status = apnsStatus;
+    } catch (e) {
+      results.apns_error = String(e);
+    }
+  }
+
+  // -- FCM branch ---------------------------------------------------------
+  if (recipient.fcm_token) {
+    try {
+      const fcmStatus = await sendFcm({
+        fcmToken: recipient.fcm_token,
+        title: senderName,
+        body: alertBody,
+        threadId: record.couple_id,
+      });
+      results.fcm_status = fcmStatus;
+    } catch (e) {
+      results.fcm_error = String(e);
+    }
+  }
+
+  return new Response(JSON.stringify(results), {
+    headers: { "content-type": "application/json" },
+  });
+});
+
+// === APNs ====================================================================
+
+async function sendApns(args: {
+  deviceToken: string;
+  title: string;
+  body: string;
+  threadId: string;
+}): Promise<number> {
   const keyP8 = Deno.env.get("APNS_AUTH_KEY")!;
   const keyId = Deno.env.get("APNS_KEY_ID")!;
   const teamId = Deno.env.get("APNS_TEAM_ID")!;
@@ -112,26 +178,19 @@ serve(async (req: Request) => {
     cryptoKey
   );
 
-  // Fallback display name = "the other one" (Chinese chars escaped to keep
-  // this file ASCII-safe for the Supabase Dashboard paste path, which mangles
-  // multi-byte UTF-8 and produces "Unterminated string constant" deploy
-  // errors). Runtime values pulled from DB are unaffected — only literals.
-  // 對方 = "the other one"
-  const senderName = sender?.my_name ?? "\u5C0D\u65B9";
-  // 傳咗訊息畀你 ♡ = "sent you a message <heart>"
-  const apnsBody = {
+  const payload = {
     aps: {
       alert: {
-        title: senderName,
-        body: "\u50B3\u5497\u8A0A\u606F\u7562\u4F60 \u2661",
+        title: args.title,
+        body: args.body,
       },
       sound: "default",
-      "thread-id": record.couple_id,
+      "thread-id": args.threadId,
     },
   };
 
-  const apnsRes = await fetch(
-    `https://api.push.apple.com/3/device/${recipient.device_token}`,
+  const res = await fetch(
+    `https://api.push.apple.com/3/device/${args.deviceToken}`,
     {
       method: "POST",
       headers: {
@@ -141,20 +200,11 @@ serve(async (req: Request) => {
         "apns-priority": "10",
         "content-type": "application/json",
       },
-      body: JSON.stringify(apnsBody),
+      body: JSON.stringify(payload),
     }
   );
-
-  // 200 = delivered to APNs (not necessarily to device). Anything else
-  // we just log and shrug; foreground delivery still works via Realtime.
-  return new Response(
-    JSON.stringify({
-      apns_status: apnsRes.status,
-      recipient: recipientId,
-    }),
-    { headers: { "content-type": "application/json" } }
-  );
-});
+  return res.status;
+}
 
 /// Imports an Apple ES256 .p8 private key into a CryptoKey usable by djwt.
 async function importApnsKey(pem: string): Promise<CryptoKey> {
@@ -167,6 +217,125 @@ async function importApnsKey(pem: string): Promise<CryptoKey> {
     "pkcs8",
     der,
     { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["sign"]
+  );
+}
+
+// === FCM HTTPv1 ==============================================================
+
+interface ServiceAccount {
+  client_email: string;
+  private_key: string;
+  token_uri: string;
+  project_id: string;
+}
+
+let cachedFcmAccessToken: { token: string; expiresAt: number } | null = null;
+
+async function sendFcm(args: {
+  fcmToken: string;
+  title: string;
+  body: string;
+  threadId: string;
+}): Promise<number> {
+  const projectId = Deno.env.get("FCM_PROJECT_ID")!;
+  const accessToken = await getFcmAccessToken();
+
+  // Wire-compat with iOS APNs payload: keep the same alert title/body and
+  // a thread-id under android.collapseKey so the OS groups conversations.
+  // Body must NOT contain decrypted message text — push stays generic.
+  const payload = {
+    message: {
+      token: args.fcmToken,
+      notification: {
+        title: args.title,
+        body: args.body,
+      },
+      android: {
+        priority: "HIGH",
+        collapse_key: args.threadId,
+        notification: {
+          tag: args.threadId,
+          channel_id: "messages",
+        },
+      },
+      data: {
+        thread_id: args.threadId,
+      },
+    },
+  };
+
+  const res = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`,
+    {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    }
+  );
+  return res.status;
+}
+
+async function getFcmAccessToken(): Promise<string> {
+  const now = Date.now();
+  if (cachedFcmAccessToken && cachedFcmAccessToken.expiresAt > now + 60_000) {
+    return cachedFcmAccessToken.token;
+  }
+
+  const saJson = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON")!;
+  const sa: ServiceAccount = JSON.parse(saJson);
+
+  // Mint a Google OAuth 2.0 service-account JWT, then exchange for an
+  // access token. Scope: FCM HTTPv1 send.
+  const cryptoKey = await importGooglePrivateKey(sa.private_key);
+  const iat = Math.floor(now / 1000);
+  const exp = iat + 3600;
+  const assertion = await jwtCreate(
+    { alg: "RS256", typ: "JWT" },
+    {
+      iss: sa.client_email,
+      scope: "https://www.googleapis.com/auth/firebase.messaging",
+      aud: sa.token_uri,
+      iat,
+      exp,
+    },
+    cryptoKey
+  );
+
+  const tokenRes = await fetch(sa.token_uri, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion,
+    }),
+  });
+  if (!tokenRes.ok) {
+    throw new Error(`Google token exchange failed: ${tokenRes.status}`);
+  }
+  const tokenJson: { access_token: string; expires_in: number } = await tokenRes.json();
+  cachedFcmAccessToken = {
+    token: tokenJson.access_token,
+    expiresAt: now + tokenJson.expires_in * 1000,
+  };
+  return tokenJson.access_token;
+}
+
+async function importGooglePrivateKey(pem: string): Promise<CryptoKey> {
+  const cleaned = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, "")
+    .replace(/-----END PRIVATE KEY-----/, "")
+    .replace(/\\n/g, "")
+    .replace(/\s/g, "");
+  const der = Uint8Array.from(atob(cleaned), (c) => c.charCodeAt(0));
+  return await crypto.subtle.importKey(
+    "pkcs8",
+    der,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"]
   );

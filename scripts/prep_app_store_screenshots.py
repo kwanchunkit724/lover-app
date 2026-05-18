@@ -33,7 +33,7 @@ from PIL import Image
 import os
 from pathlib import Path
 
-TARGET_SIZE = (1290, 2796)
+TARGET_SIZE = (1284, 2778)   # iPhone 6.7" Display — ASC v2026 accepted size
 CREAM = (242, 235, 224)   # #F2EBE0 — matches the app's default Cream theme
 
 ROOT = Path(__file__).resolve().parent.parent

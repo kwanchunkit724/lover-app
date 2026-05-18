@@ -1,7 +1,9 @@
 package michel.kit.us.data
 
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
@@ -29,7 +31,8 @@ import java.util.UUID
  * defaults and let the user edit in Phase B settings.
  */
 class AuthRepository(
-    private val keyManager: KeyManager
+    private val keyManager: KeyManager,
+    private val push: PushRepository
 ) {
     private val client = SupabaseClient.instance
     private val auth = client.auth
@@ -56,6 +59,25 @@ class AuthRepository(
             this.password = password
         }
         upsertProfile()
+        push.bootstrap()
+    }
+
+    /**
+     * Phase B Round 2 — Google Sign-In via CredentialManager.
+     * The UI launches `CredentialManager.getCredential(...)` with a
+     * GetGoogleIdOption, extracts the Google ID token from the result, and
+     * passes it here. Supabase verifies it server-side via the Google
+     * provider (which must be enabled in the Supabase Dashboard with the
+     * same Web Client ID).
+     */
+    suspend fun signInWithGoogle(idToken: String, rawNonce: String? = null) {
+        auth.signInWith(IDToken) {
+            provider = Google
+            this.idToken = idToken
+            if (rawNonce != null) nonce = rawNonce
+        }
+        upsertProfile()
+        push.bootstrap()
     }
 
     suspend fun signUpWithEmail(email: String, password: String) {
@@ -72,10 +94,14 @@ class AuthRepository(
                 this.password = password
             }
             upsertProfile()
+            push.bootstrap()
         }
     }
 
     suspend fun signOut() {
+        // Clear the FCM token server-side BEFORE auth.signOut() invalidates
+        // our JWT — otherwise the RPC would 401.
+        push.clearToken()
         auth.signOut()
         keyManager.reset()
     }

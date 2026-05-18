@@ -32,6 +32,13 @@ fastlane/test_output/
 *.secret
 secrets/
 
+# Android upload keystore + passwords — MUST NEVER enter git history.
+# Losing these credentials means losing the ability to push updates to the
+# Play Store listing forever (Play App Signing only mitigates this if you
+# opted in BEFORE losing the upload key). The .b64 export and PASSWORDS.txt
+# live in this folder too.
+android-keystore/
+
 # IDE
 .vscode/launch.json
 .idea/

@@ -1,0 +1,78 @@
+Us 我哋 — 兩個人嘅小天地
+
+只屬於你哋兩個人嘅應用程式。冇廣告、冇追蹤、冇社交壓力 — 純粹係一個讓兩個人慢慢生活、慢慢儲起回憶嘅空間。
+
+▍特色
+
+• 端對端加密對話 (E2EE)
+  每一句說話都用 X25519 + AES-GCM-256 喺你哋部手機本機加密，連我哋伺服器都睇唔到內容。
+
+• Instagram 風格嘅聊天
+  回覆、表情反應、編輯、收回、限時訊息、已讀通知 — 想要嘅功能一應俱全，但只係兩個人之間。
+
+• 紀念日 + 月曆
+  記低在一起嘅日子、第一次拖手、第一次見家長… 自動倒數下次紀念日。
+
+• 回憶簿
+  將開心嘅照片同說話放入一本只屬於你哋嘅相簿，永遠唔會被演算法埋沒。
+
+• 可愛美學
+  奶油色 (#F3EEDF) + 玫瑰色 (#D88B9A) + 墨啡色 (#3E2E2C) 嘅手繪風 UI，配上 Klee One 同 Zen Maru Gothic 字體。
+
+• 完全冇廣告、完全冇追蹤
+  我哋唔收集你嘅位置、唔賣你嘅資料、冇第三方分析 SDK。
+  我哋淨係收你嘅電郵作登入用途，加上端對端加密嘅訊息內容 (我哋睇唔到)。
+
+──────────────────────
+
+Us — A small private space for two
+
+A messenger built only for the two of you. No ads, no trackers, no social pressure — just a calm space to slowly build a shared life and keep your memories close.
+
+▍Features
+
+• End-to-end encrypted chat (E2EE)
+  Every message is encrypted on-device with X25519 + AES-GCM-256. Even we cannot read your messages.
+
+• Instagram-style messaging
+  Reply, reactions, edit, unsend, vanishing messages, read receipts — all the modern niceties, scoped to just two people.
+
+• Anniversaries + calendar
+  Remember the day you met, the first hand-hold, the first time meeting the parents. Auto countdowns to the next anniversary.
+
+• Memory book
+  A private album of photos and notes that the algorithm will never bury.
+
+• Kawaii aesthetic
+  Cream (#F3EEDF), rose (#D88B9A), and ink (#3E2E2C) palette with hand-drawn vibes, set in Klee One + Zen Maru Gothic.
+
+• Zero ads, zero tracking
+  We do not collect your location, sell your data, or include any third-party analytics SDKs.
+  We only store your email for sign-in plus your end-to-end encrypted messages (which we cannot read).
+
+──────────────────────
+
+Us — ふたりだけの小さな世界
+
+ふたりのためだけのメッセージングアプリ。広告なし、トラッキングなし、SNS のプレッシャーなし。穏やかに日々を過ごし、思い出を大切にためていくための場所です。
+
+▍特徴
+
+• エンドツーエンド暗号化チャット (E2EE)
+  すべてのメッセージは X25519 + AES-GCM-256 で端末上で暗号化されます。私たちも読むことはできません。
+
+• Instagram 風のチャット
+  返信・リアクション・編集・取り消し・消えるメッセージ・既読通知 — 必要な機能をふたりだけのスペースで。
+
+• 記念日 + カレンダー
+  出会った日、初めて手をつないだ日、初めて家族に会った日。次の記念日まで自動カウントダウン。
+
+• 思い出帳
+  ふたりだけの写真とメモを集めたプライベートアルバム。アルゴリズムに埋もれることはありません。
+
+• 可愛い美学
+  クリーム (#F3EEDF)・ローズ (#D88B9A)・墨 (#3E2E2C) の手描き風 UI。Klee One と Zen Maru Gothic を使用。
+
+• 広告ゼロ・追跡ゼロ
+  位置情報を収集せず、データを販売せず、サードパーティの分析 SDK も使いません。
+  保存するのはサインイン用のメールアドレスとエンドツーエンド暗号化されたメッセージ (内容は読めません) のみです。

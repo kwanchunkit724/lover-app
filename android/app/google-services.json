@@ -1,0 +1,30 @@
+{
+  "_comment": "PLACEHOLDER google-services.json — replace before shipping. Firebase Console → Project Settings → Your apps → Android app (package michel.kit.us) → Download google-services.json. Without a real file, FirebaseApp.initializeApp() will still succeed (the google-services Gradle plugin generates valid resources from these placeholder values) but every Firebase backend call (FCM token fetch, sign-in, etc.) will fail at runtime with an authentication error. The build, however, will pass — Phase B Round 2's APK can ship for non-push validation.",
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "lover-app-placeholder",
+    "storage_bucket": "lover-app-placeholder.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "android_client_info": {
+          "package_name": "michel.kit.us"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyPLACEHOLDER0000000000000000000000000"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -71,10 +71,10 @@ Source: `BUG-AUDIT-v1.5.1.md` (audit complete). View-layer fixes only, no schema
 - [ ] Photo + camera + voice composer in chat (`ActivityResultContracts` + `MediaRecorder`)
 - [ ] Encrypted photo display (Coil custom `Fetcher` + decrypt-in-memory)
 - [ ] Encrypted audio playback (ExoPlayer + decrypt-stream)
-- [ ] FCM push (mirror APNs Edge Function with `fcm_token` discriminator column)
-- [ ] Google Sign-In via Credential Manager (Apple Sign In parity)
-- [ ] Custom Japanese fonts (Klee One / Zen Maru Gothic / DM Mono)
-- [ ] Per-couple theme variant from `users.theme_id`
+- [x] FCM push (mirror APNs Edge Function with `fcm_token` discriminator column) — Round 2; needs real `google-services.json` + FCM service-account JSON to function at runtime
+- [x] Google Sign-In via Credential Manager (Apple Sign In parity) — Round 2; needs Web Client ID filled in `SupabaseConfig.kt`
+- [x] Custom Japanese fonts (Klee One / Zen Maru Gothic / DM Mono) — Round 2; bundled under `res/font/`
+- [x] Per-couple theme variant from `users.theme_id` — Round 2; cream/jbeam/notion/cozy all wired
 - [ ] Auth screen header label flips 登入↔註冊 (cosmetic bug from B test)
 
 ### Phase C — Real presence (DONE)
@@ -83,11 +83,13 @@ Source: `BUG-AUDIT-v1.5.1.md` (audit complete). View-layer fixes only, no schema
 - [x] iOS `PresenceService` + green dot wiring (ChatView header — 在線 / 上次在線 X 分鐘前 / 一齊 N 日 fallback)
 - [x] Android `PresenceRepository` + ChatScreen header parity
 
-### Phase D — Play Store release (PENDING)
-- [ ] Generate upload keystore (long-life RSA 2048+, store in Play Console)
-- [ ] Switch GHA Android workflow to build signed AAB
-- [ ] Play Console developer account ($25 one-time)
-- [ ] App listing copy + screenshots + privacy policy URL (already on GH Pages)
+### Phase D — Play Store release (PARTIAL)
+- [x] Generate upload keystore (RSA 2048, 10000-day validity, in `android-keystore/`, gitignored)
+- [x] Switch GHA Android workflow to build signed AAB (`.github/workflows/android-release.yml`, additive — debug workflow unchanged)
+- [x] Listing template + submission guide (`play-store/listing/` + `play-store/SUBMISSION.md`)
+- [ ] Play Console developer account ($25 one-time) — user-dependent (needs ID + payment card)
+- [ ] Add 3 GitHub Actions secrets (keystore b64 + 2 passwords) — user-dependent
+- [ ] App listing copy + screenshots + feature graphic upload — user-dependent
 - [ ] First internal-testing track upload
 - [ ] Closed-testing → open-testing → production progression
 

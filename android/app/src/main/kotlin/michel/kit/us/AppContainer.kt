@@ -13,6 +13,7 @@ import michel.kit.us.data.EntryRepository
 import michel.kit.us.data.KeyManager
 import michel.kit.us.data.PairingRepository
 import michel.kit.us.data.PresenceRepository
+import michel.kit.us.data.PushRepository
 import michel.kit.us.data.SupabaseClient
 import michel.kit.us.data.UserProfileRepository
 import io.github.jan.supabase.auth.auth
@@ -30,7 +31,8 @@ class AppContainer(context: Context) {
     val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val keyManager: KeyManager = KeyManager(context.applicationContext)
     val crypto: CryptoService = CryptoService()
-    val auth: AuthRepository = AuthRepository(keyManager)
+    val push: PushRepository = PushRepository(context.applicationContext)
+    val auth: AuthRepository = AuthRepository(keyManager, push)
     val pairing: PairingRepository = PairingRepository()
     val chat: ChatRepository = ChatRepository(crypto, scope)
     val entries: EntryRepository = EntryRepository(crypto, scope)

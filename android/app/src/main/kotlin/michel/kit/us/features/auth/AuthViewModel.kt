@@ -51,4 +51,17 @@ class AuthViewModel(private val repo: AuthRepository) : ViewModel() {
             _busy.value = false
         }
     }
+
+    fun submitGoogleIdToken(idToken: String) {
+        if (_busy.value) return
+        _busy.value = true
+        _error.value = null
+        viewModelScope.launch {
+            runCatching { repo.signInWithGoogle(idToken) }
+                .onFailure { _error.value = it.message }
+            _busy.value = false
+        }
+    }
+
+    fun showError(msg: String) { _error.value = msg }
 }
