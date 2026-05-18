@@ -71,8 +71,12 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
           KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
         run: |
+          # AGP resolves `signing.store.file` relative to the Gradle daemon
+          # CWD (~/.gradle/daemon/...) when given a relative path, not the
+          # project dir. Pass an absolute path so it always resolves.
+          KEYSTORE_PATH="$GITHUB_WORKSPACE/android/app/upload.keystore"
           ./gradlew :app:bundleRelease --no-daemon --stacktrace \
-            -Pandroid.injected.signing.store.file=upload.keystore \
+            -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
             -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
             -Pandroid.injected.signing.key.alias=upload \
             -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
