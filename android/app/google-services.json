@@ -1,27 +1,44 @@
 {
-  "_comment": "PLACEHOLDER google-services.json — replace before shipping. Firebase Console → Project Settings → Your apps → Android app (package michel.kit.us) → Download google-services.json. Without a real file, FirebaseApp.initializeApp() will still succeed (the google-services Gradle plugin generates valid resources from these placeholder values) but every Firebase backend call (FCM token fetch, sign-in, etc.) will fail at runtime with an authentication error. The build, however, will pass — Phase B Round 2's APK can ship for non-push validation.",
   "project_info": {
-    "project_number": "000000000000",
-    "project_id": "lover-app-placeholder",
-    "storage_bucket": "lover-app-placeholder.appspot.com"
+    "project_number": "55564852693",
+    "project_id": "us-couples-37eae",
+    "storage_bucket": "us-couples-37eae.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "mobilesdk_app_id": "1:55564852693:android:555e63df3ab5d86ed3315c",
         "android_client_info": {
           "package_name": "michel.kit.us"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "55564852693-f3m3an9egdpfp616ug5ktjldk6tlguhm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "michel.kit.us",
+            "certificate_hash": "2a6d5e8198eef0e48b8cdb1d6f54164c54109d86"
+          }
+        },
+        {
+          "client_id": "55564852693-bha9ri7gcsaq50lsml1i8rhj6jt0s8gq.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyPLACEHOLDER0000000000000000000000000"
+          "current_key": "AIzaSyARKmvnOnVH91z671IYYpFye4Cn6JMAaPk"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "55564852693-bha9ri7gcsaq50lsml1i8rhj6jt0s8gq.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

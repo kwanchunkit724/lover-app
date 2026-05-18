@@ -30,5 +30,6 @@ object SupabaseConfig {
      * While this is still TODO, the AuthScreen "Continue with Google"
      * button shows an error toast instead of launching CredentialManager.
      */
-    const val GOOGLE_WEB_CLIENT_ID: String = "TODO_FILL_IN_FROM_FIREBASE_CONSOLE"
+    const val GOOGLE_WEB_CLIENT_ID: String =
+        "55564852693-bha9ri7gcsaq50lsml1i8rhj6jt0s8gq.apps.googleusercontent.com"
 }
