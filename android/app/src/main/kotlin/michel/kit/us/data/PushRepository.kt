@@ -12,6 +12,8 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 
 /**
  * Port of ios/LoverApp/Services/PushService.swift for Android / FCM.
@@ -81,10 +83,10 @@ class PushRepository(private val appContext: Context) {
     suspend fun uploadToken(token: String) {
         val uid = client.auth.currentUserOrNull()?.id ?: return
         runCatching {
-            client.postgrest.rpc(
-                "set_fcm_token",
-                TokenArgs(p_token = token)
-            )
+            // Supabase Kotlin 3.x: rpc accepts JsonObject, not generic data class.
+            client.postgrest.rpc("set_fcm_token", buildJsonObject {
+                put("p_token", token)
+            })
         }
     }
 
@@ -95,10 +97,9 @@ class PushRepository(private val appContext: Context) {
             // an empty token short-circuits the recipient lookup in the
             // Edge Function (empty string is falsy in JS truthiness check
             // via `if (recipient.fcm_token)`).
-            client.postgrest.rpc(
-                "set_fcm_token",
-                TokenArgs(p_token = "")
-            )
+            client.postgrest.rpc("set_fcm_token", buildJsonObject {
+                put("p_token", "")
+            })
         }
         // Also delete the local FCM token so a fresh signup gets a new one.
         runCatching {
