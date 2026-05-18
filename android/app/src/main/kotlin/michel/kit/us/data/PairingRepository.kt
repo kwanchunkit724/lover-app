@@ -45,7 +45,8 @@ class PairingRepository {
         @SerialName("partner_name") val partnerName: String,
         @SerialName("anniversary_iso") val anniversaryIso: String,
         @SerialName("theme_id") val themeId: String,
-        @SerialName("public_key") val publicKey: String? = null
+        @SerialName("public_key") val publicKey: String? = null,
+        @SerialName("last_seen_at") val lastSeenAt: String? = null
     )
 
     data class ActiveCode(val code: String, val anniversaryIso: String, val expiresAtEpochSec: Long)

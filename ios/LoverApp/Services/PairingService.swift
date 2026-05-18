@@ -44,6 +44,7 @@ final class PairingService: ObservableObject {
         let anniversaryISO: String
         let themeId: String
         let publicKey: String?      // base64 X25519 raw — Phase 4a
+        let lastSeenAt: Date?       // Phase C — heartbeat timestamp, used by ChatView header
 
         enum CodingKeys: String, CodingKey {
             case id
@@ -52,6 +53,7 @@ final class PairingService: ObservableObject {
             case anniversaryISO = "anniversary_iso"
             case themeId       = "theme_id"
             case publicKey     = "public_key"
+            case lastSeenAt    = "last_seen_at"
         }
     }
 

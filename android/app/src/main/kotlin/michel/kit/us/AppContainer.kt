@@ -12,7 +12,11 @@ import michel.kit.us.data.CryptoService
 import michel.kit.us.data.EntryRepository
 import michel.kit.us.data.KeyManager
 import michel.kit.us.data.PairingRepository
+import michel.kit.us.data.PresenceRepository
+import michel.kit.us.data.SupabaseClient
 import michel.kit.us.data.UserProfileRepository
+import io.github.jan.supabase.auth.auth
+import java.util.UUID
 
 /**
  * Tiny manual DI container. Holds the singleton repositories so view-models
@@ -32,6 +36,11 @@ class AppContainer(context: Context) {
     val entries: EntryRepository = EntryRepository(crypto, scope)
     val anniversaries: AnniversaryRepository = AnniversaryRepository(crypto, scope)
     val userProfile: UserProfileRepository = UserProfileRepository()
+    val presence: PresenceRepository = PresenceRepository(scope) {
+        runCatching {
+            SupabaseClient.instance.auth.currentUserOrNull()?.id?.let(UUID::fromString)
+        }.getOrNull()
+    }
 }
 
 val LocalAppContainer = staticCompositionLocalOf<AppContainer> {

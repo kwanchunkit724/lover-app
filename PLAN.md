@@ -77,11 +77,11 @@ Source: `BUG-AUDIT-v1.5.1.md` (audit complete). View-layer fixes only, no schema
 - [ ] Per-couple theme variant from `users.theme_id`
 - [ ] Auth screen header label flips 登入↔註冊 (cosmetic bug from B test)
 
-### Phase C — Real presence (PENDING)
-- [ ] Supabase Realtime presence channel (`presence:couple_id=<uuid>`)
-- [ ] `last_seen` column maintained client-side via heartbeat
-- [ ] iOS `PresenceService` + green dot wiring
-- [ ] Android equivalent
+### Phase C — Real presence (DONE)
+- [x] Supabase Realtime presence channel (`presence:<lowercase couple uuid>`)
+- [x] `last_seen_at` column + `update_last_seen()` RPC (0014_presence.sql) — heartbeat every 30s, paused while backgrounded
+- [x] iOS `PresenceService` + green dot wiring (ChatView header — 在線 / 上次在線 X 分鐘前 / 一齊 N 日 fallback)
+- [x] Android `PresenceRepository` + ChatScreen header parity
 
 ### Phase D — Play Store release (PENDING)
 - [ ] Generate upload keystore (long-life RSA 2048+, store in Play Console)

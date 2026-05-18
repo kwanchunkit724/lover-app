@@ -82,6 +82,7 @@ private fun RootRouter() {
                     container.chat.start(c.coupleUuid())
                     container.entries.start(c.coupleUuid())
                     container.anniversaries.start(c.coupleUuid())
+                    container.presence.start(c.coupleUuid())
                 }
             }
         } else {
@@ -89,7 +90,27 @@ private fun RootRouter() {
             container.chat.stop()
             container.entries.stop()
             container.anniversaries.stop()
+            container.presence.stop()
         }
+    }
+
+    // Phase C — pause heartbeat + leave presence channel on STOP (app
+    // backgrounded), rejoin on START. Without this we'd keep firing the
+    // 30-second update_last_seen RPC while suspended, draining battery and
+    // misreporting the user as "online".
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, couple) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> container.presence.pause()
+                androidx.lifecycle.Lifecycle.Event.ON_START -> {
+                    couple?.let { container.presence.resume(it.coupleUuid()) }
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
     }
 
     when {

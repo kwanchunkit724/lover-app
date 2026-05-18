@@ -56,6 +56,7 @@ fun ChatScreen() {
     val meId by container.auth.currentUserId.collectAsStateWithLifecycle(initialValue = null)
     val partner by container.pairing.partner.collectAsStateWithLifecycle()
     val cryptoReady by container.crypto.isReady.collectAsStateWithLifecycle()
+    val partnerOnline by container.presence.partnerOnline.collectAsStateWithLifecycle()
 
     val vm: ChatViewModel = viewModel(
         factory = object : androidx.lifecycle.ViewModelProvider.Factory {
@@ -78,7 +79,10 @@ fun ChatScreen() {
             id = partner?.id ?: "partner",
             name = n,
             initial = n.firstOrNull()?.toString() ?: "?",
-            tint = Person.Tint.sage
+            tint = Person.Tint.sage,
+            lastSeenAt = partner?.lastSeenAt?.let {
+                runCatching { java.time.Instant.parse(it) }.getOrNull()
+            }
         )
     }
 
@@ -86,6 +90,7 @@ fun ChatScreen() {
         Column(modifier = Modifier.fillMaxSize()) {
             ChatHeader(
                 partner = partnerPerson,
+                online = partnerOnline,
                 vanishOn = vanish,
                 onToggleVanish = vm::toggleVanish
             )
@@ -175,6 +180,7 @@ fun ChatScreen() {
 @Composable
 private fun ChatHeader(
     partner: Person,
+    online: Boolean,
     vanishOn: Boolean,
     onToggleVanish: () -> Unit
 ) {
@@ -194,7 +200,22 @@ private fun ChatHeader(
                 Spacer(Modifier.width(6.dp))
                 Text("♡", style = DSText.mono(11).copy(color = palette.rose))
             }
-            Text("● 在線", style = DSText.mono(10).copy(color = palette.sage))
+            // Phase C — real presence: green dot + 在線 when online,
+            // "上次在線 X 分鐘前" via partner.lastSeenAt when offline,
+            // empty when neither signal available yet.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (online) {
+                    Text(
+                        "●",
+                        style = DSText.mono(10).copy(color = Color(0xFF34C759))
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
+                Text(
+                    text = presenceLabel(online, partner.lastSeenAt),
+                    style = DSText.mono(10).copy(color = palette.sage)
+                )
+            }
         }
         IconButton(onClick = onToggleVanish) {
             Icon(
@@ -427,5 +448,24 @@ private fun Composer(
         ) {
             Icon(Icons.Outlined.Send, contentDescription = stringResource(R.string.chat_send), modifier = Modifier.size(18.dp))
         }
+    }
+}
+
+/**
+ * Phase C — string shown next to the green dot in the chat header.
+ *   * online → "在線"
+ *   * offline + last_seen_at known → "上次在線 X 分鐘前 / X 小時前 / X 日前"
+ *   * neither → "" (header still shows the name + ♡)
+ */
+private fun presenceLabel(online: Boolean, lastSeen: java.time.Instant?): String {
+    if (online) return "在線"
+    if (lastSeen == null) return ""
+    val secs = java.time.Duration.between(lastSeen, java.time.Instant.now()).seconds
+        .coerceAtLeast(0)
+    return when {
+        secs < 60 -> "上次在線 啱啱"
+        secs < 3600 -> "上次在線 ${secs / 60} 分鐘前"
+        secs < 86400 -> "上次在線 ${secs / 3600} 小時前"
+        else -> "上次在線 ${secs / 86400} 日前"
     }
 }

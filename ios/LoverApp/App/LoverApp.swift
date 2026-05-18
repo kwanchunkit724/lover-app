@@ -11,6 +11,7 @@ struct LoverApp: App {
     @StateObject private var anniversaries: AnniversaryService
     @StateObject private var entries: EntryService
     @StateObject private var playHistory: PlayHistoryService
+    @StateObject private var presence: PresenceService
 
     init() {
         let c = CryptoService()
@@ -19,6 +20,13 @@ struct LoverApp: App {
         _anniversaries  = StateObject(wrappedValue: AnniversaryService(crypto: c))
         _entries        = StateObject(wrappedValue: EntryService(crypto: c))
         _playHistory    = StateObject(wrappedValue: PlayHistoryService(crypto: c))
+        // Phase C — presence reads myUserId lazily on each start() so it
+        // doesn't capture a stale signed-out state.
+        _presence       = StateObject(wrappedValue: PresenceService(myUserId: {
+            // Read directly from Supabase auth — avoids a cross-singleton
+            // dependency on AuthService here in App init.
+            SB.client.auth.currentUser?.id
+        }))
     }
 
     var body: some Scene {
@@ -32,6 +40,7 @@ struct LoverApp: App {
                 .environmentObject(anniversaries)
                 .environmentObject(entries)
                 .environmentObject(playHistory)
+                .environmentObject(presence)
                 .theme(profileStore.theme)
                 .task { await auth.bootstrap() }
         }
@@ -65,6 +74,7 @@ struct RootView: View {
     @EnvironmentObject private var anniversaries: AnniversaryService
     @EnvironmentObject private var entries: EntryService
     @EnvironmentObject private var playHistory: PlayHistoryService
+    @EnvironmentObject private var presence: PresenceService
 
     var body: some View {
         Group {
@@ -102,6 +112,7 @@ struct RootView: View {
                 anniversaries.stop()
                 entries.stop()
                 playHistory.stop()
+                presence.stop()
                 crypto.reset()
             }
         }
@@ -115,6 +126,7 @@ struct RootView: View {
                 anniversaries.stop()
                 entries.stop()
                 playHistory.stop()
+                presence.stop()
                 crypto.reset()
             }
         }
@@ -132,6 +144,18 @@ struct RootView: View {
                pairing.isPaired,
                case .signedIn(let id) = auth.state {
                 Task { await preparePaired(meId: id) }
+            }
+            // Phase C — heartbeat must NOT fire while backgrounded. Pause on
+            // .background / .inactive, resume on .active.
+            switch phase {
+            case .background, .inactive:
+                presence.pause()
+            case .active:
+                if let coupleId = pairing.couple?.id {
+                    presence.resume(coupleId: coupleId)
+                }
+            @unknown default:
+                break
             }
         }
     }
@@ -174,5 +198,6 @@ struct RootView: View {
         anniversaries.start(coupleId: coupleId)
         entries.start(coupleId: coupleId)
         playHistory.start(coupleId: coupleId)
+        presence.start(coupleId: coupleId)
     }
 }

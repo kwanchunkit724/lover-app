@@ -15,6 +15,7 @@ struct ChatView: View {
     @EnvironmentObject private var pairing: PairingService
     @EnvironmentObject private var chat: ChatService
     @EnvironmentObject private var crypto: CryptoService
+    @EnvironmentObject private var presence: PresenceService
 
     @State private var input: String = ""
     @State private var showKaomoji = false
@@ -264,9 +265,16 @@ struct ChatView: View {
                         .font(DSText.mono(theme, 11))
                         .foregroundStyle(theme.rose)
                 }
-                Text(headerStatus)
-                    .font(DSText.mono(theme, 10))
-                    .foregroundStyle(theme.sage)
+                HStack(spacing: 4) {
+                    if presence.partnerOnline {
+                        Text("●")
+                            .font(DSText.mono(theme, 10))
+                            .foregroundStyle(.green)
+                    }
+                    Text(headerStatus)
+                        .font(DSText.mono(theme, 10))
+                        .foregroundStyle(theme.sage)
+                }
             }
 
             Spacer()
@@ -294,6 +302,16 @@ struct ChatView: View {
     }
 
     private var headerStatus: String {
+        // Phase C — real presence:
+        //   * partner online via realtime presence channel → "在線"
+        //   * offline but we know last_seen_at → "上次在線 X 分鐘前"
+        //   * neither → relationship length ("一齊 N 日"), or "" if unknown.
+        if presence.partnerOnline {
+            return "在線"
+        }
+        if let last = pairing.partner?.lastSeenAt {
+            return "上次在線 \(relativeMinutes(from: last))"
+        }
         // v1.0.5 — same fix as ProfileView.anniversaryISO (bug 5.1): use the
         // earlier of the two anniversary dates so both phones agree.
         let mine   = profileStore.profile?.anniversaryISO
@@ -302,14 +320,21 @@ struct ChatView: View {
             if let mine, let theirs { return min(mine, theirs) }
             return mine ?? theirs
         }()
-        // v1.5.1 — removed hardcoded "● 在線" prefix. No presence
-        // infrastructure backs it (no PresenceService, no last_seen). Real
-        // presence wiring is Phase C; until then show only the relationship
-        // length, or nothing at all if anniversary isn't set yet.
         guard let iso else { return "" }
         let today = LocalDate.string(from: Date())
         let days = TimeFormatting.daysBetween(iso, today)
         return "一齊 \(days) 日"
+    }
+
+    /// "上次在線 X 分鐘前 / X 小時前 / X 日前" — coarse buckets, Cantonese.
+    private func relativeMinutes(from date: Date) -> String {
+        let secs = max(0, Int(Date().timeIntervalSince(date)))
+        if secs < 60 { return "啱啱" }
+        let mins = secs / 60
+        if mins < 60 { return "\(mins) 分鐘前" }
+        let hours = mins / 60
+        if hours < 24 { return "\(hours) 小時前" }
+        return "\(hours / 24) 日前"
     }
 
     // MARK: - Message stream
@@ -521,5 +546,6 @@ private enum HHmm {
         .environmentObject(AuthService())
         .environmentObject(PairingService())
         .environmentObject(ChatService(crypto: CryptoService()))
+        .environmentObject(PresenceService(myUserId: { nil }))
         .theme(.jbeam)
 }
