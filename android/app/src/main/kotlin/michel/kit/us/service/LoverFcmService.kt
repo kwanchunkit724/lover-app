@@ -15,6 +15,8 @@ import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import michel.kit.us.MainActivity
@@ -54,10 +56,10 @@ class LoverFcmService : FirebaseMessagingService() {
             val client = SupabaseClient.instance
             if (client.auth.currentUserOrNull()?.id != null) {
                 runCatching {
-                    client.postgrest.rpc(
-                        "set_fcm_token",
-                        TokenArgs(p_token = token)
-                    )
+                    // Supabase Kotlin 3.x rpc takes JsonObject, not data class.
+                    client.postgrest.rpc("set_fcm_token", buildJsonObject {
+                        put("p_token", token)
+                    })
                 }
             }
         }
