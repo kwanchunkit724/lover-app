@@ -10,6 +10,8 @@
 // questionnaire at upload time. Standard AES/X25519 qualifies as exempt under
 // US BIS exception ENC (5D002.c.1). Document on first upload; no code needed.
 
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -49,7 +51,7 @@ android {
     // If the file is absent, no `release` signingConfig is registered and
     // `:app:bundleRelease` requires the -P injected props from the CLI.
     val keystorePropsFile = rootProject.file("app/keystore.properties")
-    val keystoreProps = java.util.Properties().apply {
+    val keystoreProps = Properties().apply {
         if (keystorePropsFile.exists()) keystorePropsFile.inputStream().use { load(it) }
     }
 
