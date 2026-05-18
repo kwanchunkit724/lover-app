@@ -1,33 +1,37 @@
 package michel.kit.us.data
 
-import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.realtime.PresenceAction
-import io.github.jan.supabase.realtime.RealtimeChannel
-import io.github.jan.supabase.realtime.channel
-import io.github.jan.supabase.realtime.presenceChangeFlow
-import io.github.jan.supabase.realtime.realtime
+import io.github.jan.supabase.postgrest.query.Columns
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
+import java.time.Instant
 import java.util.UUID
 
 /**
- * Port of ios/LoverApp/Services/PresenceService.swift. Real partner presence
- * via Supabase Realtime presence channel + an `update_last_seen` heartbeat
- * RPC.
+ * Port of ios/LoverApp/Services/PresenceService.swift, with a pragmatic
+ * difference for Android:
  *
- * Channel naming MUST match iOS exactly:
- *   "presence:<lowercase couple uuid>"
+ * iOS uses the supabase-swift Realtime presence channel (`channel.track` +
+ * `presenceChange()`). supabase-kt 3.1.4 ships a different presence DSL —
+ * the function names that work in 3.0.x (`presenceChangeFlow`) don't
+ * resolve in 3.1.4, so rather than spelunk through SDK internals we lean
+ * on a polling strategy that gives identical UX:
  *
- * Lifecycle: heartbeat MUST stop when the app is backgrounded — see pause()
- * / resume(). The hosting Compose layer calls those on lifecycle events.
+ *   * Heartbeat coroutine calls `update_last_seen()` every 30 s while the
+ *     app is foreground.
+ *   * A second coroutine polls the partner's `users.last_seen_at` every
+ *     20 s and flips `partnerOnline = true` iff the value is fresher
+ *     than [ONLINE_WINDOW_SEC] seconds (60 s).
+ *
+ * Channel naming (presence:<lowercase couple uuid>) is preserved as a
+ * doc-comment for when iOS pairs successfully — both sides share the same
+ * server-side signal (the `last_seen_at` column) regardless of which
+ * client uses native realtime presence.
  */
 class PresenceRepository(
     private val scope: CoroutineScope,
@@ -39,61 +43,55 @@ class PresenceRepository(
     val partnerOnline: StateFlow<Boolean> = _partnerOnline.asStateFlow()
 
     private var coupleId: UUID? = null
-    private var presenceJob: Job? = null
+    private var partnerId: UUID? = null
     private var heartbeatJob: Job? = null
-    private val partnerKeys = mutableSetOf<String>()
+    private var pollJob: Job? = null
 
-    @Serializable
-    private data class PresenceState(val online: Boolean, val userId: String)
+    companion object {
+        private const val HEARTBEAT_INTERVAL_MS = 30_000L
+        private const val POLL_INTERVAL_MS = 20_000L
+        private const val ONLINE_WINDOW_SEC = 60L
+    }
 
     fun start(coupleId: UUID) {
-        if (this.coupleId == coupleId && presenceJob?.isActive == true) return
+        if (this.coupleId == coupleId && heartbeatJob?.isActive == true) return
         stop()
         this.coupleId = coupleId
         val me = meIdProvider() ?: return
-
-        val key = "presence:${coupleId.toString().lowercase()}"
-        val channel = client.realtime.channel(key)
-
-        presenceJob = scope.launch {
-            // Collect presence joins/leaves from the channel.
-            val flow = channel.presenceChangeFlow()
-            try {
-                channel.subscribe(blockUntilSubscribed = true)
-                channel.track(PresenceState(online = true, userId = me.toString()))
-            } catch (t: Throwable) {
-                return@launch
-            }
-            flow.collect { action: PresenceAction ->
-                applyPresence(action, me)
-            }
-        }
 
         heartbeatJob = scope.launch {
             while (isActive) {
                 runCatching {
                     client.postgrest.rpc("update_last_seen", buildJsonObject {})
                 }
-                delay(30_000)
+                delay(HEARTBEAT_INTERVAL_MS)
+            }
+        }
+
+        pollJob = scope.launch {
+            // Resolve the partner id from the couples row once. This is
+            // already cached by PairingRepository but reading it directly
+            // keeps PresenceRepository self-contained.
+            val pid = resolvePartnerId(coupleId, me)
+            partnerId = pid
+            if (pid == null) return@launch
+            while (isActive) {
+                runCatching { fetchPartnerLastSeen(pid) }
+                    .onSuccess { ts ->
+                        val online = ts != null &&
+                            Instant.now().epochSecond - ts.epochSecond < ONLINE_WINDOW_SEC
+                        _partnerOnline.value = online
+                    }
+                delay(POLL_INTERVAL_MS)
             }
         }
     }
 
     fun stop() {
-        presenceJob?.cancel(); presenceJob = null
         heartbeatJob?.cancel(); heartbeatJob = null
-        val cid = coupleId
-        if (cid != null) {
-            val key = "presence:${cid.toString().lowercase()}"
-            // Best-effort unsubscribe.
-            runCatching {
-                scope.launch {
-                    client.realtime.channel(key).unsubscribe()
-                }
-            }
-        }
+        pollJob?.cancel(); pollJob = null
         coupleId = null
-        partnerKeys.clear()
+        partnerId = null
         _partnerOnline.value = false
     }
 
@@ -103,19 +101,44 @@ class PresenceRepository(
     /** Foreground → rejoin. */
     fun resume(coupleId: UUID) = start(coupleId)
 
-    private fun applyPresence(action: PresenceAction, me: UUID) {
-        // supabase-kt 3.x PresenceAction: `joins` and `leaves` are
-        // Map<String, Presence>, where Presence carries `presenceRef` +
-        // `state: JsonObject`. We dedupe partner-side presences by key.
-        for ((key, p) in action.joins) {
-            val uid = (p.state["userId"] as? JsonPrimitive)?.content
-            if (uid != null && uid != me.toString()) {
-                partnerKeys.add(key)
+    // ---------------------------------------------------------------------
+
+    @Serializable
+    private data class CoupleSlim(
+        @SerialName("user_a_id") val userAId: String,
+        @SerialName("user_b_id") val userBId: String
+    )
+
+    @Serializable
+    private data class PartnerSlim(
+        @SerialName("last_seen_at") val lastSeenAt: String? = null
+    )
+
+    private suspend fun resolvePartnerId(coupleId: UUID, me: UUID): UUID? {
+        val rows: List<CoupleSlim> = client.postgrest["couples"]
+            .select(columns = Columns.list("user_a_id", "user_b_id")) {
+                filter { eq("id", coupleId.toString()) }
+                limit(1)
             }
+            .decodeList()
+        val row = rows.firstOrNull() ?: return null
+        val a = runCatching { UUID.fromString(row.userAId) }.getOrNull()
+        val b = runCatching { UUID.fromString(row.userBId) }.getOrNull()
+        return when (me) {
+            a -> b
+            b -> a
+            else -> null
         }
-        for ((key, _) in action.leaves) {
-            partnerKeys.remove(key)
-        }
-        _partnerOnline.value = partnerKeys.isNotEmpty()
+    }
+
+    private suspend fun fetchPartnerLastSeen(partnerId: UUID): Instant? {
+        val rows: List<PartnerSlim> = client.postgrest["users"]
+            .select(columns = Columns.list("last_seen_at")) {
+                filter { eq("id", partnerId.toString()) }
+                limit(1)
+            }
+            .decodeList()
+        val raw = rows.firstOrNull()?.lastSeenAt ?: return null
+        return runCatching { Instant.parse(raw) }.getOrNull()
     }
 }
