@@ -39,6 +39,10 @@ class ChatRepository(
     private val scope: CoroutineScope
 ) {
     private val client = SupabaseClient.instance
+    private val media = MediaRepository(crypto)
+
+    /** Exposed for [features.chat.EncryptedAsyncImage] + [EncryptedAudioPlayback]. */
+    val mediaRepository: MediaRepository get() = media
 
     private val _messages = MutableStateFlow<List<DecryptedMessage>>(emptyList())
     val messages: StateFlow<List<DecryptedMessage>> = _messages.asStateFlow()
@@ -84,6 +88,63 @@ class ChatRepository(
         if (trimmed.isEmpty()) return
         try {
             val cipher = crypto.seal(ChatPayload.text(trimmed))
+            val row = OutgoingRow(cid.toString(), senderId.toString(), cipher, replyToId?.toString())
+            client.postgrest["messages"].insert(row)
+            fetchOnce()
+        } catch (t: Throwable) {
+            _lastError.value = t.message
+        }
+    }
+
+    /**
+     * Encrypts the photo bytes, uploads to chat-media, then inserts a
+     * `kind=photo` message row. Mirror of iOS ChatService.sendPhoto.
+     */
+    suspend fun sendPhoto(
+        bytes: ByteArray,
+        caption: String?,
+        senderId: UUID,
+        replyToId: UUID? = null
+    ) {
+        val cid = coupleId ?: return
+        try {
+            val path = media.uploadEncrypted(bytes, cid)
+            val payload = ChatPayload(
+                kind = ChatPayload.Kind.photo,
+                text = caption,
+                mediaHandle = path,
+                sentAt = IsoDate.now()
+            )
+            val cipher = crypto.seal(payload)
+            val row = OutgoingRow(cid.toString(), senderId.toString(), cipher, replyToId?.toString())
+            client.postgrest["messages"].insert(row)
+            fetchOnce()
+        } catch (t: Throwable) {
+            _lastError.value = t.message
+        }
+    }
+
+    /**
+     * Encrypts the voice clip bytes, uploads to chat-media, then inserts a
+     * `kind=voice` row. text="0:NN" stores the duration string (same as iOS).
+     */
+    suspend fun sendVoice(
+        bytes: ByteArray,
+        durationSec: Int,
+        senderId: UUID,
+        replyToId: UUID? = null
+    ) {
+        val cid = coupleId ?: return
+        try {
+            val path = media.uploadEncrypted(bytes, cid)
+            val durationStr = String.format("0:%02d", durationSec)
+            val payload = ChatPayload(
+                kind = ChatPayload.Kind.voice,
+                text = durationStr,
+                mediaHandle = path,
+                sentAt = IsoDate.now()
+            )
+            val cipher = crypto.seal(payload)
             val row = OutgoingRow(cid.toString(), senderId.toString(), cipher, replyToId?.toString())
             client.postgrest["messages"].insert(row)
             fetchOnce()

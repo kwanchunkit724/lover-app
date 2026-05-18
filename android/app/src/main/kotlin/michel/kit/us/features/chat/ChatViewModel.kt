@@ -57,4 +57,18 @@ class ChatViewModel(
         if (m.senderId == me || m.readAt != null) return
         viewModelScope.launch { chat.markRead(m.id) }
     }
+
+    fun sendPhoto(bytes: ByteArray, caption: String? = null) {
+        val me = meIdProvider() ?: return
+        val replyId = _replyTo.value?.id
+        _replyTo.value = null
+        viewModelScope.launch { chat.sendPhoto(bytes, caption, me, replyId) }
+    }
+
+    fun sendVoice(bytes: ByteArray, durationSec: Int) {
+        val me = meIdProvider() ?: return
+        val replyId = _replyTo.value?.id
+        _replyTo.value = null
+        viewModelScope.launch { chat.sendVoice(bytes, durationSec, me, replyId) }
+    }
 }

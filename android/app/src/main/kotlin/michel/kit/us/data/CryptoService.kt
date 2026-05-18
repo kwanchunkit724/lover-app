@@ -79,6 +79,13 @@ class CryptoService {
     @Volatile
     private var chatKey: ByteArray? = null
 
+    /**
+     * Internal accessor for [MediaRepository] which needs the raw key to
+     * AES-GCM-seal arbitrary file bytes (photos / voice) outside the
+     * ChatPayload JSON envelope. Returns null when crypto not ready.
+     */
+    internal fun chatKeyBytesOrNull(): ByteArray? = chatKey
+
     /** JSON encoder shared with [ChatPayload]; matches iOS JSONEncoder.iso. */
     private val json = Json {
         ignoreUnknownKeys = true

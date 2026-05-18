@@ -6,11 +6,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.TimerOff
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,12 +109,58 @@ fun ChatScreen() {
 
             replyTo?.let { ReplyComposingRow(it, meId, onCancel = { vm.setReplyTo(null) }) }
 
+            // ---- Media composer state — local to this screen (sheets only
+            // exist while open, no need to elevate into the ViewModel) ----
+            var showPhotoSourceSheet by remember { mutableStateOf(false) }
+            var showVoiceSheet by remember { mutableStateOf(false) }
+
+            val photoCallbacks = remember {
+                PhotoPickerCallbacks(
+                    onPicked = { bytes -> vm.sendPhoto(bytes) },
+                    onCancelled = { }
+                )
+            }
+            val launchGallery = rememberPhotoGalleryLauncher(photoCallbacks)
+            val launchCamera = rememberCameraLauncher(photoCallbacks)
+
+            // CAMERA permission gate — request lazily on first camera tap.
+            val ctx = LocalContext.current
+            val cameraPermissionLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission()
+            ) { granted -> if (granted) launchCamera() }
+
             Composer(
                 value = input,
                 onValueChange = vm::setInput,
                 enabled = cryptoReady,
-                onSend = vm::send
+                onSend = vm::send,
+                onTapPhoto = { showPhotoSourceSheet = true },
+                onTapVoice = { showVoiceSheet = true }
             )
+
+            if (showPhotoSourceSheet) {
+                PhotoSourcePickerSheet(
+                    onCamera = {
+                        val granted = ContextCompat.checkSelfPermission(
+                            ctx, Manifest.permission.CAMERA
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (granted) launchCamera()
+                        else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                    },
+                    onAlbum = { launchGallery() },
+                    onDismiss = { showPhotoSourceSheet = false }
+                )
+            }
+
+            if (showVoiceSheet) {
+                VoiceRecorderSheet(
+                    onSend = { bytes, dur ->
+                        showVoiceSheet = false
+                        vm.sendVoice(bytes, dur)
+                    },
+                    onCancel = { showVoiceSheet = false }
+                )
+            }
         }
 
         reactionTarget?.let { target ->
@@ -314,7 +368,9 @@ private fun Composer(
     value: String,
     onValueChange: (String) -> Unit,
     enabled: Boolean,
-    onSend: () -> Unit
+    onSend: () -> Unit,
+    onTapPhoto: () -> Unit,
+    onTapVoice: () -> Unit
 ) {
     val palette = LocalLoverColors.current
     Row(
@@ -322,8 +378,27 @@ private fun Composer(
         modifier = Modifier
             .fillMaxWidth()
             .background(palette.nav)
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .padding(horizontal = 6.dp, vertical = 6.dp)
     ) {
+        // 📷 photo source picker
+        IconButton(onClick = onTapPhoto, enabled = enabled) {
+            Icon(
+                Icons.Outlined.PhotoCamera,
+                contentDescription = "相片",
+                tint = if (enabled) palette.rose else palette.inkMuted,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        // 🎤 voice recorder
+        IconButton(onClick = onTapVoice, enabled = enabled) {
+            Icon(
+                Icons.Outlined.Mic,
+                contentDescription = "語音",
+                tint = if (enabled) palette.rose else palette.inkMuted,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
@@ -340,7 +415,7 @@ private fun Composer(
                 unfocusedContainerColor = palette.surface
             )
         )
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(6.dp))
         FilledIconButton(
             onClick = onSend,
             enabled = enabled && value.isNotBlank(),

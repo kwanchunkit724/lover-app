@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Camera + voice temp files. Maps to context.cacheDir which is
+         auto-pruned by Android when storage is low. -->
+    <cache-path name="chat_media_cache" path="." />
+    <files-path name="chat_media_files" path="chat-media/" />
+</paths>

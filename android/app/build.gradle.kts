@@ -132,6 +132,13 @@ dependencies {
     // --- Image loading ---
     implementation("io.coil-kt:coil-compose:2.7.0")
 
+    // --- EXIF (read camera/gallery photo orientation before re-encoding) ---
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
+
+    // --- ExoPlayer (encrypted voice playback) ---
+    // media3-ui not needed — we render a custom Compose waveform UI.
+    implementation("androidx.media3:media3-exoplayer:1.5.0")
+
     // --- Crypto: BouncyCastle for X25519 raw key handling.
     //     AES-GCM uses platform javax.crypto (BouncyCastle would also work
     //     but JCA's SunJCE/AndroidOpenSSL provider is faster and audited).

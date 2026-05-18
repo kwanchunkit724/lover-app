@@ -27,6 +27,7 @@ import michel.kit.us.data.ChatPayload
 import michel.kit.us.domain.DecryptedMessage
 import michel.kit.us.ui.components.BubbleShape
 import michel.kit.us.ui.components.DSPhotoPlaceholder
+import michel.kit.us.ui.components.EncryptedAsyncImage
 import michel.kit.us.ui.theme.DSText
 import michel.kit.us.ui.theme.LocalLoverColors
 import java.time.Instant
@@ -166,13 +167,27 @@ private fun BubbleContent(
         }
 
         message.payload.kind == ChatPayload.Kind.photo -> {
+            val handle = message.payload.mediaHandle
             Column(
                 modifier = Modifier
                     .width(220.dp)
                     .clip(shape)
                     .combinedLongPress(onLongPress)
             ) {
-                DSPhotoPlaceholder(id = message.payload.mediaHandle ?: message.id.toString(), height = 260.dp)
+                // Real encrypted blobs live under `couple-<uuid>/...` paths.
+                // Anything else (legacy / mock) falls back to the placeholder.
+                if (handle != null && handle.startsWith("couple-")) {
+                    EncryptedAsyncImage(
+                        mediaHandle = handle,
+                        maxHeight = 260.dp,
+                        cornerRadius = 0.dp
+                    )
+                } else {
+                    DSPhotoPlaceholder(
+                        id = handle ?: message.id.toString(),
+                        height = 260.dp
+                    )
+                }
                 val caption = message.payload.text
                 if (!caption.isNullOrEmpty()) {
                     Text(
@@ -190,11 +205,9 @@ private fun BubbleContent(
         }
 
         message.payload.kind == ChatPayload.Kind.voice -> {
-            // Placeholder voice bubble — real playback (EncryptedAudioPlayback)
-            // is a Phase B port.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            val handle = message.payload.mediaHandle
+            val durationSec = parseDuration(message.payload.text)
+            Box(
                 modifier = Modifier
                     .clip(shape)
                     .background(if (isFromMe) palette.bubbleMe else palette.bubbleThem)
@@ -205,12 +218,22 @@ private fun BubbleContent(
                     .padding(horizontal = 10.dp, vertical = 8.dp)
                     .combinedLongPress(onLongPress)
             ) {
-                Text(
-                    "🎙 ${message.payload.text ?: "0:00"}",
-                    style = DSText.mono(12).copy(
-                        color = if (isFromMe) palette.bubbleMeText else palette.bubbleThemText
+                if (handle != null && handle.startsWith("couple-")) {
+                    EncryptedAudioPlayback(
+                        messageId = message.id.toString(),
+                        mediaHandle = handle,
+                        durationSec = durationSec,
+                        isFromMe = isFromMe
                     )
-                )
+                } else {
+                    // Mock / legacy — keep a simple visual placeholder.
+                    Text(
+                        "🎙 ${message.payload.text ?: "0:00"}",
+                        style = DSText.mono(12).copy(
+                            color = if (isFromMe) palette.bubbleMeText else palette.bubbleThemText
+                        )
+                    )
+                }
             }
         }
     }
@@ -303,6 +326,13 @@ private fun ReplyPreviewRow(data: ReplyPreviewData, isFromMe: Boolean) {
             }
         }
     }
+}
+
+/** Parses "0:NN" voice duration strings produced by ChatRepository.sendVoice. */
+private fun parseDuration(s: String?): Int {
+    if (s.isNullOrEmpty()) return 0
+    val parts = s.split(":")
+    return parts.lastOrNull()?.toIntOrNull() ?: 0
 }
 
 /**
