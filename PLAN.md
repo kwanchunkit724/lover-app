@@ -62,20 +62,21 @@ Source: `BUG-AUDIT-v1.5.1.md` (audit complete). View-layer fixes only, no schema
 - [x] Bump `MARKETING_VERSION` 1.5.0 → 1.5.1 in `project.yml`
 - [x] Tag `v1.5.1` → GHA → TestFlight
 
-### Phase B — Android feature parity (PENDING)
-- [ ] Activities tab (catalog + saved)
-- [ ] Memory Book tab
-- [ ] Time tab (calendar + anniversaries + entries)
-- [ ] Settings tab + account deletion (Play Store data-deletion URL)
-- [ ] Profile tab (theme picker, partner profile, sign-out)
-- [ ] Photo + camera + voice composer in chat (`ActivityResultContracts` + `MediaRecorder`)
-- [ ] Encrypted photo display (Coil custom `Fetcher` + decrypt-in-memory)
-- [ ] Encrypted audio playback (ExoPlayer + decrypt-stream)
-- [x] FCM push (mirror APNs Edge Function with `fcm_token` discriminator column) — Round 2; needs real `google-services.json` + FCM service-account JSON to function at runtime
-- [x] Google Sign-In via Credential Manager (Apple Sign In parity) — Round 2; needs Web Client ID filled in `SupabaseConfig.kt`
-- [x] Custom Japanese fonts (Klee One / Zen Maru Gothic / DM Mono) — Round 2; bundled under `res/font/`
-- [x] Per-couple theme variant from `users.theme_id` — Round 2; cream/jbeam/notion/cozy all wired
-- [ ] Auth screen header label flips 登入↔註冊 (cosmetic bug from B test)
+### Phase B — Android feature parity (SHIPPED in android-v1.5.1 GH Release APK)
+- [x] Activities tab (catalog + saved)
+- [x] Memory Book tab
+- [x] Time tab (calendar + anniversaries + entries)
+- [x] Settings tab + account deletion
+- [x] Profile tab (theme picker, partner profile, sign-out)
+- [x] Photo + camera + voice composer in chat (`ActivityResultContracts` + `MediaRecorder`)
+- [x] Encrypted photo display (Coil custom `Fetcher` + decrypt-in-memory)
+- [x] Encrypted audio playback (ExoPlayer + decrypt-stream)
+- [x] FCM push (mirror APNs Edge Function with `fcm_token` discriminator column) — needs real `google-services.json` + FCM service-account JSON to function at runtime
+- [x] Google Sign-In via Credential Manager (Apple Sign In parity) — needs Web Client ID filled in `SupabaseConfig.kt`
+- [x] Custom Japanese fonts (Klee One / Zen Maru Gothic / DM Mono) — bundled under `res/font/`
+- [x] Per-couple theme variant from `users.theme_id` — cream/jbeam/notion/cozy all wired
+- [x] Auth screen header label flips 登入↔註冊 (BlueStacks verified)
+- [x] Migration 0015_fcm_token.sql written — needs user to deploy via Supabase dashboard
 
 ### Phase C — Real presence (DONE)
 - [x] Supabase Realtime presence channel (`presence:<lowercase couple uuid>`)
