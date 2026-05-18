@@ -5,11 +5,14 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
+import michel.kit.us.data.AnniversaryRepository
 import michel.kit.us.data.AuthRepository
 import michel.kit.us.data.ChatRepository
 import michel.kit.us.data.CryptoService
+import michel.kit.us.data.EntryRepository
 import michel.kit.us.data.KeyManager
 import michel.kit.us.data.PairingRepository
+import michel.kit.us.data.UserProfileRepository
 
 /**
  * Tiny manual DI container. Holds the singleton repositories so view-models
@@ -26,6 +29,9 @@ class AppContainer(context: Context) {
     val auth: AuthRepository = AuthRepository(keyManager)
     val pairing: PairingRepository = PairingRepository()
     val chat: ChatRepository = ChatRepository(crypto, scope)
+    val entries: EntryRepository = EntryRepository(crypto, scope)
+    val anniversaries: AnniversaryRepository = AnniversaryRepository(crypto, scope)
+    val userProfile: UserProfileRepository = UserProfileRepository()
 }
 
 val LocalAppContainer = staticCompositionLocalOf<AppContainer> {

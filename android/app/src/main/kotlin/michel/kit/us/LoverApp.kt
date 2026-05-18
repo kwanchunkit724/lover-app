@@ -8,7 +8,8 @@ import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Favorite
+import androidx.compose.material.icons.outlined.Stars
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -18,10 +19,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
+import michel.kit.us.features.activities.ActivitiesScreen
 import michel.kit.us.features.auth.AuthScreen
 import michel.kit.us.features.chat.ChatScreen
+import michel.kit.us.features.memory.MemoryScreen
 import michel.kit.us.features.onboarding.OnboardingScreen
 import michel.kit.us.features.pairing.PairingScreen
+import michel.kit.us.features.profile.ProfileScreen
+import michel.kit.us.features.time.AnniversariesScreen
+import michel.kit.us.features.time.TimeScreen
 import michel.kit.us.ui.theme.DSText
 import michel.kit.us.ui.theme.LocalLoverColors
 
@@ -63,6 +69,7 @@ private fun RootRouter() {
         val uid = userId
         if (uid != null) {
             container.pairing.refresh(uid)
+            container.userProfile.refresh(uid)
             val c = container.pairing.couple.value
             val partner = container.pairing.partner.value
             if (c != null && partner?.publicKey != null) {
@@ -73,11 +80,15 @@ private fun RootRouter() {
                         myPrivateKey = container.keyManager.myPrivateKey()
                     )
                     container.chat.start(c.coupleUuid())
+                    container.entries.start(c.coupleUuid())
+                    container.anniversaries.start(c.coupleUuid())
                 }
             }
         } else {
             container.crypto.reset()
             container.chat.stop()
+            container.entries.stop()
+            container.anniversaries.stop()
         }
     }
 
@@ -94,16 +105,17 @@ private fun RootRouter() {
 
 private enum class Tab(val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Chat(R.string.tab_chat, Icons.Outlined.Chat),
-    Activities(R.string.tab_activities, Icons.Outlined.CalendarToday),
+    Activities(R.string.tab_activities, Icons.Outlined.Stars),
     Memory(R.string.tab_memory, Icons.Outlined.PhotoLibrary),
-    Time(R.string.tab_time, Icons.Outlined.Schedule),
-    Settings(R.string.tab_settings, Icons.Outlined.Settings),
+    Time(R.string.tab_time, Icons.Outlined.CalendarToday),
+    Profile(R.string.tab_profile, Icons.Outlined.Favorite),
 }
 
 @Composable
 private fun MainTabs() {
     val palette = LocalLoverColors.current
     var current by rememberSaveable { mutableStateOf(Tab.Chat) }
+    var showAnniversariesFromTime by androidx.compose.runtime.remember { mutableStateOf(false) }
 
     Scaffold(
         bottomBar = {
@@ -122,8 +134,14 @@ private fun MainTabs() {
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             when (current) {
-                Tab.Chat -> ChatScreen()
-                else -> ComingSoonPlaceholder(label = stringResource(current.labelRes))
+                Tab.Chat       -> ChatScreen()
+                Tab.Activities -> ActivitiesScreen()
+                Tab.Memory     -> MemoryScreen()
+                Tab.Time       -> TimeScreen(onOpenAnniversaries = { showAnniversariesFromTime = true })
+                Tab.Profile    -> ProfileScreen()
+            }
+            if (showAnniversariesFromTime) {
+                AnniversariesScreen(onClose = { showAnniversariesFromTime = false })
             }
         }
     }

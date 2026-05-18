@@ -44,7 +44,13 @@ fun AuthScreen() {
             .padding(horizontal = 24.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Text(stringResource(R.string.auth_title), style = DSText.head(28).copy(color = palette.ink))
+        Text(
+            stringResource(
+                if (mode == AuthViewModel.Mode.SignIn) R.string.auth_title
+                else R.string.auth_title_signup
+            ),
+            style = DSText.head(28).copy(color = palette.ink)
+        )
         Spacer(Modifier.height(20.dp))
 
         OutlinedTextField(

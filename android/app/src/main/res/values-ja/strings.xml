@@ -7,8 +7,10 @@
     <string name="tab_memory">思い出</string>
     <string name="tab_time">時間</string>
     <string name="tab_settings">設定</string>
+    <string name="tab_profile">私たち</string>
 
     <string name="auth_title">Us にサインイン</string>
+    <string name="auth_title_signup">Us に登録</string>
     <string name="auth_email_hint">メールアドレス</string>
     <string name="auth_password_hint">パスワード</string>
     <string name="auth_signin">サインイン</string>

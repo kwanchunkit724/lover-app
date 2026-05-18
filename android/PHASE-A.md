@@ -129,7 +129,10 @@ features). Activities / Memory / Time / Settings tabs are placeholder
   - `Postgrest.Columns` API path may differ slightly across Supabase Kotlin BOM minors. If `Columns.list(...)` doesn't compile, replace with the string-overload variant (`select { columns = "vanish_mode" }`).
   - `Postgrest.filter { isIn(...) }` is the current SDK spelling; older betas used `Postgrest.filter { in(...) }`. Adjust if the compiler complains.
   - Realtime DSL `channel.postgresChangeFlow<PostgresAction.Insert>` is the 3.x spelling; if pinned to an older BOM use `channel.postgresChangeFlow(PostgresAction.Insert::class) { ... }`.
-- **Activities / Memory / Time / Settings tabs.** All stub.
+- [x] B1 round — **Activities** tab (catalog browser + featured card).
+- [x] B1 round — **Memory** tab (past-entries list + detail).
+- [x] B1 round — **Time** tab (calendar grid + selected-day + add entry + anniversaries shortcut).
+- [x] B1 round — **Settings** + **Profile** tabs (theme picker, sign-out, unpair, delete account RPC, couple identity card).
 - **Onboarding profile collection.** Stub.
 - **Photo / camera / voice composer.** Stub (bubbles render, composer can't send).
 - **Encrypted media download.** Stub.
