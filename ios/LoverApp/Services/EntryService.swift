@@ -136,6 +136,39 @@ final class EntryService: ObservableObject {
         try await media.downloadAndDecrypt(path: handle)
     }
 
+    // MARK: - Update (v1.6.0)
+
+    /// v1.6.0 — edit a previously-created entry. Title / date / who / etc.
+    /// are pulled from `payload`. If `coverData` is non-nil, a new cover
+    /// is uploaded + the old `coverHandle` is replaced. If `coverData` is
+    /// nil but the existing payload already has a coverHandle, we keep it.
+    /// To explicitly clear a cover, the caller must mutate `payload` so
+    /// `coverHandle == nil` AND pass `coverData = nil`.
+    func update(id: UUID, payload: EntryPayload, coverData: Data?) async {
+        guard coupleId != nil else { return }
+        var p = payload
+        if let coverData {
+            do {
+                p.coverHandle = try await media.encryptAndUpload(
+                    data: coverData, coupleId: coupleId!)
+                p.photoCount = 1
+            } catch {
+                lastError = "封面相片 upload 失敗（其他改動仍會儲存）：\(error.localizedDescription)"
+            }
+        }
+        do {
+            let cipher = try crypto.seal(p)
+            try await SB.client
+                .from("entries")
+                .update(UpdateRow(ciphertext_b64: cipher))
+                .eq("id", value: id)
+                .execute()
+            await fetchOnce()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     // MARK: - Delete
 
     func delete(_ item: DecryptedEntry) async {
@@ -237,6 +270,11 @@ final class EntryService: ObservableObject {
     private struct OutgoingRow: Encodable {
         let couple_id: UUID
         let sender_id: UUID
+        let ciphertext_b64: String
+    }
+
+    // v1.6.0 — partial update row for edit.
+    private struct UpdateRow: Encodable {
         let ciphertext_b64: String
     }
 

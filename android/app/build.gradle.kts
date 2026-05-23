@@ -71,8 +71,8 @@ android {
         minSdk = 26
         // targetSdk 35 keeps us aligned with Play Store's 2025+ floor.
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.5.0"
+        versionCode = 2
+        versionName = "1.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
@@ -184,9 +184,14 @@ dependencies {
     // --- EXIF (read camera/gallery photo orientation before re-encoding) ---
     implementation("androidx.exifinterface:exifinterface:1.3.7")
 
-    // --- ExoPlayer (encrypted voice playback) ---
-    // media3-ui not needed — we render a custom Compose waveform UI.
+    // --- ExoPlayer (encrypted voice + video playback) ---
+    // media3-ui used by the fullscreen video viewer (PlayerView).
     implementation("androidx.media3:media3-exoplayer:1.5.0")
+    implementation("androidx.media3:media3-ui:1.5.0")
+
+    // --- LiTr: hardware-accelerated MediaCodec transcoder (v1.6.0 video send).
+    //     We re-encode picked videos to 720p H.264 30fps before encrypting.
+    implementation("com.linkedin.android.litr:litr:1.5.7")
 
     // --- Crypto: BouncyCastle for X25519 raw key handling.
     //     AES-GCM uses platform javax.crypto (BouncyCastle would also work

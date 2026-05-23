@@ -7,7 +7,8 @@ import SwiftUI
 enum DSIconName: String {
     case chat, book, cal, play, us, cam, image, mic, send, plus, search,
          back, close, check, check2, pin, reply, more, kao, play2, pause,
-         pin2, clock, heart, edit, flip, flash, shutter, arrow, sparkle, camera
+         pin2, clock, heart, edit, flip, flash, shutter, arrow, sparkle, camera,
+         video
 }
 
 struct DSIcon: View {
@@ -80,6 +81,8 @@ struct DSIcon: View {
                 Image(systemName: "arrow.right")
             case .sparkle:
                 Image(systemName: "sparkles")
+            case .video:
+                Image(systemName: "video")
             }
         }
         .font(.system(size: size, weight: strokeWidth >= 2 ? .semibold : .regular))

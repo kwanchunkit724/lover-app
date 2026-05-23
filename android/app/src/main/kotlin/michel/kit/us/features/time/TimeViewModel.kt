@@ -51,6 +51,10 @@ class TimeViewModel(
         viewModelScope.launch { entries.add(payload, me) }
     }
 
+    fun updateEntry(id: UUID, payload: EntryPayload) {
+        viewModelScope.launch { entries.update(id, payload) }
+    }
+
     fun addAnniversary(payload: AnniversaryPayload) {
         val me = meIdProvider() ?: return
         viewModelScope.launch { anniv.add(payload, me) }

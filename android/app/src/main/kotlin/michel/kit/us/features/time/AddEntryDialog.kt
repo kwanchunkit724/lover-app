@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import michel.kit.us.data.DecryptedEntry
 import michel.kit.us.data.EntryPayload
 import michel.kit.us.ui.theme.DSText
 import michel.kit.us.ui.theme.LocalLoverColors
@@ -36,15 +37,30 @@ import java.time.ZoneId
 fun AddEntryDialog(
     initialDate: LocalDate,
     onSubmit: (EntryPayload) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    // v1.6.0 — when non-null, prefill all fields and treat submit as edit.
+    existing: DecryptedEntry? = null
 ) {
     val palette = LocalLoverColors.current
-    var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf(initialDate) }
-    var tag by remember { mutableStateOf("出遊") }
-    var who by remember { mutableStateOf("both") }
-    var memorable by remember { mutableStateOf(true) }
+    val existingPayload = existing?.payload
+    var title by remember { mutableStateOf(existingPayload?.title ?: "") }
+    var date by remember {
+        mutableStateOf(
+            existingPayload?.dateISO?.let { TimeFormatting.parseISO(it) } ?: initialDate
+        )
+    }
+    var tag by remember { mutableStateOf(existingPayload?.tag ?: "出遊") }
+    var who by remember { mutableStateOf(existingPayload?.who ?: "both") }
+    var memorable by remember { mutableStateOf(existingPayload?.isSpecial ?: true) }
     var showDatePicker by remember { mutableStateOf(false) }
+
+    // v1.6.0 — future events disable photo upload. Android doesn't yet
+    // expose a photo picker in this dialog (parity with Round 2 chat
+    // media pipeline), so for now we just surface the hint copy so the
+    // UX promise matches iOS — once a Round-2 picker lands, gate it on
+    // !isFutureEvent and feed the bytes into a coverHandle update.
+    val today = remember { LocalDate.now() }
+    val isFutureEvent = date.isAfter(today)
 
     val suggestions = listOf("食飯", "睇戲", "行山", "散步", "煮嘢食", "紀念日")
     val tags = listOf("特別日子", "出遊", "食", "屋企", "散步")
@@ -59,8 +75,9 @@ fun AddEntryDialog(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text("新提醒", style = DSText.ui(16, FontWeight.SemiBold)
-                            .copy(color = palette.ink))
+                        Text(if (existing == null) "新提醒" else "改提醒",
+                            style = DSText.ui(16, FontWeight.SemiBold)
+                                .copy(color = palette.ink))
                     },
                     navigationIcon = {
                         IconButton(onClick = onClose) {
@@ -72,7 +89,17 @@ fun AddEntryDialog(
                         TextButton(
                             enabled = title.isNotBlank(),
                             onClick = {
-                                val payload = EntryPayload(
+                                // v1.6.0 — preserve any fields from the
+                                // existing payload (coverHandle, photoCount,
+                                // notes, reflection, kaomoji) that this
+                                // simplified Android dialog doesn't expose.
+                                val payload = existingPayload?.copy(
+                                    title = title.trim(),
+                                    dateISO = TimeFormatting.isoFromDate(date),
+                                    who = who,
+                                    tag = tag,
+                                    isSpecial = memorable,
+                                ) ?: EntryPayload(
                                     title = title.trim(),
                                     dateISO = TimeFormatting.isoFromDate(date),
                                     proposedBy = "me",
@@ -83,8 +110,9 @@ fun AddEntryDialog(
                                 onSubmit(payload)
                             }
                         ) {
-                            Text("加入", style = DSText.ui(14, FontWeight.SemiBold)
-                                .copy(color = if (title.isNotBlank()) palette.rose else palette.inkMuted))
+                            Text(if (existing == null) "加入" else "儲存",
+                                style = DSText.ui(14, FontWeight.SemiBold)
+                                    .copy(color = if (title.isNotBlank()) palette.rose else palette.inkMuted))
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = palette.nav)
@@ -151,6 +179,39 @@ fun AddEntryDialog(
                     whoOptions.forEach { (k, label) ->
                         WhoButton(label = label, active = who == k, modifier = Modifier.weight(1f),
                             onClick = { who = k })
+                    }
+                }
+
+                Spacer(Modifier.height(22.dp))
+                SectionLabel("封面相片 (可以唔加)")
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(palette.surface)
+                        .border(0.5.dp, palette.line, RoundedCornerShape(14.dp))
+                        .padding(14.dp)
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()) {
+                        if (isFutureEvent) {
+                            Text("活動發生後再加相",
+                                style = DSText.ui(13).copy(color = palette.inkMuted))
+                            Spacer(Modifier.height(4.dp))
+                            Text("到時返嚟編輯就得",
+                                style = DSText.mono(11).copy(color = palette.inkSoft))
+                        } else {
+                            // Past / today — picker not yet wired on Android.
+                            // Disabled with the same copy as before so user
+                            // knows it's coming. Once the chat-media picker
+                            // ships here, swap this for the actual picker UI.
+                            Text("相片上載即將推出",
+                                style = DSText.ui(13).copy(color = palette.inkMuted))
+                            Spacer(Modifier.height(4.dp))
+                            Text("Round 2 wired with chat media pipeline",
+                                style = DSText.mono(11).copy(color = palette.inkSoft))
+                        }
                     }
                 }
 

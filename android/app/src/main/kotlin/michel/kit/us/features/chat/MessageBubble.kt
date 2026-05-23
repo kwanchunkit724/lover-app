@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -76,12 +77,27 @@ fun MessageBubble(
         ) {
             if (isFromMe) Spacer(modifier = Modifier.weight(1f, fill = true))
 
+            // v1.6.0 — anchor reactions to the bubble's bottom-right (own)
+            // or bottom-left (partner) by stacking a Box overlay with negative
+            // offset rather than the old "row underneath" layout.
             Box {
                 BubbleContent(
                     message = message,
                     isFromMe = isFromMe,
                     onLongPress = { menuOpen = true }
                 )
+                if (message.reactions.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .align(if (isFromMe) Alignment.BottomEnd else Alignment.BottomStart)
+                            .offset(
+                                x = if (isFromMe) (-8).dp else 8.dp,
+                                y = 10.dp
+                            )
+                    ) {
+                        ReactionsCapsule(message)
+                    }
+                }
                 DropdownMenu(
                     expanded = menuOpen,
                     onDismissRequest = { menuOpen = false }
@@ -108,10 +124,6 @@ fun MessageBubble(
             Timestamp(message, isFromMe)
 
             if (!isFromMe) Spacer(modifier = Modifier.weight(1f, fill = true))
-        }
-
-        if (message.reactions.isNotEmpty()) {
-            ReactionsRow(message, isFromMe)
         }
     }
 }
@@ -204,9 +216,30 @@ private fun BubbleContent(
             }
         }
 
+        message.payload.kind == ChatPayload.Kind.video -> {
+            val handle = message.payload.mediaHandle
+            val durationSec = message.payload.voiceDurationSec ?: parseDuration(message.payload.text)
+            Box(
+                modifier = Modifier
+                    .width(220.dp)
+                    .clip(shape)
+                    .combinedLongPress(onLongPress)
+            ) {
+                if (handle != null && handle.startsWith("couple-")) {
+                    EncryptedVideoThumbnail(
+                        mediaHandle = handle,
+                        durationSec = durationSec,
+                        height = 260.dp
+                    )
+                } else {
+                    DSPhotoPlaceholder(id = handle ?: message.id.toString(), height = 260.dp)
+                }
+            }
+        }
+
         message.payload.kind == ChatPayload.Kind.voice -> {
             val handle = message.payload.mediaHandle
-            val durationSec = parseDuration(message.payload.text)
+            val durationSec = message.payload.voiceDurationSec ?: parseDuration(message.payload.text)
             Box(
                 modifier = Modifier
                     .clip(shape)
@@ -266,28 +299,23 @@ private fun Timestamp(message: DecryptedMessage, isFromMe: Boolean) {
     }
 }
 
+/** Reactions capsule — anchored to bubble corner by caller via Box.align + offset. */
 @Composable
-private fun ReactionsRow(message: DecryptedMessage, isFromMe: Boolean) {
+private fun ReactionsCapsule(message: DecryptedMessage) {
     val palette = LocalLoverColors.current
-    // Dedup by emoji — couples app has ≤2 users so "❤️ 😂" not "❤️❤️ 😂".
     val emojis = remember(message.reactions) {
         message.reactions.map { it.emoji }.distinct()
     }
     val text = emojis.joinToString(" ")
-    Row(
+    Text(
+        text = text,
+        style = DSText.mono(12).copy(color = palette.ink),
         modifier = Modifier
-            .padding(top = (-10).dp, start = 8.dp, end = 8.dp)
-    ) {
-        Text(
-            text = text,
-            style = DSText.mono(12).copy(color = palette.ink),
-            modifier = Modifier
-                .clip(RoundedCornerShape(50))
-                .background(palette.surface)
-                .border(0.5.dp, palette.line, RoundedCornerShape(50))
-                .padding(horizontal = 8.dp, vertical = 3.dp)
-        )
-    }
+            .clip(RoundedCornerShape(50))
+            .background(palette.surface)
+            .border(0.5.dp, palette.line, RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    )
 }
 
 data class ReplyPreviewData(

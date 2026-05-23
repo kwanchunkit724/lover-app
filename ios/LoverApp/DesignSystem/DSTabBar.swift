@@ -31,6 +31,13 @@ struct DSTabBar: View {
     @Environment(\.theme) private var theme
 
     @Binding var selection: AppTab
+    // v1.6.0 — `top` placement is used by ChatView so the 4-tab nav doesn't
+    // sit at the bottom (where the keyboard pushes it up + eats chat area).
+    // Same labels + active-tint visual; trimmed paddings + divider flipped
+    // to the bottom edge.
+    var placement: Placement = .bottom
+
+    enum Placement { case top, bottom }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -42,7 +49,7 @@ struct DSTabBar: View {
                     VStack(spacing: 3) {
                         DSIcon(
                             name: tab.icon,
-                            size: 22,
+                            size: placement == .top ? 18 : 22,
                             color: active ? theme.rose : theme.inkMuted,
                             strokeWidth: active ? 2.0 : 1.5
                         )
@@ -59,13 +66,13 @@ struct DSTabBar: View {
             }
         }
         .padding(.horizontal, 6)
-        .padding(.top, 8)
-        .padding(.bottom, 24)
+        .padding(.top, placement == .top ? 6 : 8)
+        .padding(.bottom, placement == .top ? 6 : 24)
         .background(theme.nav)
         .background(.thinMaterial)
         .overlay(
             Rectangle().frame(height: 0.5).foregroundStyle(theme.line),
-            alignment: .top
+            alignment: placement == .top ? .bottom : .top
         )
     }
 }

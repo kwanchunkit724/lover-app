@@ -25,7 +25,11 @@ struct ChatPayload: Codable, Equatable {
     var sentAt: Date
 
     enum Kind: String, Codable, Equatable {
-        case text, kaomoji, photo, voice
+        // v1.6.0 — `video` added for in-chat short video send (mirrors photo
+        // path, reuses MediaService.encryptAndUpload + chat-media bucket).
+        // Lowercase wire string shared with Android; do NOT rename without a
+        // corresponding Android wire-format change.
+        case text, kaomoji, photo, voice, video
     }
 
     static func text(_ t: String) -> ChatPayload {

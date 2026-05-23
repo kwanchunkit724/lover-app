@@ -3,11 +3,10 @@ package michel.kit.us
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.CalendarToday
-import androidx.compose.material.icons.outlined.PhotoLibrary
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.Stars
 import androidx.compose.runtime.*
@@ -22,7 +21,7 @@ import kotlinx.coroutines.launch
 import michel.kit.us.features.activities.ActivitiesScreen
 import michel.kit.us.features.auth.AuthScreen
 import michel.kit.us.features.chat.ChatScreen
-import michel.kit.us.features.memory.MemoryScreen
+
 import michel.kit.us.features.onboarding.OnboardingScreen
 import michel.kit.us.features.pairing.PairingScreen
 import michel.kit.us.features.profile.ProfileScreen
@@ -138,10 +137,11 @@ private fun RootRouter() {
 }
 
 private enum class Tab(val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    // v1.6.0 — Memory tab removed from main nav (still reachable via Time
+    // "anniversaries" entry point). Order matches iOS: 對話/時間/玩樂/我哋.
     Chat(R.string.tab_chat, Icons.Outlined.Chat),
-    Activities(R.string.tab_activities, Icons.Outlined.Stars),
-    Memory(R.string.tab_memory, Icons.Outlined.PhotoLibrary),
     Time(R.string.tab_time, Icons.Outlined.CalendarToday),
+    Activities(R.string.tab_activities, Icons.Outlined.Stars),
     Profile(R.string.tab_profile, Icons.Outlined.Favorite),
 }
 
@@ -151,32 +151,79 @@ private fun MainTabs() {
     var current by rememberSaveable { mutableStateOf(Tab.Chat) }
     var showAnniversariesFromTime by androidx.compose.runtime.remember { mutableStateOf(false) }
 
+    // v1.6.0 — When on Chat, render the tab row at the TOP of the Chat
+    // screen instead of a bottom NavigationBar. This keeps the soft keyboard
+    // from competing with chat content. Other destinations keep the bottom
+    // nav for muscle-memory parity with iOS.
+    val onChat = current == Tab.Chat
+
     Scaffold(
         bottomBar = {
-            NavigationBar(containerColor = palette.nav, tonalElevation = 0.dp) {
-                Tab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        selected = current == tab,
-                        onClick = { current = tab },
-                        icon = { Icon(tab.icon, contentDescription = null) },
-                        label = { Text(stringResource(tab.labelRes), style = DSText.mono(10)) }
-                    )
+            if (!onChat) {
+                NavigationBar(containerColor = palette.nav, tonalElevation = 0.dp) {
+                    Tab.entries.forEach { tab ->
+                        NavigationBarItem(
+                            selected = current == tab,
+                            onClick = { current = tab },
+                            icon = { Icon(tab.icon, contentDescription = null) },
+                            label = { Text(stringResource(tab.labelRes), style = DSText.mono(10)) }
+                        )
+                    }
                 }
             }
         },
         containerColor = palette.paper
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            when (current) {
-                Tab.Chat       -> ChatScreen()
-                Tab.Activities -> ActivitiesScreen()
-                Tab.Memory     -> MemoryScreen()
-                Tab.Time       -> TimeScreen(onOpenAnniversaries = { showAnniversariesFromTime = true })
-                Tab.Profile    -> ProfileScreen()
+            if (onChat) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    ChatTopTabRow(current = current, onSelect = { current = it })
+                    ChatScreen()
+                }
+            } else {
+                when (current) {
+                    Tab.Chat       -> ChatScreen()
+                    Tab.Activities -> ActivitiesScreen()
+                    Tab.Time       -> TimeScreen(onOpenAnniversaries = { showAnniversariesFromTime = true })
+                    Tab.Profile    -> ProfileScreen()
+                }
             }
             if (showAnniversariesFromTime) {
                 AnniversariesScreen(onClose = { showAnniversariesFromTime = false })
             }
+        }
+    }
+}
+
+@Composable
+private fun ChatTopTabRow(current: Tab, onSelect: (Tab) -> Unit) {
+    val palette = LocalLoverColors.current
+    TabRow(
+        selectedTabIndex = Tab.entries.indexOf(current),
+        containerColor = palette.nav,
+        contentColor = palette.ink,
+        indicator = { positions ->
+            val idx = Tab.entries.indexOf(current).coerceAtLeast(0)
+            TabRowDefaults.SecondaryIndicator(
+                Modifier.tabIndicatorOffset(positions[idx]),
+                color = palette.rose
+            )
+        },
+        divider = { HorizontalDivider(thickness = 0.5.dp, color = palette.line) }
+    ) {
+        Tab.entries.forEach { tab ->
+            Tab(
+                selected = current == tab,
+                onClick = { onSelect(tab) },
+                selectedContentColor = palette.rose,
+                unselectedContentColor = palette.inkMuted,
+                text = {
+                    Text(
+                        stringResource(tab.labelRes),
+                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium
+                    )
+                }
+            )
         }
     }
 }

@@ -54,10 +54,14 @@ data class ChatPayload(
     val kind: Kind,
     val text: String? = null,
     val mediaHandle: String? = null,
+    // v1.6.0 — duration in seconds for voice + video kinds. Replaces the
+    // legacy "text=0:NN" duration hack. Both platforms must agree on the
+    // field name.
+    val voiceDurationSec: Int? = null,
     val sentAt: String  // ISO-8601 UTC, matches Swift JSONEncoder.dateEncodingStrategy = .iso8601
 ) {
     @Serializable
-    enum class Kind { text, kaomoji, photo, voice }
+    enum class Kind { text, kaomoji, photo, voice, video }
 
     companion object {
         fun text(t: String): ChatPayload = ChatPayload(

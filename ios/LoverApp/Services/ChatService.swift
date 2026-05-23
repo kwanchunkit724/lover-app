@@ -127,6 +127,33 @@ final class ChatService: ObservableObject {
         }
     }
 
+    /// v1.6.0 — short video send. Mirrors sendPhoto: encrypt + upload to
+    /// chat-media bucket via MediaService, then insert a messages row with
+    /// payload.kind = .video. Duration is stored in the existing text field
+    /// (same trick as voice) so we don't need a schema migration.
+    func sendVideo(data: Data, durationSec: Int, senderId: UUID, replyToId: UUID? = nil) async {
+        guard let coupleId else { return }
+        do {
+            let path = try await media.encryptAndUpload(data: data, coupleId: coupleId)
+            let durationStr = String(format: "0:%02d", durationSec)
+            let payload = ChatPayload(
+                kind: .video,
+                text: durationStr,
+                mediaHandle: path,
+                sentAt: Date()
+            )
+            let cipher = try crypto.seal(payload)
+            let row = OutgoingRow(couple_id: coupleId,
+                                  sender_id: senderId,
+                                  ciphertext_b64: cipher,
+                                  reply_to_id: replyToId)
+            try await SB.client.from("messages").insert(row).execute()
+            await fetchOnce()
+        } catch {
+            lastError = error.localizedDescription
+        }
+    }
+
     func sendVoice(data: Data, durationSec: Int, senderId: UUID, replyToId: UUID? = nil) async {
         guard let coupleId else { return }
         do {

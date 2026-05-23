@@ -6,9 +6,10 @@ import SwiftUI
 struct Composer: View {
     @Environment(\.theme) private var theme
     @Binding var input: String
+    @FocusState.Binding var inputFocused: Bool
     let onSend: () -> Void
     let onTapKaomoji: () -> Void
-    let onTapVoice: () -> Void
+    let onTapVideo: () -> Void
     let onTapPlus: () -> Void
     let onTapCamera: () -> Void
 
@@ -21,6 +22,7 @@ struct Composer: View {
                 TextField("訊息…", text: $input, axis: .vertical)
                     .font(DSText.ui(theme, 15))
                     .foregroundStyle(theme.ink)
+                    .focused($inputFocused)
                     .padding(.leading, 14)
                     .padding(.vertical, 8)
                     .lineLimit(1...5)
@@ -42,7 +44,11 @@ struct Composer: View {
             .frame(minHeight: 36)
 
             if input.trimmingCharacters(in: .whitespaces).isEmpty {
-                iconButton(.mic, action: onTapVoice)
+                // v1.6.0 — mic replaced by video. VoiceRecorder was deleted
+                // from the build; existing voice bubbles still render via
+                // EncryptedAudioPlayback so the historic message stream is
+                // unaffected.
+                iconButton(.video, action: onTapVideo)
             } else {
                 Button(action: onSend) {
                     DSIcon(name: .arrow, size: 18, color: .white, strokeWidth: 2.4)

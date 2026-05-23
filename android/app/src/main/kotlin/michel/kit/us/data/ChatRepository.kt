@@ -125,6 +125,35 @@ class ChatRepository(
     }
 
     /**
+     * v1.6.0 — video send. Mirror of sendPhoto: bytes are an already
+     * re-encoded 720p H.264 MP4 (see VideoPicker). Wire shape matches iOS.
+     */
+    suspend fun sendVideo(
+        bytes: ByteArray,
+        durationSec: Int,
+        senderId: UUID,
+        replyToId: UUID? = null
+    ) {
+        val cid = coupleId ?: return
+        try {
+            val path = media.uploadEncrypted(bytes, cid)
+            val payload = ChatPayload(
+                kind = ChatPayload.Kind.video,
+                text = null,
+                mediaHandle = path,
+                voiceDurationSec = durationSec,
+                sentAt = IsoDate.now()
+            )
+            val cipher = crypto.seal(payload)
+            val row = OutgoingRow(cid.toString(), senderId.toString(), cipher, replyToId?.toString())
+            client.postgrest["messages"].insert(row)
+            fetchOnce()
+        } catch (t: Throwable) {
+            _lastError.value = t.message
+        }
+    }
+
+    /**
      * Encrypts the voice clip bytes, uploads to chat-media, then inserts a
      * `kind=voice` row. text="0:NN" stores the duration string (same as iOS).
      */

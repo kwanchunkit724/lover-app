@@ -95,6 +95,26 @@ class EntryRepository(
         }
     }
 
+    /**
+     * v1.6.0 — edit an existing entry. Re-seals the new [payload] and
+     * UPDATEs the ciphertext_b64 column. RLS (entries_update_member,
+     * migration 0017) enforces couple membership server-side.
+     */
+    suspend fun update(id: UUID, payload: EntryPayload) {
+        try {
+            val cipher = crypto.sealJson(EntryPayload.serializer(), payload)
+            client.postgrest["entries"].update(UpdatePayload(cipher)) {
+                filter { eq("id", id.toString()) }
+            }
+            fetchOnce()
+        } catch (t: Throwable) {
+            _lastError.value = t.message
+        }
+    }
+
+    @Serializable
+    private data class UpdatePayload(val ciphertext_b64: String)
+
     suspend fun delete(id: UUID) {
         try {
             client.postgrest["entries"].delete {

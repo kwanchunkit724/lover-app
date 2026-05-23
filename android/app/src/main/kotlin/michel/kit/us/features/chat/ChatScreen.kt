@@ -12,12 +12,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.EmojiEmotions
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.TimerOff
+import androidx.compose.material.icons.outlined.Videocam
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.core.content.ContextCompat
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -114,10 +119,12 @@ fun ChatScreen() {
 
             replyTo?.let { ReplyComposingRow(it, meId, onCancel = { vm.setReplyTo(null) }) }
 
-            // ---- Media composer state — local to this screen (sheets only
-            // exist while open, no need to elevate into the ViewModel) ----
+            // ---- Media composer state — local to this screen ----
             var showPhotoSourceSheet by remember { mutableStateOf(false) }
-            var showVoiceSheet by remember { mutableStateOf(false) }
+            // v1.6.0 — kaomoji panel replaces keyboard when shown.
+            var showKaomoji by remember { mutableStateOf(false) }
+            val keyboard = LocalSoftwareKeyboardController.current
+            val focusRequester = remember { FocusRequester() }
 
             val photoCallbacks = remember {
                 PhotoPickerCallbacks(
@@ -134,14 +141,47 @@ fun ChatScreen() {
                 contract = ActivityResultContracts.RequestPermission()
             ) { granted -> if (granted) launchCamera() }
 
+            // v1.6.0 — video picker
+            val launchVideo = rememberVideoPickerLauncher(
+                VideoPickerCallbacks(
+                    onPicked = { picked -> vm.sendVideo(picked.bytes, picked.durationSec) },
+                    onTooLong = { /* TODO snackbar — for now silently drop */ },
+                    onError   = { /* swallowed: ChatRepository pushes via _lastError */ }
+                )
+            )
+
             Composer(
                 value = input,
-                onValueChange = vm::setInput,
+                onValueChange = { v ->
+                    vm.setInput(v)
+                    // typing dismisses the kaomoji panel automatically
+                    if (showKaomoji && v != input) showKaomoji = false
+                },
                 enabled = cryptoReady,
                 onSend = vm::send,
                 onTapPhoto = { showPhotoSourceSheet = true },
-                onTapVoice = { showVoiceSheet = true }
+                onTapKaomoji = {
+                    if (showKaomoji) {
+                        showKaomoji = false
+                        focusRequester.requestFocus()
+                        keyboard?.show()
+                    } else {
+                        keyboard?.hide()
+                        showKaomoji = true
+                    }
+                },
+                onTapVideo = launchVideo,
+                onTextFieldFocused = {
+                    if (showKaomoji) showKaomoji = false
+                },
+                focusRequester = focusRequester
             )
+
+            if (showKaomoji) {
+                KaomojiPickerPanel(
+                    onPick = { kao -> vm.appendKaomoji(kao) }
+                )
+            }
 
             if (showPhotoSourceSheet) {
                 PhotoSourcePickerSheet(
@@ -154,16 +194,6 @@ fun ChatScreen() {
                     },
                     onAlbum = { launchGallery() },
                     onDismiss = { showPhotoSourceSheet = false }
-                )
-            }
-
-            if (showVoiceSheet) {
-                VoiceRecorderSheet(
-                    onSend = { bytes, dur ->
-                        showVoiceSheet = false
-                        vm.sendVoice(bytes, dur)
-                    },
-                    onCancel = { showVoiceSheet = false }
                 )
             }
         }
@@ -325,6 +355,7 @@ private fun MessageList(
                             orig.isDeleted -> "已撤回嘅訊息"
                             orig.payload.kind == ChatPayload.Kind.photo -> orig.payload.text ?: "📷 相片"
                             orig.payload.kind == ChatPayload.Kind.voice -> "🎙 語音訊息"
+                            orig.payload.kind == ChatPayload.Kind.video -> "📹 影片"
                             else -> orig.payload.text.orEmpty()
                         }
                     )
@@ -359,6 +390,7 @@ private fun ReplyComposingRow(
         target.isDeleted -> stringResource(R.string.chat_deleted_message)
         target.payload.kind == ChatPayload.Kind.photo -> target.payload.text ?: "📷 相片"
         target.payload.kind == ChatPayload.Kind.voice -> "🎙 語音訊息"
+        target.payload.kind == ChatPayload.Kind.video -> "📹 影片"
         else -> target.payload.text.orEmpty()
     }
     Row(
@@ -391,7 +423,10 @@ private fun Composer(
     enabled: Boolean,
     onSend: () -> Unit,
     onTapPhoto: () -> Unit,
-    onTapVoice: () -> Unit
+    onTapKaomoji: () -> Unit,
+    onTapVideo: () -> Unit,
+    onTextFieldFocused: () -> Unit,
+    focusRequester: FocusRequester
 ) {
     val palette = LocalLoverColors.current
     Row(
@@ -410,11 +445,20 @@ private fun Composer(
                 modifier = Modifier.size(22.dp)
             )
         }
-        // 🎤 voice recorder
-        IconButton(onClick = onTapVoice, enabled = enabled) {
+        // 📹 video picker (v1.6.0 — replaces 🎤)
+        IconButton(onClick = onTapVideo, enabled = enabled) {
             Icon(
-                Icons.Outlined.Mic,
-                contentDescription = "語音",
+                Icons.Outlined.Videocam,
+                contentDescription = "影片",
+                tint = if (enabled) palette.rose else palette.inkMuted,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        // 顔 kaomoji panel toggle
+        IconButton(onClick = onTapKaomoji, enabled = enabled) {
+            Icon(
+                Icons.Outlined.EmojiEmotions,
+                contentDescription = "顏文字",
                 tint = if (enabled) palette.rose else palette.inkMuted,
                 modifier = Modifier.size(22.dp)
             )
@@ -425,7 +469,10 @@ private fun Composer(
             onValueChange = onValueChange,
             enabled = enabled,
             placeholder = { Text(stringResource(R.string.chat_input_hint), style = DSText.ui(14).copy(color = palette.inkMuted)) },
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .weight(1f)
+                .focusRequester(focusRequester)
+                .onFocusChanged { st -> if (st.isFocused) onTextFieldFocused() },
             shape = RoundedCornerShape(22.dp),
             singleLine = false,
             maxLines = 4,

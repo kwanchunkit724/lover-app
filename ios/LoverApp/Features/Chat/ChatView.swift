@@ -17,12 +17,20 @@ struct ChatView: View {
     @EnvironmentObject private var crypto: CryptoService
     @EnvironmentObject private var presence: PresenceService
 
+    // v1.6.0 — Chat hosts its own copy of the 4-tab nav at the TOP of the
+    // screen so the keyboard can't push it over the chat area. MainTabView
+    // passes its selection binding in; nil when the view is rendered
+    // standalone (previews).
+    var tabSelection: Binding<AppTab>? = nil
+
     @State private var input: String = ""
     @State private var showKaomoji = false
-    @State private var showVoice = false
     @State private var showActions = false
     @State private var showPhotoPicker = false
     @State private var showCamera = false
+    // v1.6.0 — video picker. Mirrors photo path but does its own compress
+    // step before handing bytes to ChatService.sendVideo.
+    @State private var showVideoPicker = false
     // v1.0.5 — buffer the picked photo so user can confirm before sending
     // (per user request — accidental sends were a problem). Same buffer is
     // used for both camera + album paths.
@@ -30,6 +38,12 @@ struct ChatView: View {
     @State private var replyTo: Message? = nil
     // v1.5 — IG features
     @State private var reactionTarget: Message? = nil   // long-press target for emoji picker
+
+    // v1.6.0 — drive keyboard focus from code. Tapping the kaomoji button
+    // resigns first responder before expanding the picker, so the picker
+    // can claim the full ~300pt instead of getting squeezed above the
+    // keyboard. Re-focusing the text field hides the picker.
+    @FocusState private var inputFocused: Bool
 
     // v1.5.1 — Mock fallbacks stripped. When real data isn't loaded yet,
     // show neutral placeholders ("…") rather than fake identities like
@@ -68,6 +82,7 @@ struct ChatView: View {
                     case .text, .kaomoji: return orig.payload.text ?? ""
                     case .photo: return orig.payload.text ?? "📷 相片"
                     case .voice: return "🎙 語音訊息"
+                    case .video: return "📹 短片"
                     }
                 }()
                 reply = Message.ReplyPreview(
@@ -91,10 +106,15 @@ struct ChatView: View {
                 timestamp: HHmm.format(dm.createdAt),
                 read: dm.readAt != nil,
                 text: dm.payload.text,
-                photoSrc: (dm.payload.kind == .photo || dm.payload.kind == .voice)
+                photoSrc: (dm.payload.kind == .photo
+                            || dm.payload.kind == .voice
+                            || dm.payload.kind == .video)
                     ? dm.payload.mediaHandle : nil,
                 caption: dm.payload.kind == .photo ? dm.payload.text : nil,
-                voiceDurationSec: dm.payload.kind == .voice
+                // v1.6.0 — videos reuse the voice-duration field on the
+                // wire (string "0:NN") so we don't need a schema change.
+                voiceDurationSec: (dm.payload.kind == .voice
+                                    || dm.payload.kind == .video)
                     ? parseVoiceDuration(dm.payload.text) : nil,
                 voiceTranscript: nil,
                 replyTo: reply,
@@ -117,6 +137,7 @@ struct ChatView: View {
         case .text, .kaomoji: return .text
         case .photo:          return .photo
         case .voice:          return .voice
+        case .video:          return .video
         }
     }
 
@@ -136,6 +157,13 @@ struct ChatView: View {
 
     private var pairedBody: some View {
         VStack(spacing: 0) {
+            // v1.6.0 — in-chat top tab bar (replaces the global bottom one
+            // while on Chat). Driven by MainTabView's selection binding so
+            // taps switch tabs; ignored when binding isn't supplied
+            // (previews, standalone).
+            if let tabSelection {
+                DSTabBar(selection: tabSelection, placement: .top)
+            }
             header
             // v1.3.2 — visible banner when chatKey isn't ready yet. Without
             // this the user typed and pressed send into a void: ChatService
@@ -151,34 +179,42 @@ struct ChatView: View {
             if let replyTo {
                 replyPreview(replyTo)
             }
-            if showVoice {
-                VoiceRecorder(
-                    onCancel: { showVoice = false },
-                    onSend: { data, duration in
-                        showVoice = false
-                        guard case .signedIn(let uuid) = auth.state else { return }
-                        Task { await chat.sendVoice(data: data, durationSec: duration, senderId: uuid) }
+            Composer(
+                input: $input,
+                inputFocused: $inputFocused,
+                onSend: send,
+                onTapKaomoji: {
+                    // v1.6.0 — kaomoji picker dismisses the keyboard first
+                    // so it can claim the full 300pt expanded sheet height,
+                    // instead of getting squeezed above the keyboard like
+                    // the old version. Re-focusing the text field hides it.
+                    if !showKaomoji {
+                        inputFocused = false
                     }
-                )
-            } else {
-                Composer(
-                    input: $input,
-                    onSend: send,
-                    onTapKaomoji: { withAnimation(.easeInOut(duration: 0.18)) { showKaomoji.toggle() } },
-                    onTapVoice: { showVoice = true },
-                    onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
-                    // v1.0.4 — camera icon now opens the actual camera, not
-                    // the photo library. Plus button still opens the action
-                    // sheet where the user can pick album / camera / etc.
-                    onTapCamera: { showCamera = true }
-                )
-            }
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        showKaomoji.toggle()
+                    }
+                },
+                onTapVideo: { showVideoPicker = true },
+                onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
+                // v1.0.4 — camera icon now opens the actual camera, not
+                // the photo library. Plus button still opens the action
+                // sheet where the user can pick album / camera / etc.
+                onTapCamera: { showCamera = true }
+            )
             if showKaomoji {
                 KaomojiPicker(
                     onPick: { kao in input.append(kao) },
                     onClose: { withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false } }
                 )
+                .frame(minHeight: 300)
                 .transition(.move(edge: .bottom))
+            }
+        }
+        // v1.6.0 — re-focus the text field => hide picker.
+        .onChange(of: inputFocused) { _, focused in
+            if focused, showKaomoji {
+                withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false }
             }
         }
         .background(theme.paper.ignoresSafeArea())
@@ -210,6 +246,23 @@ struct ChatView: View {
                 )
                 .transition(.opacity)
             }
+        }
+        .sheet(isPresented: $showVideoPicker) {
+            // v1.6.0 — VideoPickerSheet handles PHPicker + 720p H.264
+            // compress + 30s trim. Returns ready-to-encrypt bytes; we hand
+            // them straight to ChatService.sendVideo (mirror of sendPhoto).
+            VideoPickerSheet(
+                onPick: { data, duration in
+                    showVideoPicker = false
+                    guard case .signedIn(let uuid) = auth.state else { return }
+                    Task {
+                        await chat.sendVideo(data: data,
+                                             durationSec: duration,
+                                             senderId: uuid)
+                    }
+                },
+                onCancel: { showVideoPicker = false }
+            )
         }
         .sheet(isPresented: $showPhotoPicker) {
             PhotoPickerSheet(

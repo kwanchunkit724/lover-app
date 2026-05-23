@@ -13,7 +13,11 @@ struct MainTabView: View {
         VStack(spacing: 0) {
             ZStack {
                 switch selection {
-                case .chat: ChatView()
+                // v1.6.0 — Chat tab owns its own top-positioned tab bar so
+                // the keyboard doesn't squash the chat history. Pass the
+                // selection binding through so taps in the in-chat tab bar
+                // can switch tabs just like the global one.
+                case .chat: ChatView(tabSelection: $selection)
                 case .time: TimeView()
                 case .play: ActivitiesView()
                 case .us:   ProfileView()
@@ -21,7 +25,12 @@ struct MainTabView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            DSTabBar(selection: $selection)
+            // Hide the global bottom tab bar while on Chat — Chat renders
+            // its own copy at the top of its own view to keep it clear of
+            // the keyboard.
+            if selection != .chat {
+                DSTabBar(selection: $selection)
+            }
         }
         .background(theme.paper.ignoresSafeArea())
     }

@@ -34,6 +34,20 @@ struct MessageBubble: View {
                             }
                         }
                     }
+                    // v1.6.0 — anchor the reaction capsule to the bubble's
+                    // bottom corner on the sender's side (right for own,
+                    // left for partner) with a -10pt vertical offset so it
+                    // visually overlaps the bottom edge. Previously it sat
+                    // in the inter-bubble vertical gap because the capsule
+                    // lived in the outer VStack and used row-level padding,
+                    // which left it floating between the bubble and the
+                    // next bubble's timestamp.
+                    .overlay(alignment: isFromMe ? .bottomTrailing : .bottomLeading) {
+                        if !message.reactions.isEmpty {
+                            reactionsCapsule
+                                .offset(x: isFromMe ? -8 : 8, y: 10)
+                        }
+                    }
 
                 timestamp
 
@@ -45,12 +59,10 @@ struct MessageBubble: View {
             // float in the middle. Forcing full row width gives Spacer real
             // space to push the bubble flush against the correct edge.
             .frame(maxWidth: .infinity)
-
-            if !message.reactions.isEmpty {
-                reactionsRow
-            }
         }
         .padding(.top, isContinuation ? 0 : 8)
+        // Extra bottom padding when reactions are present so the
+        // capsule's +10pt overlap doesn't kiss the next bubble.
         .padding(.bottom, message.reactions.isEmpty ? 4 : 18)
     }
 
@@ -68,8 +80,33 @@ struct MessageBubble: View {
                 photoBubble
             case .voice:
                 voiceBubble
+            case .video:
+                videoBubble
             }
         }
+    }
+
+    // v1.6.0 — video bubble. Real backend videos go through EncryptedVideoPlayback
+    // (download + decrypt + AVPlayer). For mocks / previews fall back to the
+    // photo placeholder so the layout doesn't break.
+    @ViewBuilder
+    private var videoBubble: some View {
+        Group {
+            if let path = message.photoSrc, path.hasPrefix("couple-") {
+                EncryptedVideoPlayback(
+                    messageID: message.id,
+                    mediaHandle: path,
+                    durationSec: message.voiceDurationSec ?? 0,
+                    isFromMe: isFromMe
+                )
+            } else {
+                DSPhotoPlaceholder(id: message.photoSrc ?? message.id,
+                                   height: 260,
+                                   cornerRadius: 0)
+                    .frame(width: 220)
+            }
+        }
+        .clipShape(BubbleShape(isFromMe: isFromMe))
     }
 
     private var deletedBubble: some View {
@@ -192,7 +229,7 @@ struct MessageBubble: View {
         .padding(.bottom, 2)
     }
 
-    private var reactionsRow: some View {
+    private var reactionsCapsule: some View {
         let kaos = message.reactions.map(\.kao).joined(separator: " ")
         return Text(kaos)
             .font(DSText.mono(theme, 12))
@@ -204,8 +241,6 @@ struct MessageBubble: View {
                 Capsule().stroke(theme.line, lineWidth: 0.5)
             )
             .clipShape(Capsule())
-            .padding(.top, -10)
-            .padding(.horizontal, 8)
     }
 
     private func replyPreview(_ reply: Message.ReplyPreview) -> some View {

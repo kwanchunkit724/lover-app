@@ -5,7 +5,7 @@ import Foundation
 // the views render against.
 
 struct Message: Identifiable, Hashable {
-    enum Kind: String, Codable, Hashable { case text, kaomoji, photo, voice }
+    enum Kind: String, Codable, Hashable { case text, kaomoji, photo, voice, video }
 
     struct ReplyPreview: Hashable {
         let messageID: String
@@ -46,6 +46,7 @@ extension Message {
         case .text, .kaomoji: return text ?? ""
         case .photo: return caption ?? "📷 相片"
         case .voice: return "🎙 \(voiceDurationSec ?? 0) 秒語音訊息"
+        case .video: return "📹 \(voiceDurationSec ?? 0) 秒短片"
         }
     }
 }

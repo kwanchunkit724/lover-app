@@ -59,6 +59,9 @@ fun TimeScreen(onOpenAnniversaries: () -> Unit) {
 
     var showAddEntry by remember { mutableStateOf(false) }
     var presented by remember { mutableStateOf<DecryptedEntry?>(null) }
+    // v1.6.0 — editing target. When set, the AddEntryDialog opens in edit
+    // mode and we hide the EntryDetailScreen behind it until save/close.
+    var editing by remember { mutableStateOf<DecryptedEntry?>(null) }
 
     val nextAnniv = remember(anniv) {
         anniv.map { a ->
@@ -139,8 +142,27 @@ fun TimeScreen(onOpenAnniversaries: () -> Unit) {
         )
     }
 
-    presented?.let { e ->
-        EntryDetailScreen(entry = e, onClose = { presented = null })
+    // v1.6.0 — edit dialog takes priority over the detail screen.
+    val editTarget = editing
+    if (editTarget != null) {
+        AddEntryDialog(
+            initialDate = TimeFormatting.parseISO(editTarget.payload.dateISO) ?: LocalDate.now(),
+            existing = editTarget,
+            onSubmit = { payload ->
+                vm.updateEntry(editTarget.id, payload)
+                editing = null
+                presented = null
+            },
+            onClose = { editing = null }
+        )
+    } else {
+        presented?.let { e ->
+            EntryDetailScreen(
+                entry = e,
+                onClose = { presented = null },
+                onEdit = { editing = e }
+            )
+        }
     }
 }
 

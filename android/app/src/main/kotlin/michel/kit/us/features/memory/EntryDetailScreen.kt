@@ -31,7 +31,12 @@ import michel.kit.us.util.TimeFormatting
  * is in the past.
  */
 @Composable
-fun EntryDetailScreen(entry: DecryptedEntry, onClose: () -> Unit) {
+fun EntryDetailScreen(
+    entry: DecryptedEntry,
+    onClose: () -> Unit,
+    // v1.6.0 — tap "改" → host shows the AddEntryDialog pre-filled.
+    onEdit: (() -> Unit)? = null
+) {
     val palette = LocalLoverColors.current
     val container = LocalAppContainer.current
     val scope = rememberCoroutineScope()
@@ -58,6 +63,13 @@ fun EntryDetailScreen(entry: DecryptedEntry, onClose: () -> Unit) {
                         }
                     },
                     actions = {
+                        // v1.6.0 — edit button (host wires the dialog).
+                        if (onEdit != null) {
+                            TextButton(onClick = onEdit) {
+                                Text("改", style = DSText.ui(14, FontWeight.SemiBold)
+                                    .copy(color = palette.rose))
+                            }
+                        }
                         TextButton(onClick = {
                             scope.launch {
                                 container.entries.delete(entry.id)

@@ -5,8 +5,11 @@ import SwiftUI
 
 struct EntryDetailView: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var entryService: EntryService
     let entry: Entry
     let onClose: () -> Void
+    // v1.6.0 — present the add/edit sheet pre-filled with this entry.
+    @State private var editing = false
 
     // v1.4.2 — was using MockData.todayISO (hardcoded constant from a
     // dev day in 2026), so any entry whose date was BEFORE that constant
@@ -61,6 +64,14 @@ struct EntryDetailView: View {
             }
         }
         .background(theme.paper)
+        .sheet(isPresented: $editing) {
+            // v1.6.0 — reopen AddEntryView in edit mode by looking up the
+            // matching DecryptedEntry on the service.
+            if let dec = entryService.items.first(where: { $0.id.uuidString == entry.id }) {
+                AddEntryView(onClose: { editing = false }, existing: dec)
+                    .theme(theme)
+            }
+        }
     }
 
     // MARK: - Top nav
@@ -81,7 +92,15 @@ struct EntryDetailView: View {
 
             Spacer()
 
-            // v1.4.0 — removed dead "more" placeholder button.
+            // v1.6.0 — edit button reopens AddEntryView pre-filled.
+            Button { editing = true } label: {
+                Text("改")
+                    .font(DSText.ui(theme, 14, weight: .semibold))
+                    .foregroundStyle(theme.rose)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+            }
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 4)

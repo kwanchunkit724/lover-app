@@ -11,6 +11,9 @@ struct AddEntryView: View {
     @EnvironmentObject private var profileStore: UserProfileStore
 
     let onClose: () -> Void
+    // v1.6.0 — when non-nil we're in edit mode: prefill all fields and call
+    // entryService.update(...) on submit instead of add(...).
+    var existing: EntryService.DecryptedEntry? = nil
 
     @State private var title: String = ""
     @State private var tag: Entry.Tag = .outing
@@ -24,6 +27,10 @@ struct AddEntryView: View {
     // v1.2.0 — optional cover photo. Buffered as Data; uploaded + encrypted
     // on submit so the entry becomes a real "memory" once its date passes.
     @State private var coverData: Data? = nil
+    // v1.6.0 — when editing, keep the previously-saved encrypted cover
+    // handle so we can preserve it if the user doesn't pick a new photo.
+    @State private var existingCoverHandle: String? = nil
+    @State private var didLoadExisting: Bool = false
     @State private var showPicker: Bool = false
     @State private var showCamera: Bool = false
     @State private var showPickerSource: Bool = false   // chooser sheet
@@ -31,6 +38,13 @@ struct AddEntryView: View {
     private let suggestions = ["食飯", "睇戲", "行山", "散步", "煮嘢食", "紀念日"]
 
     @FocusState private var titleFocused: Bool
+
+    // v1.6.0 — past = photo upload allowed; future = disabled with hint.
+    private var isFutureEvent: Bool {
+        let startOfToday = Calendar.current.startOfDay(for: Date())
+        let startOfPicked = Calendar.current.startOfDay(for: date)
+        return startOfPicked > startOfToday
+    }
 
     var body: some View {
         ScrollView {
@@ -41,6 +55,7 @@ struct AddEntryView: View {
                     .padding(.top, 20)
             }
         }
+        .onAppear { loadExistingIfNeeded() }
         // v1.0.4 — without this the keyboard stays parked over the lower
         // sections (標籤 / 邊個 / 記憶簿) so the user can't see / tap them.
         // .interactively lets a downward drag dismiss the keyboard, and the
@@ -65,7 +80,7 @@ struct AddEntryView: View {
             }
             .buttonStyle(.plain)
             Spacer()
-            Text("新提醒")
+            Text(existing == nil ? "新提醒" : "改提醒")
                 .font(DSText.ui(theme, 16, weight: .semibold))
                 .foregroundStyle(theme.ink)
             Spacer()
@@ -193,9 +208,16 @@ struct AddEntryView: View {
             // v1.2.0 — optional cover photo. Past entries with a cover
             // render as a real-photo memory cell on the calendar instead
             // of the deterministic gradient placeholder.
+            // v1.6.0 — disable photo upload for future-dated events; you
+            // can come back after the day arrives to add the cover photo.
             section(title: "封面相片 (可以唔加)") {
-                photoPickerRow
-                    .padding(14)
+                if isFutureEvent && coverData == nil && existingCoverHandle == nil {
+                    futurePhotoHint
+                        .padding(14)
+                } else {
+                    photoPickerRow
+                        .padding(14)
+                }
             }
             .padding(.bottom, 22)
 
@@ -304,6 +326,21 @@ struct AddEntryView: View {
 
     // MARK: - Photo picker (v1.2.0)
 
+    // v1.6.0 — friendly hint when the user picks a future date.
+    private var futurePhotoHint: some View {
+        VStack(spacing: 8) {
+            DSIcon(name: .clock, size: 22, color: theme.inkMuted)
+            Text("活動發生後再加相")
+                .font(DSText.ui(theme, 13))
+                .foregroundStyle(theme.inkMuted)
+            Text("到時返嚟編輯就得")
+                .font(DSText.mono(theme, 11))
+                .foregroundStyle(theme.inkSoft)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+    }
+
     @ViewBuilder
     private var photoPickerRow: some View {
         if let data = coverData, let ui = UIImage(data: data) {
@@ -322,6 +359,34 @@ struct AddEntryView: View {
                         .foregroundStyle(theme.rose)
                 }
                 .buttonStyle(.plain)
+            }
+        } else if let handle = existingCoverHandle, handle.hasPrefix("couple-") {
+            // v1.6.0 — edit mode showing the previously-saved encrypted cover.
+            VStack(spacing: 10) {
+                EncryptedAsyncImage(mediaHandle: handle, maxHeight: 180, cornerRadius: 12)
+                HStack(spacing: 16) {
+                    Button { existingCoverHandle = nil } label: {
+                        Text("移除張相")
+                            .font(DSText.mono(theme, 11))
+                            .foregroundStyle(theme.rose)
+                    }
+                    .buttonStyle(.plain)
+                    Button { showPicker = true } label: {
+                        Text("換張新相")
+                            .font(DSText.mono(theme, 11))
+                            .foregroundStyle(theme.rose)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .sheet(isPresented: $showPicker) {
+                PhotoPickerSheet(
+                    onPick: { data in
+                        showPicker = false
+                        coverData = data
+                    },
+                    onCancel: { showPicker = false }
+                )
             }
         } else {
             HStack(spacing: 10) {
@@ -412,7 +477,15 @@ struct AddEntryView: View {
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
         timeFormatter.timeZone = .current
-        let payload = EntryPayload(
+        // v1.6.0 — preserve previously-saved counts / reflection / cover
+        // handle in edit mode; otherwise start a fresh payload.
+        let basePhotoCount = existing?.payload.photoCount ?? 0
+        let baseVoice = existing?.payload.voiceCount ?? 0
+        let baseMsg = existing?.payload.messageCount ?? 0
+        let baseReflection = existing?.payload.reflection
+        let baseNotes = existing?.payload.notes
+        let baseKaomoji = existing?.payload.kaomoji
+        var payload = EntryPayload(
             title: title.trimmingCharacters(in: .whitespaces),
             dateISO: LocalDate.string(from: date),
             time: includeTime ? timeFormatter.string(from: date) : nil,
@@ -421,20 +494,54 @@ struct AddEntryView: View {
             who: who.rawValue,
             tag: tag.rawValue,
             isSpecial: memorable,
-            notes: nil,
-            kaomoji: nil,
-            photoCount: 0,
-            voiceCount: 0,
-            messageCount: 0,
-            reflection: nil
+            notes: baseNotes,
+            kaomoji: baseKaomoji,
+            photoCount: basePhotoCount,
+            voiceCount: baseVoice,
+            messageCount: baseMsg,
+            reflection: baseReflection
         )
+        // Preserve existing encrypted cover handle if user didn't pick a new one.
+        payload.coverHandle = existingCoverHandle
         isSubmitting = true
         let cover = coverData
+        let existingId = existing?.id
         Task {
-            await entryService.add(payload: payload, coverData: cover, senderId: uuid)
+            if let existingId {
+                await entryService.update(id: existingId, payload: payload, coverData: cover)
+            } else {
+                await entryService.add(payload: payload, coverData: cover, senderId: uuid)
+            }
             isSubmitting = false
             onClose()
         }
+    }
+
+    // v1.6.0 — populate state from `existing` once when sheet appears.
+    private func loadExistingIfNeeded() {
+        guard !didLoadExisting, let existing else { didLoadExisting = true; return }
+        didLoadExisting = true
+        let p = existing.payload
+        title = p.title
+        if let parsed = TimeFormatting.parseDate(p.dateISO) {
+            // Merge in the saved HH:mm if available.
+            if let hhmm = p.time {
+                let fmt = DateFormatter()
+                fmt.dateFormat = "yyyy-MM-dd HH:mm"
+                fmt.timeZone = .current
+                date = fmt.date(from: "\(p.dateISO) \(hhmm)") ?? parsed
+                includeTime = true
+            } else {
+                date = parsed
+                includeTime = false
+            }
+        }
+        location = p.location ?? ""
+        proposer = p.proposedBy
+        who = Entry.Who(rawValue: p.who) ?? .both
+        tag = Entry.Tag(rawValue: p.tag) ?? .outing
+        memorable = p.isSpecial
+        existingCoverHandle = p.coverHandle
     }
 }
 

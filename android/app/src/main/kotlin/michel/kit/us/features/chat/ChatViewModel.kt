@@ -71,4 +71,16 @@ class ChatViewModel(
         _replyTo.value = null
         viewModelScope.launch { chat.sendVoice(bytes, durationSec, me, replyId) }
     }
+
+    fun sendVideo(bytes: ByteArray, durationSec: Int) {
+        val me = meIdProvider() ?: return
+        val replyId = _replyTo.value?.id
+        _replyTo.value = null
+        viewModelScope.launch { chat.sendVideo(bytes, durationSec, me, replyId) }
+    }
+
+    /** v1.6.0 — append a kaomoji into the input field (does NOT auto-send). */
+    fun appendKaomoji(kao: String) {
+        _input.value = _input.value + kao
+    }
 }
