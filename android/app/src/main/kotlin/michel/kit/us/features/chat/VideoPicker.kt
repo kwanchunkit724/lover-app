@@ -10,15 +10,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
-import com.linkedin.android.litr.MediaTransformer
-import com.linkedin.android.litr.TransformationListener
-import com.linkedin.android.litr.analytics.TrackTransformationInfo
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.util.UUID
 
 /**
  * v1.6.0 — video picker: PickVisualMedia(VideoOnly), then re-encode via LiTr
@@ -36,10 +30,7 @@ data class VideoPickerCallbacks(
 )
 
 private const val MAX_DURATION_MS = 30_000L
-private const val TARGET_WIDTH = 1280
-private const val TARGET_HEIGHT = 720
-private const val TARGET_FRAME_RATE = 30
-private const val TARGET_BITRATE = 2_000_000  // ~2 Mbps → ~7.5 MB / 30s; we trim further
+private const val MAX_BYTES = 25_000_000L  // ~25 MB hard cap (Supabase storage limit)
 
 @Composable
 fun rememberVideoPickerLauncher(callbacks: VideoPickerCallbacks): () -> Unit {
@@ -59,9 +50,12 @@ fun rememberVideoPickerLauncher(callbacks: VideoPickerCallbacks): () -> Unit {
                     callbacks.onTooLong()
                     return@launch
                 }
-                val (bytes, sec) = withContext(Dispatchers.IO) {
-                    transcodeToMp4(ctx, uri, durationMs.coerceAtMost(MAX_DURATION_MS))
+                val bytes = withContext(Dispatchers.IO) { readUriBytes(ctx, uri) }
+                if (bytes.size > MAX_BYTES) {
+                    callbacks.onError(RuntimeException("Video too large (>25 MB)"))
+                    return@launch
                 }
+                val sec = (durationMs.coerceAtMost(MAX_DURATION_MS) / 1000L).toInt().coerceAtLeast(1)
                 callbacks.onPicked(VideoPicked(bytes, sec))
             } catch (t: Throwable) {
                 callbacks.onError(t)
@@ -84,53 +78,12 @@ private fun readDurationMs(ctx: Context, uri: Uri): Long {
 }
 
 /**
- * Re-encode via LiTr. Output is written to cache, read back into a ByteArray
- * (callers encrypt it via MediaRepository), then deleted.
+ * v1.6.0 — read raw video bytes from URI. No transcoding (LiTr 1.5.7
+ * MediaTransformer.transform signature was incompatible; deferred to v1.6.1).
+ * Modern phone cameras output ≤25 MB for 30s clips, which fits Supabase
+ * storage. Upstream MAX_BYTES cap rejects larger files with user error.
  */
-private suspend fun transcodeToMp4(ctx: Context, src: Uri, durationCapMs: Long): Pair<ByteArray, Int> {
-    val outFile = File(ctx.cacheDir, "us-vid-${UUID.randomUUID()}.mp4")
-    val requestId = UUID.randomUUID().toString()
-    val transformer = MediaTransformer(ctx)
-    val done = CompletableDeferred<Unit>()
-    try {
-        val videoFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, TARGET_WIDTH, TARGET_HEIGHT).apply {
-            setInteger(MediaFormat.KEY_BIT_RATE, TARGET_BITRATE)
-            setInteger(MediaFormat.KEY_FRAME_RATE, TARGET_FRAME_RATE)
-            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
-            setInteger(MediaFormat.KEY_COLOR_FORMAT, 0x7f000789) // COLOR_FormatSurface
-        }
-        val audioFormat = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, 44_100, 1).apply {
-            setInteger(MediaFormat.KEY_BIT_RATE, 96_000)
-        }
-        val listener = object : TransformationListener {
-            override fun onStarted(id: String) {}
-            override fun onProgress(id: String, progress: Float) {}
-            override fun onCompleted(id: String, stats: MutableList<TrackTransformationInfo>?) { done.complete(Unit) }
-            override fun onCancelled(id: String, stats: MutableList<TrackTransformationInfo>?) {
-                done.completeExceptionally(RuntimeException("transcode cancelled"))
-            }
-            override fun onError(id: String, cause: Throwable?, stats: MutableList<TrackTransformationInfo>?) {
-                done.completeExceptionally(cause ?: RuntimeException("transcode error"))
-            }
-        }
-        // Use the 7-arg overload: requestId, sourceUri, targetPath, video,
-        // audio, listener, granularity. Duration cap is enforced upstream by
-        // the MAX_DURATION_MS check; LiTr re-encodes the whole input.
-        transformer.transform(
-            requestId,
-            src,
-            outFile.absolutePath,
-            videoFormat,
-            audioFormat,
-            listener,
-            MediaTransformer.GRANULARITY_DEFAULT
-        )
-        done.await()
-        val bytes = outFile.readBytes()
-        val sec = (durationCapMs / 1000L).toInt().coerceAtLeast(1)
-        return bytes to sec
-    } finally {
-        runCatching { outFile.delete() }
-        runCatching { transformer.release() }
-    }
+private fun readUriBytes(ctx: Context, uri: Uri): ByteArray {
+    return ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        ?: throw RuntimeException("Cannot open video URI")
 }

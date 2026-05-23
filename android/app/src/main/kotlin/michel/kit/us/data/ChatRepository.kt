@@ -342,14 +342,14 @@ class ChatRepository(
             // Order DESC + limit 500 = newest 500. Reverse below so the UI
             // still gets ascending order. Old code used ascending + limit 500
             // which silently dropped newest messages once couple exceeded 500.
-            val rows: List<IncomingRow> = client.postgrest["messages"]
+            val rowsDesc: List<IncomingRow> = client.postgrest["messages"]
                 .select {
                     filter { eq("couple_id", cid.toString()) }
                     order("created_at", Order.DESCENDING)
                     limit(500)
                 }
-                .decodeList()
-                .reversed()
+                .decodeList<IncomingRow>()
+            val rows: List<IncomingRow> = rowsDesc.reversed()
 
             val now = Instant.now()
             val decoded: MutableList<DecryptedMessage> = rows.mapNotNull { row ->

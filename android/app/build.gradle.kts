@@ -189,9 +189,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.5.0")
     implementation("androidx.media3:media3-ui:1.5.0")
 
-    // --- LiTr: hardware-accelerated MediaCodec transcoder (v1.6.0 video send).
-    //     We re-encode picked videos to 720p H.264 30fps before encrypting.
-    implementation("com.linkedin.android.litr:litr:1.5.7")
+    // --- LiTr removed in v1.6.0 — MediaTransformer.transform overload was
+    //     incompatible with LiTr 1.5.7. Video send now uploads raw bytes
+    //     (≤25 MB cap enforced in VideoPicker). Transcoding deferred to v1.6.1.
 
     // --- Crypto: BouncyCastle for X25519 raw key handling.
     //     AES-GCM uses platform javax.crypto (BouncyCastle would also work
