@@ -13,7 +13,6 @@ import androidx.compose.ui.platform.LocalContext
 import com.linkedin.android.litr.MediaTransformer
 import com.linkedin.android.litr.TransformationListener
 import com.linkedin.android.litr.analytics.TrackTransformationInfo
-import com.linkedin.android.litr.io.MediaRange
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -114,6 +113,9 @@ private suspend fun transcodeToMp4(ctx: Context, src: Uri, durationCapMs: Long):
                 done.completeExceptionally(cause ?: RuntimeException("transcode error"))
             }
         }
+        // Use the 7-arg overload: requestId, sourceUri, targetPath, video,
+        // audio, listener, granularity. Duration cap is enforced upstream by
+        // the MAX_DURATION_MS check; LiTr re-encodes the whole input.
         transformer.transform(
             requestId,
             src,
@@ -121,9 +123,7 @@ private suspend fun transcodeToMp4(ctx: Context, src: Uri, durationCapMs: Long):
             videoFormat,
             audioFormat,
             listener,
-            MediaTransformer.GRANULARITY_DEFAULT,
-            /* trackTransforms = */ null,
-            MediaRange(0L, durationCapMs * 1000)
+            MediaTransformer.GRANULARITY_DEFAULT
         )
         done.await()
         val bytes = outFile.readBytes()
