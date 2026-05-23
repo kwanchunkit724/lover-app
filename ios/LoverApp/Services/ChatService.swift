@@ -330,14 +330,18 @@ final class ChatService: ObservableObject {
         isLoading = true
         defer { isLoading = false }
         do {
-            let rows: [IncomingRow] = try await SB.client
+            // Order DESC + limit 500 = newest 500. Reverse below for UI
+            // (ascending). Old code used ascending + limit 500 which silently
+            // dropped newest messages once couple exceeded 500 total.
+            let rowsDesc: [IncomingRow] = try await SB.client
                 .from("messages")
                 .select()
                 .eq("couple_id", value: coupleId)
-                .order("created_at", ascending: true)
+                .order("created_at", ascending: false)
                 .limit(500)
                 .execute()
                 .value
+            let rows = Array(rowsDesc.reversed())
 
             let now = Date()
             var decoded: [DecryptedMessage] = rows.compactMap { row in
