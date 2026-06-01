@@ -174,7 +174,13 @@ struct RootView: View {
             // Bail if state has changed under us.
             if !pairing.isPaired { return }
             if crypto.isReady { return }    // another caller succeeded
-            await pairing.refresh(meId: meId)
+            // v1.6.1 (problem 1) — the caller (RootView.task / onChange) just
+            // ran pairing.refresh, so skip the redundant 2-query refresh here
+            // when the partner key is already loaded. Only re-fetch while the
+            // key is still missing (the retry path this loop exists for).
+            if pairing.partner?.publicKey?.isEmpty ?? true {
+                await pairing.refresh(meId: meId)
+            }
             if let partner = pairing.partner,
                let pub = partner.publicKey, !pub.isEmpty {
                 do {

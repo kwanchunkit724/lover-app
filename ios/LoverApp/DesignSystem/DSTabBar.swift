@@ -46,34 +46,50 @@ struct DSTabBar: View {
                 Button {
                     selection = tab
                 } label: {
-                    VStack(spacing: 3) {
+                    // v1.6.1 (problem 5) — Instagram-style: icon-forward, the
+                    // label only shows on the ACTIVE tab inside a soft rose
+                    // pill. Smaller footprint than the old always-on label.
+                    HStack(spacing: 5) {
                         DSIcon(
                             name: tab.icon,
-                            size: placement == .top ? 18 : 22,
+                            size: 21,
                             color: active ? theme.rose : theme.inkMuted,
                             strokeWidth: active ? 2.0 : 1.5
                         )
-                        Text(tab.label)
-                            .font(.system(size: 10,
-                                          weight: active ? .semibold : .regular))
-                            .foregroundStyle(active ? theme.rose : theme.inkMuted)
+                        if active {
+                            Text(tab.label)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(theme.rose)
+                                .fixedSize()
+                                .transition(.opacity.combined(with: .scale))
+                        }
+                    }
+                    .padding(.horizontal, active ? 12 : 8)
+                    .padding(.vertical, 6)
+                    .background {
+                        if active {
+                            Capsule(style: .continuous).fill(theme.roseSoft)
+                        }
                     }
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 4)
-                    .padding(.horizontal, 8)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.top, placement == .top ? 6 : 8)
-        .padding(.bottom, placement == .top ? 6 : 24)
+        .padding(.horizontal, 10)
+        .padding(.top, placement == .top ? 5 : 6)
+        // v1.6.1 — no more hardcoded 24pt bottom fake-inset; the caller pins
+        // this via .safeAreaInset(edge: .bottom), which adds the real
+        // home-indicator inset on every device.
+        .padding(.bottom, placement == .top ? 5 : 6)
         .background(theme.nav)
         .background(.thinMaterial)
         .overlay(
             Rectangle().frame(height: 0.5).foregroundStyle(theme.line),
             alignment: placement == .top ? .bottom : .top
         )
+        .animation(.easeInOut(duration: 0.18), value: selection)
     }
 }
 

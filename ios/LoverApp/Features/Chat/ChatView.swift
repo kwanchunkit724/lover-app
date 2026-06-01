@@ -17,11 +17,10 @@ struct ChatView: View {
     @EnvironmentObject private var crypto: CryptoService
     @EnvironmentObject private var presence: PresenceService
 
-    // v1.6.0 — Chat hosts its own copy of the 4-tab nav at the TOP of the
-    // screen so the keyboard can't push it over the chat area. MainTabView
-    // passes its selection binding in; nil when the view is rendered
-    // standalone (previews).
-    var tabSelection: Binding<AppTab>? = nil
+    // v1.6.1 (problem 5) — the 4-tab bar is back at the BOTTOM (pinned in
+    // MainTabView). Chat just reports its keyboard state up so the bar can
+    // slide away while typing. nil when rendered standalone (previews).
+    var keyboardActive: Binding<Bool>? = nil
 
     @State private var input: String = ""
     @State private var showKaomoji = false
@@ -38,6 +37,9 @@ struct ChatView: View {
     @State private var replyTo: Message? = nil
     // v1.5 — IG features
     @State private var reactionTarget: Message? = nil   // long-press target for emoji picker
+    // v1.6.1 — track whether we've done the first scroll-to-bottom so the
+    // entry scroll is instant (no animation) but later scrolls animate.
+    @State private var didInitialScroll = false
 
     // v1.6.0 — drive keyboard focus from code. Tapping the kaomoji button
     // resigns first responder before expanding the picker, so the picker
@@ -157,13 +159,6 @@ struct ChatView: View {
 
     private var pairedBody: some View {
         VStack(spacing: 0) {
-            // v1.6.0 — in-chat top tab bar (replaces the global bottom one
-            // while on Chat). Driven by MainTabView's selection binding so
-            // taps switch tabs; ignored when binding isn't supplied
-            // (previews, standalone).
-            if let tabSelection {
-                DSTabBar(selection: tabSelection, placement: .top)
-            }
             header
             // v1.3.2 — visible banner when chatKey isn't ready yet. Without
             // this the user typed and pressed send into a void: ChatService
@@ -212,11 +207,19 @@ struct ChatView: View {
             }
         }
         // v1.6.0 — re-focus the text field => hide picker.
+        // v1.6.1 — also tell MainTabView to hide the bottom bar while typing.
         .onChange(of: inputFocused) { _, focused in
             if focused, showKaomoji {
                 withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false }
             }
+            keyboardActive?.wrappedValue = focused
         }
+        // Kaomoji picker also occupies the bottom; treat it like the keyboard
+        // so the tab bar gets out of the way.
+        .onChange(of: showKaomoji) { _, shown in
+            keyboardActive?.wrappedValue = shown || inputFocused
+        }
+        .onDisappear { keyboardActive?.wrappedValue = false }
         .background(theme.paper.ignoresSafeArea())
         .overlay {
             if let target = reactionTarget {
@@ -428,24 +431,66 @@ struct ChatView: View {
                             .padding(.top, 80)
                             .frame(maxWidth: .infinity)
                     }
+
+                    // v1.6.1 — stable bottom anchor. Scrolling to a fixed id
+                    // (instead of messages.last, which changes identity and may
+                    // not exist yet on cold open) makes "land on newest" robust
+                    // against async decrypt + LazyVStack incremental layout.
+                    Color.clear
+                        .frame(height: 1)
+                        .id("BOTTOM")
                 }
                 .padding(.top, 12)
                 .padding(.bottom, 6)
             }
+            // v1.6.1 (problem 2) — drag the history to dismiss the keyboard.
+            .scrollDismissesKeyboard(.interactively)
+            // Newest message arrived (or count changed) → re-anchor to bottom.
             .onChange(of: messages.count) { _, _ in
-                withAnimation { proxy.scrollTo(messages.last?.id, anchor: .bottom) }
+                scrollToBottom(proxy, animated: didInitialScroll)
             }
-            // v1.4.4 — also scroll to the latest message when the chat
-            // tab first appears. Earlier the view kept its previous scroll
-            // position (or stayed at the top on a cold open) so users had
-            // to manually swipe down to see new messages, which felt like
-            // the chat tab was broken on entry.
+            // v1.6.1 (problem 4) — drive the FIRST scroll off the data
+            // arriving, not off onAppear. On cold open messages is empty at
+            // onAppear; this fires when decrypt completes and the list fills.
+            .onChange(of: chat.messages.isEmpty) { _, isEmpty in
+                guard !isEmpty else { return }
+                scrollToBottom(proxy, animated: false)
+                didInitialScroll = true
+            }
+            // v1.6.1 (problem 2) — when the keyboard rises (text field focus)
+            // keep the newest bubble visible above it.
+            .onChange(of: inputFocused) { _, focused in
+                guard focused else { return }
+                scrollToBottom(proxy, animated: true)
+            }
+            // v1.6.1 (problem 2) — when a reply/quote preview appears it pushes
+            // the composer up; re-anchor so the quoted target stays visible.
+            .onChange(of: replyTo?.id) { _, _ in
+                scrollToBottom(proxy, animated: true)
+            }
+            // Warm re-entry (tab switch): messages already loaded, count won't
+            // change, so scroll unconditionally on appear.
             .onAppear {
-                guard let last = messages.last?.id else { return }
-                DispatchQueue.main.async {
-                    proxy.scrollTo(last, anchor: .bottom)
-                }
+                guard !messages.isEmpty else { return }
+                scrollToBottom(proxy, animated: false)
+                didInitialScroll = true
             }
+        }
+    }
+
+    /// Scroll to the stable BOTTOM anchor, with a second corrective pass after
+    /// the LazyVStack finishes laying out tall photo/video bubbles (a single
+    /// pass lands short while images are still sizing).
+    private func scrollToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
+        let jump = { proxy.scrollTo("BOTTOM", anchor: .bottom) }
+        if animated {
+            withAnimation(.easeOut(duration: 0.25)) { jump() }
+        } else {
+            jump()
+        }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            proxy.scrollTo("BOTTOM", anchor: .bottom)
         }
     }
 

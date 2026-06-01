@@ -54,6 +54,15 @@ final class ChatService: ObservableObject {
     private var realtimeTask: Task<Void, Never>?
     private var reactionsTask: Task<Void, Never>?
     private var coupleId: UUID?
+    // v1.6.1 — hold the realtime channel so stop() can actually unsubscribe
+    // (cancelling the task alone leaves `for await` parked → channel leaks).
+    private var channel: RealtimeChannelV2?
+    // v1.6.1 (problem 1) — coalesce overlapping fetches (poll + realtime burst)
+    // so we never run two full decode passes at once, and debounce realtime
+    // events so a message burst triggers one refetch, not N.
+    private var isFetching = false
+    private var refetchQueued = false
+    private var refreshTask: Task<Void, Never>?
 
     init(crypto: CryptoService) {
         self.crypto = crypto
@@ -84,6 +93,26 @@ final class ChatService: ObservableObject {
         pollTask?.cancel(); pollTask = nil
         realtimeTask?.cancel(); realtimeTask = nil
         reactionsTask?.cancel(); reactionsTask = nil
+        refreshTask?.cancel(); refreshTask = nil
+        // v1.6.1 — explicitly tear the channel down; the `for await` streams
+        // don't observe task cancellation while parked, so without this the
+        // subscription leaks across unpair / sign-out / couple switch.
+        if let ch = channel {
+            channel = nil
+            Task { await ch.unsubscribe() }
+        }
+        coupleId = nil
+    }
+
+    /// Coalesced, debounced refresh used by realtime events: collapses a burst
+    /// of inserts/updates into a single refetch ~250ms after the last event.
+    private func scheduleRefresh() {
+        refreshTask?.cancel()
+        refreshTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            if Task.isCancelled { return }
+            await self?.fetchOnce()
+        }
     }
 
     // MARK: - Send
@@ -294,6 +323,7 @@ final class ChatService: ObservableObject {
 
     private func runRealtimeLoop(coupleId: UUID) async {
         let channel = SB.client.channel("messages-\(coupleId.uuidString)")
+        self.channel = channel
         let inserts = channel.postgresChange(
             InsertAction.self,
             schema: "public",
@@ -328,13 +358,13 @@ final class ChatService: ObservableObject {
             group.addTask { [weak self] in
                 for await _ in inserts {
                     if Task.isCancelled { break }
-                    await self?.fetchOnce()
+                    await self?.scheduleRefresh()
                 }
             }
             group.addTask { [weak self] in
                 for await _ in updates {
                     if Task.isCancelled { break }
-                    await self?.fetchOnce()
+                    await self?.scheduleRefresh()
                 }
             }
             group.addTask { [weak self] in
@@ -354,8 +384,12 @@ final class ChatService: ObservableObject {
 
     private func fetchOnce() async {
         guard let coupleId else { return }
+        // Coalesce overlapping callers (5s poll + realtime burst): if one is
+        // already running, mark that another pass is wanted and bail — the
+        // in-flight pass re-runs once at the end. No two decode passes at once.
+        if isFetching { refetchQueued = true; return }
+        isFetching = true
         isLoading = true
-        defer { isLoading = false }
         do {
             // Order DESC + limit 500 = newest 500. Reverse below for UI
             // (ascending). Old code used ascending + limit 500 which silently
@@ -369,74 +403,85 @@ final class ChatService: ObservableObject {
                 .execute()
                 .value
             let rows = Array(rowsDesc.reversed())
-
             let now = Date()
-            var decoded: [DecryptedMessage] = rows.compactMap { row in
-                // Filter expired vanish-mode messages client-side. Server still
-                // holds them until pg_cron sweep (separate concern).
-                if let exp = row.expires_at, exp < now { return nil }
+            let key = crypto.keySnapshot
 
-                if row.deleted_at != nil {
-                    // Soft-deleted: keep placeholder so reply chains stay intact.
-                    return DecryptedMessage(
-                        id: row.id,
-                        senderId: row.sender_id,
-                        payload: ChatPayload(kind: .text,
-                                             text: nil,
-                                             mediaHandle: nil,
-                                             sentAt: row.created_at),
-                        createdAt: row.created_at,
-                        decryptionFailed: false,
-                        replyToId: row.reply_to_id,
-                        editedAt: row.edited_at,
-                        deletedAt: row.deleted_at,
-                        expiresAt: row.expires_at,
-                        readAt: row.read_at
-                    )
+            // v1.6.1 (problem 1) — decode OFF the main actor. Previously the
+            // base64+AES-GCM+JSON decode of up to 500 rows ran synchronously on
+            // @MainActor and blocked the UI for seconds on cold open. Now the
+            // batch runs on a background task; only the published assignment
+            // hops back to the main actor.
+            let decoded: [DecryptedMessage] = await Task.detached(priority: .userInitiated) {
+                rows.compactMap { row -> DecryptedMessage? in
+                    if let exp = row.expires_at, exp < now { return nil }
+
+                    if row.deleted_at != nil {
+                        return DecryptedMessage(
+                            id: row.id,
+                            senderId: row.sender_id,
+                            payload: ChatPayload(kind: .text, text: nil,
+                                                 mediaHandle: nil, sentAt: row.created_at),
+                            createdAt: row.created_at,
+                            decryptionFailed: false,
+                            replyToId: row.reply_to_id,
+                            editedAt: row.edited_at,
+                            deletedAt: row.deleted_at,
+                            expiresAt: row.expires_at,
+                            readAt: row.read_at
+                        )
+                    }
+
+                    if let key, let payload = try? CryptoService.open(row.ciphertext_b64, key: key) {
+                        return DecryptedMessage(
+                            id: row.id,
+                            senderId: row.sender_id,
+                            payload: payload,
+                            createdAt: row.created_at,
+                            decryptionFailed: false,
+                            replyToId: row.reply_to_id,
+                            editedAt: row.edited_at,
+                            deletedAt: row.deleted_at,
+                            expiresAt: row.expires_at,
+                            readAt: row.read_at
+                        )
+                    } else {
+                        var failed = DecryptedMessage.failed(id: row.id,
+                                                             senderId: row.sender_id,
+                                                             createdAt: row.created_at)
+                        failed.replyToId = row.reply_to_id
+                        failed.editedAt  = row.edited_at
+                        failed.deletedAt = row.deleted_at
+                        failed.expiresAt = row.expires_at
+                        failed.readAt    = row.read_at
+                        return failed
+                    }
                 }
+            }.value
 
-                if let payload = try? crypto.open(row.ciphertext_b64) {
-                    return DecryptedMessage(
-                        id: row.id,
-                        senderId: row.sender_id,
-                        payload: payload,
-                        createdAt: row.created_at,
-                        decryptionFailed: false,
-                        replyToId: row.reply_to_id,
-                        editedAt: row.edited_at,
-                        deletedAt: row.deleted_at,
-                        expiresAt: row.expires_at,
-                        readAt: row.read_at
-                    )
-                } else {
-                    var failed = DecryptedMessage.failed(id: row.id,
-                                                         senderId: row.sender_id,
-                                                         createdAt: row.created_at)
-                    failed.replyToId = row.reply_to_id
-                    failed.editedAt  = row.edited_at
-                    failed.deletedAt = row.deleted_at
-                    failed.expiresAt = row.expires_at
-                    failed.readAt    = row.read_at
-                    return failed
-                }
-            }
-
-            // Merge cached reactions into the new list (in case the message
-            // refresh races ahead of the reaction refresh).
+            // Carry forward already-loaded reactions so the message refresh
+            // doesn't blank them before fetchReactions catches up.
             let cached = Dictionary(uniqueKeysWithValues:
                 self.messages.map { ($0.id, $0.reactions) })
-            for i in decoded.indices {
-                if let existing = cached[decoded[i].id] {
-                    decoded[i].reactions = existing
-                }
+            var merged = decoded
+            for i in merged.indices {
+                if let existing = cached[merged[i].id] { merged[i].reactions = existing }
             }
-
-            self.messages = decoded
+            self.messages = merged
         } catch {
             lastError = error.localizedDescription
         }
 
-        await fetchReactions()
+        isLoading = false
+        isFetching = false
+        // v1.6.1 (problem 1) — reactions no longer gate the first render; load
+        // them right after, as a separate hop, so messages paint immediately.
+        reactionsTask?.cancel()
+        reactionsTask = Task { [weak self] in await self?.fetchReactions() }
+
+        if refetchQueued {
+            refetchQueued = false
+            await fetchOnce()
+        }
     }
 
     private func fetchReactions() async {

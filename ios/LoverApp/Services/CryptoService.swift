@@ -100,6 +100,19 @@ final class CryptoService: ObservableObject {
     /// "(decryption failed)" placeholder rather than dropping the message.
     func open(_ ciphertextB64: String) throws -> ChatPayload {
         guard let key = chatKey else { throw CryptoError.notReady }
+        return try CryptoService.open(ciphertextB64, key: key)
+    }
+
+    /// v1.6.1 (problem 1) — a Sendable snapshot of the derived key so callers
+    /// can decrypt a batch of messages off the main actor (the @MainActor
+    /// `open(_:)` above forced 500 AES-GCM + JSON decodes onto the UI thread,
+    /// which was a big chunk of the 5-7s cold-open hitch).
+    var keySnapshot: SymmetricKey? { chatKey }
+
+    /// nonisolated decrypt — pass a key snapshot, run anywhere (e.g. a
+    /// Task.detached batch). Pure function over value types; touches no
+    /// actor state.
+    nonisolated static func open(_ ciphertextB64: String, key: SymmetricKey) throws -> ChatPayload {
         guard let combined = Data(base64Encoded: ciphertextB64) else {
             throw CryptoError.invalidBase64
         }

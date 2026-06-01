@@ -38,6 +38,8 @@ struct EncryptedAsyncImage: View {
 
     @State private var image: UIImage?
     @State private var failed: Bool = false
+    // v1.6.1 (problem 3) — tap a decrypted photo to view it full-screen.
+    @State private var showFullscreen = false
 
     var body: some View {
         Group {
@@ -48,6 +50,8 @@ struct EncryptedAsyncImage: View {
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: maxHeight)
                     .clipped()
+                    .contentShape(Rectangle())
+                    .onTapGesture { showFullscreen = true }
             } else if failed {
                 placeholder(text: "(相片解密失敗)")
             } else {
@@ -60,6 +64,11 @@ struct EncryptedAsyncImage: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .task(id: mediaHandle) { await load() }
+        .fullScreenCover(isPresented: $showFullscreen) {
+            if let image {
+                FullscreenImageViewer(image: image) { showFullscreen = false }
+            }
+        }
     }
 
     private func placeholder(text: String) -> some View {

@@ -8,31 +8,36 @@ struct MainTabView: View {
     @Environment(\.theme) private var theme
 
     @State private var selection: AppTab = .chat
+    // v1.6.1 (problem 5) — chat reports whether its keyboard is up so we can
+    // hide the bottom bar while typing (otherwise safeAreaInset would wedge
+    // the bar between the keyboard and the composer).
+    @State private var chatKeyboardActive = false
+
+    private var showTabBar: Bool {
+        !(selection == .chat && chatKeyboardActive)
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                switch selection {
-                // v1.6.0 — Chat tab owns its own top-positioned tab bar so
-                // the keyboard doesn't squash the chat history. Pass the
-                // selection binding through so taps in the in-chat tab bar
-                // can switch tabs just like the global one.
-                case .chat: ChatView(tabSelection: $selection)
-                case .time: TimeView()
-                case .play: ActivitiesView()
-                case .us:   ProfileView()
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            // Hide the global bottom tab bar while on Chat — Chat renders
-            // its own copy at the top of its own view to keep it clear of
-            // the keyboard.
-            if selection != .chat {
-                DSTabBar(selection: $selection)
+        ZStack {
+            switch selection {
+            case .chat: ChatView(keyboardActive: $chatKeyboardActive)
+            case .time: TimeView()
+            case .play: ActivitiesView()
+            case .us:   ProfileView()
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.paper.ignoresSafeArea())
+        // v1.6.1 (problem 5) — the 4-tab bar is pinned to the real bottom
+        // safe area on EVERY tab, Instagram-style. It slides away while the
+        // chat keyboard is up so the composer sits flush on the keyboard.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if showTabBar {
+                DSTabBar(selection: $selection)
+                    .transition(.move(edge: .bottom))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showTabBar)
     }
 }
 
