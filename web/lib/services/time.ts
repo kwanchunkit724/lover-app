@@ -111,6 +111,9 @@ export const subscribeAnniversaries = (
   chatKey: Uint8Array,
   onAdd: (a: DecryptedAnniversary) => void,
   onDelete: (id: string) => void,
+  /** Fires on every SUBSCRIBED (initial + reconnect) so the caller can
+   *  fetch-after-subscribe and close the handshake race. */
+  onSubscribed?: () => void,
 ): RealtimeChannel => {
   return supabase
     .channel(`anniversaries:${coupleId}`)
@@ -123,8 +126,12 @@ export const subscribeAnniversaries = (
         filter: `couple_id=eq.${coupleId}`,
       },
       async (payload) => {
-        const dec = await decrypt(payload.new as AnniversaryRow, chatKey);
-        onAdd(dec);
+        try {
+          const dec = await decrypt(payload.new as AnniversaryRow, chatKey);
+          onAdd(dec);
+        } catch (e) {
+          console.error("realtime anniversary handler failed", e);
+        }
       },
     )
     .on(
@@ -137,5 +144,7 @@ export const subscribeAnniversaries = (
       },
       (payload) => onDelete((payload.old as AnniversaryRow).id),
     )
-    .subscribe();
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") onSubscribed?.();
+    });
 };

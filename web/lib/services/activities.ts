@@ -116,8 +116,12 @@ export const subscribeHistory = (
         filter: `couple_id=eq.${coupleId}`,
       },
       async (payload) => {
-        const dec = await decrypt(payload.new as PlayHistoryRow, chatKey);
-        onAdd(dec);
+        try {
+          const dec = await decrypt(payload.new as PlayHistoryRow, chatKey);
+          onAdd(dec);
+        } catch (e) {
+          console.error("realtime play_history handler failed", e);
+        }
       },
     )
     .subscribe((status) => {

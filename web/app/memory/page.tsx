@@ -48,22 +48,30 @@ export default function MemoryPage() {
         router.push("/login");
         return;
       }
-      const { data: couple } = await supabase
+      const { data: couple, error: coupleErr } = await supabase
         .from("couples")
         .select("id, user_a_id, user_b_id")
         .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
         .maybeSingle();
+      if (coupleErr) {
+        if (!cancelled) setError(errMsg(coupleErr));
+        return;
+      }
       if (!couple) {
         router.push("/pair");
         return;
       }
       const partnerId =
         couple.user_a_id === user.id ? couple.user_b_id : couple.user_a_id;
-      const { data: partner } = await supabase
+      const { data: partner, error: partnerErr } = await supabase
         .from("users")
         .select("public_key")
         .eq("id", partnerId)
         .maybeSingle();
+      if (partnerErr) {
+        if (!cancelled) setError(errMsg(partnerErr));
+        return;
+      }
       if (!partner?.public_key) {
         setError("伴侶仲未 set 好個 key。");
         return;
@@ -77,16 +85,35 @@ export default function MemoryPage() {
       if (cancelled) return;
       setReady({ coupleId: couple.id, myId: user.id, chatKey });
 
-      const initial = await fetchEntries(supabase, couple.id, chatKey);
-      if (cancelled) return;
-      setEntries(initial);
+      // Entries are newest-first; merge by id-dedupe so the snapshot and any
+      // events arriving during the handshake coexist without duplicates.
+      const mergeEntries = (incoming: DecryptedEntry[]) =>
+        setEntries((prev) => {
+          const seen = new Set(prev.map((x) => x.id));
+          const fresh = incoming.filter((x) => !seen.has(x.id));
+          if (fresh.length === 0) return prev;
+          const merged = [...prev, ...fresh];
+          merged.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+          return merged;
+        });
 
+      // Subscribe first, fetch on SUBSCRIBED — no-gap pattern (matches chat/us).
       const channel = subscribeEntries(
         supabase,
         couple.id,
         chatKey,
-        (e) => setEntries((prev) => (prev.some((x) => x.id === e.id) ? prev : [e, ...prev])),
+        (e) => mergeEntries([e]),
         (id) => setEntries((prev) => prev.filter((x) => x.id !== id)),
+        () => {
+          void (async () => {
+            try {
+              const initial = await fetchEntries(supabase, couple.id, chatKey);
+              if (!cancelled) mergeEntries(initial);
+            } catch (err) {
+              if (!cancelled) setError(errMsg(err));
+            }
+          })();
+        },
       );
       unsub = () => void supabase.removeChannel(channel);
     })();

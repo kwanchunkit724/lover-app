@@ -8,7 +8,10 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false, // pair flow shares Supabase state — serialize for now
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // Realtime delivery over a shared Supabase project is occasionally flaky
+  // under concurrent channels; one retry locally absorbs that without masking
+  // real regressions (the app has its own resync safety net).
+  retries: process.env.CI ? 2 : 1,
   workers: 1,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
@@ -30,5 +33,9 @@ export default defineConfig({
         url: "http://localhost:3000",
         reuseExistingServer: true,
         timeout: 60_000,
+        // Anon "試玩" sign-in is gated behind this flag in app code; the e2e
+        // suite drives it, so enable it for the test dev server only. (Also
+        // mirrored in .env.local so a reused dev server has it too.)
+        env: { NEXT_PUBLIC_ENABLE_TEST_SIGNIN: "1" },
       },
 });

@@ -10,6 +10,20 @@ export const GET = async (request: Request) => {
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") ?? "/";
 
+  // Validate `next` is a same-origin relative path before redirecting to it.
+  // Resolving against the origin and asserting the origin neutralizes
+  // protocol-relative (//evil), userinfo (@evil), and backslash tricks that
+  // would otherwise turn this trusted auth URL into an open redirect.
+  let safeNext = "/";
+  try {
+    const candidate = new URL(next, url.origin);
+    if (candidate.origin === url.origin) {
+      safeNext = candidate.pathname + candidate.search + candidate.hash;
+    }
+  } catch {
+    safeNext = "/";
+  }
+
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -19,5 +33,5 @@ export const GET = async (request: Request) => {
       );
     }
   }
-  return NextResponse.redirect(`${url.origin}${next}`);
+  return NextResponse.redirect(`${url.origin}${safeNext}`);
 };

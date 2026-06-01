@@ -40,22 +40,30 @@ export default function UsPage() {
         router.push("/login");
         return;
       }
-      const { data: couple } = await supabase
+      const { data: couple, error: coupleErr } = await supabase
         .from("couples")
         .select("id, user_a_id, user_b_id")
         .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
         .maybeSingle();
+      if (coupleErr) {
+        if (!cancelled) setError(errMsg(coupleErr));
+        return;
+      }
       if (!couple) {
         router.push("/pair");
         return;
       }
       const partnerId =
         couple.user_a_id === user.id ? couple.user_b_id : couple.user_a_id;
-      const { data: partner } = await supabase
+      const { data: partner, error: partnerErr } = await supabase
         .from("users")
         .select("public_key")
         .eq("id", partnerId)
         .maybeSingle();
+      if (partnerErr) {
+        if (!cancelled) setError(errMsg(partnerErr));
+        return;
+      }
       if (!partner?.public_key) {
         setError("伴侶仲未 set 好個 key。");
         return;
@@ -121,7 +129,7 @@ export default function UsPage() {
       <header className="flex items-center justify-between border-b border-line bg-surface/80 px-4 py-3 backdrop-blur">
         <h1 className="text-lg text-ink">我哋</h1>
         <span className="kao text-xs text-ink-soft">
-          {history.length} / {DATE_CARDS.length}
+          {doneIds.size} / {DATE_CARDS.length}
         </span>
       </header>
 
@@ -147,19 +155,19 @@ export default function UsPage() {
                 return (
                   <li
                     key={h.id}
-                    className="flex items-center justify-between rounded-2xl bg-surface px-4 py-3 shadow-sm"
+                    className="flex items-center justify-between gap-3 rounded-2xl bg-surface px-4 py-3 shadow-sm"
                   >
-                    <div>
-                      <p className="text-base text-ink">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-base text-ink">
                         {card?.title ?? `Card #${h.payload?.cardId}`}
                       </p>
                       {h.payload?.reflection && (
-                        <p className="mt-0.5 text-xs text-ink-soft italic">
+                        <p className="mt-0.5 truncate text-xs text-ink-soft italic">
                           “{h.payload.reflection}”
                         </p>
                       )}
                     </div>
-                    <span className="kao text-xs text-ink-soft">
+                    <span className="kao shrink-0 text-xs text-ink-soft">
                       {dayjs(h.createdAt).format("M/D")}
                     </span>
                   </li>
@@ -184,12 +192,8 @@ export default function UsPage() {
                 activeCard.id,
                 reflection,
               );
-              const fresh = await fetchHistory(
-                supabaseRef.current,
-                ready.coupleId,
-                ready.chatKey,
-              );
-              setHistory(fresh);
+              // No manual refetch — the realtime INSERT echo delivers the new
+              // row to mergeHistory (deduped), same model as chat's send().
               setActiveCard(null);
             } catch (e) {
               setError(errMsg(e));

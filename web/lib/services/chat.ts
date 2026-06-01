@@ -117,9 +117,13 @@ export const subscribe = (
         filter: `couple_id=eq.${coupleId}`,
       },
       async (payload) => {
-        const row = payload.new as MessageRow;
-        const decrypted = await decryptRow(row, chatKey);
-        onMessage(decrypted);
+        try {
+          const row = payload.new as MessageRow;
+          const decrypted = await decryptRow(row, chatKey);
+          onMessage(decrypted);
+        } catch (e) {
+          console.error("realtime message handler failed", e);
+        }
       },
     )
     .subscribe((status) => {

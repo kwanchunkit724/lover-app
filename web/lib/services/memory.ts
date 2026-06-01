@@ -97,6 +97,9 @@ export const subscribeEntries = (
   chatKey: Uint8Array,
   onAdd: (e: DecryptedEntry) => void,
   onDelete: (id: string) => void,
+  /** Fires on every SUBSCRIBED (initial + reconnect) so the caller can
+   *  fetch-after-subscribe and close the handshake race. */
+  onSubscribed?: () => void,
 ): RealtimeChannel =>
   supabase
     .channel(`entries:${coupleId}`)
@@ -108,7 +111,13 @@ export const subscribeEntries = (
         table: "entries",
         filter: `couple_id=eq.${coupleId}`,
       },
-      async (p) => onAdd(await decrypt(p.new as EntryRow, chatKey)),
+      async (p) => {
+        try {
+          onAdd(await decrypt(p.new as EntryRow, chatKey));
+        } catch (e) {
+          console.error("realtime entry handler failed", e);
+        }
+      },
     )
     .on(
       "postgres_changes",
@@ -120,4 +129,6 @@ export const subscribeEntries = (
       },
       (p) => onDelete((p.old as EntryRow).id),
     )
-    .subscribe();
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") onSubscribed?.();
+    });

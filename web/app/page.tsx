@@ -18,22 +18,25 @@ export default async function Home() {
 
   if (!user) redirect("/login");
 
-  // Has a profile row?
-  const { data: profile } = await supabase
+  // Has a profile row? Surface a query error instead of treating it as
+  // "no row" (which would wrongly bounce a real user to /onboarding).
+  const { data: profile, error: profileErr } = await supabase
     .from("users")
     .select("id")
     .eq("id", user.id)
     .maybeSingle();
 
+  if (profileErr) throw profileErr;
   if (!profile) redirect("/onboarding");
 
   // Is paired?
-  const { data: couple } = await supabase
+  const { data: couple, error: coupleErr } = await supabase
     .from("couples")
     .select("id")
     .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
     .maybeSingle();
 
+  if (coupleErr) throw coupleErr;
   if (!couple) redirect("/pair");
 
   redirect("/chat");

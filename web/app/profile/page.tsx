@@ -8,6 +8,7 @@ import { errMsg } from "@/lib/errors";
 import { clearKeyPair } from "@/lib/crypto/keys";
 
 interface State {
+  userId: string;
   myName: string;
   partnerName: string;
   anniversaryISO: string;
@@ -38,21 +39,30 @@ export default function ProfilePage() {
       router.push("/login");
       return;
     }
-    const { data: profile } = await supabase
+    const { data: profile, error: profileErr } = await supabase
       .from("users")
       .select("my_name, partner_name, anniversary_iso, theme_id")
       .eq("id", user.id)
       .maybeSingle();
+    if (profileErr) {
+      setError(errMsg(profileErr));
+      return;
+    }
     if (!profile) {
       router.push("/onboarding");
       return;
     }
-    const { data: couple } = await supabase
+    const { data: couple, error: coupleErr } = await supabase
       .from("couples")
       .select("id")
       .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
       .maybeSingle();
+    if (coupleErr) {
+      setError(errMsg(coupleErr));
+      return;
+    }
     setS({
+      userId: user.id,
       myName: profile.my_name,
       partnerName: profile.partner_name,
       anniversaryISO: profile.anniversary_iso,
@@ -76,7 +86,7 @@ export default function ProfilePage() {
     setError(null);
     try {
       const supabase = supabaseRef.current;
-      const { error } = await supabase.from("users").update({ theme_id: id }).eq("id", (await supabase.auth.getUser()).data.user!.id);
+      const { error } = await supabase.from("users").update({ theme_id: id }).eq("id", s.userId);
       if (error) throw error;
       setS({ ...s, themeId: id });
       setInfo("已更新主題");
@@ -120,8 +130,14 @@ export default function ProfilePage() {
 
   if (!s) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="kao text-ink-soft">載入緊…</p>
+      <main className="flex min-h-screen items-center justify-center px-6">
+        {error ? (
+          <p className="rounded-2xl bg-rose-soft px-4 py-3 text-center text-sm text-rose">
+            {error}
+          </p>
+        ) : (
+          <p className="kao text-ink-soft">載入緊…</p>
+        )}
       </main>
     );
   }

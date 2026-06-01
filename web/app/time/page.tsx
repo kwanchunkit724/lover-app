@@ -37,22 +37,30 @@ export default function TimePage() {
         router.push("/login");
         return;
       }
-      const { data: couple } = await supabase
+      const { data: couple, error: coupleErr } = await supabase
         .from("couples")
         .select("id, user_a_id, user_b_id")
         .or(`user_a_id.eq.${user.id},user_b_id.eq.${user.id}`)
         .maybeSingle();
+      if (coupleErr) {
+        if (!cancelled) setError(errMsg(coupleErr));
+        return;
+      }
       if (!couple) {
         router.push("/pair");
         return;
       }
       const partnerId =
         couple.user_a_id === user.id ? couple.user_b_id : couple.user_a_id;
-      const { data: partner } = await supabase
+      const { data: partner, error: partnerErr } = await supabase
         .from("users")
         .select("public_key")
         .eq("id", partnerId)
         .maybeSingle();
+      if (partnerErr) {
+        if (!cancelled) setError(errMsg(partnerErr));
+        return;
+      }
       if (!partner?.public_key) {
         setError("伴侶仲未 set 好個 key。");
         return;
@@ -67,24 +75,33 @@ export default function TimePage() {
       if (cancelled) return;
       setReady({ coupleId: couple.id, myId: user.id, chatKey });
 
-      const initial = await fetchAnniversaries(supabase, couple.id, chatKey);
-      if (cancelled) return;
-      // Sort by daysUntilNext ascending so nearest event first.
-      initial.sort((a, b) => (a.daysUntilNext ?? 99999) - (b.daysUntilNext ?? 99999));
-      setItems(initial);
+      const sortByNext = (xs: DecryptedAnniversary[]) =>
+        [...xs].sort((a, b) => (a.daysUntilNext ?? 99999) - (b.daysUntilNext ?? 99999));
+      const mergeItems = (incoming: DecryptedAnniversary[]) =>
+        setItems((prev) => {
+          const seen = new Set(prev.map((x) => x.id));
+          const fresh = incoming.filter((x) => !seen.has(x.id));
+          if (fresh.length === 0) return prev;
+          return sortByNext([...prev, ...fresh]);
+        });
 
+      // Subscribe first, fetch on SUBSCRIBED — no-gap pattern (matches chat/us).
       const channel = subscribeAnniversaries(
         supabase,
         couple.id,
         chatKey,
-        (a) =>
-          setItems((prev) => {
-            const next = prev.some((x) => x.id === a.id) ? prev : [...prev, a];
-            return [...next].sort(
-              (x, y) => (x.daysUntilNext ?? 99999) - (y.daysUntilNext ?? 99999),
-            );
-          }),
+        (a) => mergeItems([a]),
         (id) => setItems((prev) => prev.filter((x) => x.id !== id)),
+        () => {
+          void (async () => {
+            try {
+              const initial = await fetchAnniversaries(supabase, couple.id, chatKey);
+              if (!cancelled) mergeItems(initial);
+            } catch (e) {
+              if (!cancelled) setError(errMsg(e));
+            }
+          })();
+        },
       );
       unsub = () => void supabase.removeChannel(channel);
     })();

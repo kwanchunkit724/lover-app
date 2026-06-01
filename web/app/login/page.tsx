@@ -24,7 +24,13 @@ export default function LoginPage() {
     // On success Supabase redirects the page; no further work here.
   };
 
+  // Anonymous "試玩" sign-in is a TEST affordance only. It is gated behind a
+  // build-time flag so it is tree-shaken out of production builds — otherwise
+  // anyone could bypass Google auth and spawn unlimited anon accounts.
+  const testSigninEnabled = process.env.NEXT_PUBLIC_ENABLE_TEST_SIGNIN === "1";
+
   const signInAsTest = async () => {
+    if (!testSigninEnabled) return;
     setBusy(true);
     setError(null);
     const supabase = createClient();
@@ -56,14 +62,16 @@ export default function LoginPage() {
           {busy ? "正在登入…" : "用 Google 登入"}
         </button>
 
-        <button
-          onClick={signInAsTest}
-          disabled={busy}
-          data-testid="test-signin"
-          className="mt-3 w-full rounded-2xl border border-dashed border-rose/40 bg-cream px-5 py-2.5 text-sm font-medium text-rose transition active:scale-95 disabled:opacity-60"
-        >
-          🧪 試玩模式（匿名）
-        </button>
+        {testSigninEnabled && (
+          <button
+            onClick={signInAsTest}
+            disabled={busy}
+            data-testid="test-signin"
+            className="mt-3 w-full rounded-2xl border border-dashed border-rose/40 bg-cream px-5 py-2.5 text-sm font-medium text-rose transition active:scale-95 disabled:opacity-60"
+          >
+            🧪 試玩模式（匿名）
+          </button>
+        )}
 
         {error && (
           <p className="mt-4 rounded-xl bg-rose-soft px-4 py-2 text-sm text-rose">
