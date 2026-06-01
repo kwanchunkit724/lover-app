@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+/* Brand tokens — sourced from design-import/theme.js + index.html.
+ * Cream bg, rose accents, ink text. Subtle radial gradients give the
+ * kawaii "soft daylight" feel matching the iOS app's home gradient. */
+:root {
+  --color-cream: #FBF4EE;
+  --color-cream-deep: #F5E9DE;
+  --color-rose: #D88B82;
+  --color-rose-soft: #F8DDD7;
+  --color-mint: #E5EBDB;
+  --color-ink: #3D2E27;
+  --color-ink-soft: #6E5B52;
+  --color-surface: #FFFFFF;
+  --color-line: #E8DCCF;
+}
+
+@theme inline {
+  --color-cream: var(--color-cream);
+  --color-cream-deep: var(--color-cream-deep);
+  --color-rose: var(--color-rose);
+  --color-rose-soft: var(--color-rose-soft);
+  --color-mint: var(--color-mint);
+  --color-ink: var(--color-ink);
+  --color-ink-soft: var(--color-ink-soft);
+  --color-surface: var(--color-surface);
+  --color-line: var(--color-line);
+  --font-display: var(--font-klee), "Noto Sans TC", serif;
+  --font-body: var(--font-zen-maru), var(--font-noto-tc), system-ui, sans-serif;
+  --font-mono: var(--font-dm-mono), monospace;
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% 10%, var(--color-rose-soft) 0%, transparent 40%),
+    radial-gradient(circle at 80% 80%, var(--color-mint) 0%, transparent 40%),
+    var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-zen-maru), var(--font-noto-tc), system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-klee), "Noto Sans TC", serif;
+  letter-spacing: -0.5px;
+}
+
+.kao {
+  font-family: var(--font-dm-mono), monospace;
+  color: var(--color-rose);
+}
+
+@keyframes float-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.float-in { animation: float-in 0.6s ease; }
