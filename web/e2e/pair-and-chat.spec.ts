@@ -109,6 +109,12 @@ test.describe("Full couple flow (anonymous users)", () => {
     // History list should now have one entry
     await expect(alice.page.getByText("正！")).toBeVisible({ timeout: 10_000 });
 
+    // Bob sees the same play-history entry on /us (realtime sync — regression
+    // for the us tab previously having NO subscription at all).
+    await bob.page.getByRole("link", { name: /我哋/ }).click();
+    await bob.page.waitForURL("**/us");
+    await expect(bob.page.getByText("正！")).toBeVisible({ timeout: 15_000 });
+
     // ── PROFILE ───────────────────────────────────────────────────────
     await alice.page.getByRole("link", { name: /個人/ }).click();
     await alice.page.waitForURL("**/profile");

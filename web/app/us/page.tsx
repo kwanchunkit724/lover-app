@@ -14,6 +14,7 @@ import {
   DATE_CARDS,
   fetchHistory,
   markCardDone,
+  subscribeHistory,
   type DateCard,
   type DecryptedHistory,
 } from "@/lib/services/activities";
@@ -31,6 +32,7 @@ export default function UsPage() {
   useEffect(() => {
     const supabase = supabaseRef.current;
     let cancelled = false;
+    let unsub: (() => void) | undefined;
 
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -67,12 +69,40 @@ export default function UsPage() {
       if (cancelled) return;
       setReady({ coupleId: couple.id, myId: user.id, chatKey });
 
-      const initial = await fetchHistory(supabase, couple.id, chatKey);
-      if (cancelled) return;
-      setHistory(initial);
+      const mergeHistory = (incoming: DecryptedHistory[]) =>
+        setHistory((prev) => {
+          const seen = new Set(prev.map((h) => h.id));
+          const fresh = incoming.filter((h) => !seen.has(h.id));
+          if (fresh.length === 0) return prev;
+          const merged = [...fresh, ...prev];
+          merged.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+          return merged;
+        });
+
+      // Subscribe first, fetch on SUBSCRIBED — same no-gap pattern as chat.
+      const channel = subscribeHistory(
+        supabase,
+        couple.id,
+        chatKey,
+        (h) => mergeHistory([h]),
+        () => {
+          void (async () => {
+            try {
+              const initial = await fetchHistory(supabase, couple.id, chatKey);
+              if (!cancelled) mergeHistory(initial);
+            } catch (e) {
+              if (!cancelled) setError(errMsg(e));
+            }
+          })();
+        },
+      );
+      unsub = () => void supabase.removeChannel(channel);
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
   }, [router]);
 
   const doneIds = useMemo(

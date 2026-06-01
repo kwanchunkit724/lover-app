@@ -8,7 +8,7 @@
 // History is sealed-JSON in public.play_history table — same chatKey
 // as messages/anniversaries/entries.
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
 import { open, seal } from "@/lib/crypto/seal";
 import dateCardsJson from "./date-cards.json";
 
@@ -92,4 +92,35 @@ export const markCardDone = async (
     ciphertext_b64: ciphertext,
   });
   if (error) throw error;
+};
+
+// Realtime: fire onAdd for every new play_history row in this couple, so a
+// card one partner marks done shows up on the other's /us without a reload —
+// matching the time/memory/chat tabs. onSubscribed re-fires on reconnect to
+// resync rows missed during the handshake (same race the chat tab had).
+export const subscribeHistory = (
+  supabase: SupabaseClient,
+  coupleId: string,
+  chatKey: Uint8Array,
+  onAdd: (h: DecryptedHistory) => void,
+  onSubscribed?: () => void,
+): RealtimeChannel => {
+  return supabase
+    .channel(`play_history:${coupleId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "play_history",
+        filter: `couple_id=eq.${coupleId}`,
+      },
+      async (payload) => {
+        const dec = await decrypt(payload.new as PlayHistoryRow, chatKey);
+        onAdd(dec);
+      },
+    )
+    .subscribe((status) => {
+      if (status === "SUBSCRIBED") onSubscribed?.();
+    });
 };
