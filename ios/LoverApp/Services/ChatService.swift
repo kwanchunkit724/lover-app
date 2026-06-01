@@ -63,6 +63,15 @@ final class ChatService: ObservableObject {
     private var isFetching = false
     private var refetchQueued = false
     private var refreshTask: Task<Void, Never>?
+    // v1.6.1 (faster cold open) — paginate: fetch the newest PAGE rows for the
+    // first paint (was 500), load older pages on scroll-up. `loadedLimit`
+    // grows as the user scrolls back.
+    private let pageSize = 40
+    private var loadedLimit = 40
+    @Published private(set) var hasMore = true
+    // Decrypt cache keyed by message id — a refetch (poll / realtime) only
+    // re-decrypts rows that are new or were edited, instead of all of them.
+    private var decryptCache: [UUID: DecryptedMessage] = [:]
 
     init(crypto: CryptoService) {
         self.crypto = crypto
@@ -102,6 +111,18 @@ final class ChatService: ObservableObject {
             Task { await ch.unsubscribe() }
         }
         coupleId = nil
+        loadedLimit = pageSize
+        hasMore = true
+        decryptCache.removeAll()
+    }
+
+    /// Load an older page of history (called when the user scrolls to the top).
+    /// Bumps the window by one page and refetches; cheap because the decrypt
+    /// cache means only the newly-revealed older rows get decrypted.
+    func loadOlder() async {
+        guard hasMore, !isFetching else { return }
+        loadedLimit += pageSize
+        await fetchOnce()
     }
 
     /// Coalesced, debounced refresh used by realtime events: collapses a burst
@@ -391,59 +412,47 @@ final class ChatService: ObservableObject {
         isFetching = true
         isLoading = true
         do {
-            // Order DESC + limit 500 = newest 500. Reverse below for UI
-            // (ascending). Old code used ascending + limit 500 which silently
-            // dropped newest messages once couple exceeded 500 total.
+            // v1.6.1 (faster cold open) — fetch only the newest `loadedLimit`
+            // rows (was a flat 500). Smaller payload + fewer decodes = the
+            // first paint lands much sooner. Older pages load on scroll-up.
+            let limit = loadedLimit
             let rowsDesc: [IncomingRow] = try await SB.client
                 .from("messages")
                 .select()
                 .eq("couple_id", value: coupleId)
                 .order("created_at", ascending: false)
-                .limit(500)
+                .limit(limit)
                 .execute()
                 .value
+            // Fewer rows than the window ⇒ no older history remains.
+            self.hasMore = rowsDesc.count >= limit
             let rows = Array(rowsDesc.reversed())
             let now = Date()
             let key = crypto.keySnapshot
+            let cache = self.decryptCache
 
-            // v1.6.1 (problem 1) — decode OFF the main actor. Previously the
-            // base64+AES-GCM+JSON decode of up to 500 rows ran synchronously on
-            // @MainActor and blocked the UI for seconds on cold open. Now the
-            // batch runs on a background task; only the published assignment
-            // hops back to the main actor.
-            let decoded: [DecryptedMessage] = await Task.detached(priority: .userInitiated) {
-                rows.compactMap { row -> DecryptedMessage? in
-                    if let exp = row.expires_at, exp < now { return nil }
+            // Only rows that are NEW or EDITED need decrypting; unchanged rows
+            // are reused from the decrypt cache, so a realtime refetch decrypts
+            // just the one new message instead of the whole window.
+            let toDecode = rows.filter { row in
+                if row.deleted_at != nil { return false }
+                if let exp = row.expires_at, exp < now { return false }
+                if let c = cache[row.id], c.editedAt == row.edited_at { return false }
+                return true
+            }
 
-                    if row.deleted_at != nil {
-                        return DecryptedMessage(
-                            id: row.id,
-                            senderId: row.sender_id,
-                            payload: ChatPayload(kind: .text, text: nil,
-                                                 mediaHandle: nil, sentAt: row.created_at),
-                            createdAt: row.created_at,
-                            decryptionFailed: false,
-                            replyToId: row.reply_to_id,
-                            editedAt: row.edited_at,
-                            deletedAt: row.deleted_at,
-                            expiresAt: row.expires_at,
-                            readAt: row.read_at
-                        )
-                    }
-
+            // Decode the (usually small) changed set OFF the main actor.
+            let fresh: [UUID: DecryptedMessage] = await Task.detached(priority: .userInitiated) {
+                var out: [UUID: DecryptedMessage] = [:]
+                out.reserveCapacity(toDecode.count)
+                for row in toDecode {
                     if let key, let payload = try? CryptoService.open(row.ciphertext_b64, key: key) {
-                        return DecryptedMessage(
-                            id: row.id,
-                            senderId: row.sender_id,
-                            payload: payload,
-                            createdAt: row.created_at,
-                            decryptionFailed: false,
-                            replyToId: row.reply_to_id,
-                            editedAt: row.edited_at,
-                            deletedAt: row.deleted_at,
-                            expiresAt: row.expires_at,
-                            readAt: row.read_at
-                        )
+                        out[row.id] = DecryptedMessage(
+                            id: row.id, senderId: row.sender_id, payload: payload,
+                            createdAt: row.created_at, decryptionFailed: false,
+                            replyToId: row.reply_to_id, editedAt: row.edited_at,
+                            deletedAt: row.deleted_at, expiresAt: row.expires_at,
+                            readAt: row.read_at)
                     } else {
                         var failed = DecryptedMessage.failed(id: row.id,
                                                              senderId: row.sender_id,
@@ -453,18 +462,45 @@ final class ChatService: ObservableObject {
                         failed.deletedAt = row.deleted_at
                         failed.expiresAt = row.expires_at
                         failed.readAt    = row.read_at
-                        return failed
+                        out[row.id] = failed
                     }
                 }
+                return out
             }.value
 
-            // Carry forward already-loaded reactions so the message refresh
-            // doesn't blank them before fetchReactions catches up.
-            let cached = Dictionary(uniqueKeysWithValues:
+            // Assemble in order: deleted → placeholder, else fresh-decode, else
+            // cached. Build the next cache from fresh + survivors.
+            var result: [DecryptedMessage] = []
+            result.reserveCapacity(rows.count)
+            var newCache = cache
+            for row in rows {
+                if let exp = row.expires_at, exp < now { continue }
+                if row.deleted_at != nil {
+                    result.append(DecryptedMessage(
+                        id: row.id, senderId: row.sender_id,
+                        payload: ChatPayload(kind: .text, text: nil,
+                                             mediaHandle: nil, sentAt: row.created_at),
+                        createdAt: row.created_at, decryptionFailed: false,
+                        replyToId: row.reply_to_id, editedAt: row.edited_at,
+                        deletedAt: row.deleted_at, expiresAt: row.expires_at,
+                        readAt: row.read_at))
+                } else if let m = fresh[row.id] {
+                    result.append(m); newCache[row.id] = m
+                } else if let c = cache[row.id] {
+                    result.append(c)
+                }
+            }
+            // Bound cache memory to the currently-loaded window.
+            let liveIds = Set(rows.map { $0.id })
+            self.decryptCache = newCache.filter { liveIds.contains($0.key) }
+
+            // Carry forward already-loaded reactions so the refresh doesn't
+            // blank them before fetchReactions catches up.
+            let rx = Dictionary(uniqueKeysWithValues:
                 self.messages.map { ($0.id, $0.reactions) })
-            var merged = decoded
+            var merged = result
             for i in merged.indices {
-                if let existing = cached[merged[i].id] { merged[i].reactions = existing }
+                if let existing = rx[merged[i].id] { merged[i].reactions = existing }
             }
             self.messages = merged
         } catch {

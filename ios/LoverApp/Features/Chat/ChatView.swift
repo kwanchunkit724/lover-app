@@ -443,6 +443,16 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    // v1.6.1 — load older history when scrolled to the top.
+                    // Only present once there IS more (a full first page) and
+                    // after the initial bottom-scroll, so it never fires on open.
+                    if chat.hasMore && didInitialScroll {
+                        ProgressView()
+                            .tint(theme.inkMuted)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .onAppear { Task { await chat.loadOlder() } }
+                    }
                     ForEach(messages.indices, id: \.self) { i in
                         let m = messages[i]
                         let prev = i > 0 ? messages[i - 1] : nil
@@ -489,8 +499,10 @@ struct ChatView: View {
             }
             // v1.6.1 (problem 2) — drag the history to dismiss the keyboard.
             .scrollDismissesKeyboard(.interactively)
-            // Newest message arrived (or count changed) → re-anchor to bottom.
-            .onChange(of: messages.count) { _, _ in
+            // A NEW message arrived (newest id changed) → re-anchor to bottom.
+            // Watching the last id (not count) means loading OLDER history on
+            // scroll-up doesn't yank the view back down.
+            .onChange(of: messages.last?.id) { _, _ in
                 scrollToBottom(proxy, animated: didInitialScroll)
             }
             // v1.6.1 (problem 4) — drive the FIRST scroll off the data
