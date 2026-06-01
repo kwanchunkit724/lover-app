@@ -316,75 +316,19 @@ struct ChatView: View {
             )
             .theme(theme)
         }
-        // ── Feature 7: mood + cheer ──────────────────────────────────────
-        .overlay {
-            if showMoodPicker {
-                MoodPickerSheet(
-                    current: mood.myMood,
-                    onPick: { m in Task { await mood.setMood(m) } },
-                    onClose: { showMoodPicker = false }
-                )
-                .transition(.opacity)
-            }
-        }
-        .overlay {
-            if let target = cheerTarget {
-                CheerOverlay(
-                    partnerName: partner.name,
-                    mood: target,
-                    onComplete: { Task { await mood.sendCheerComplete(targetMood: target) } },
-                    onClose: { cheerTarget = nil }
-                )
-            }
-        }
-        .overlay {
-            if let rc = received {
-                CheerReceivedOverlay(
-                    partnerName: partner.name,
-                    mood: rc.mood,
-                    onClose: { received = nil }
-                )
-            }
-        }
-        .onChange(of: mood.incomingCheer?.id) { _, _ in
-            if let inc = mood.incomingCheer {
-                received = inc
-                mood.incomingCheer = nil
-            }
-        }
-        // ── Feature 6: meet-up + forced selfie ───────────────────────────
-        .overlay {
-            if showSetMeetup {
-                SetMeetupSheet(
-                    existing: meetups.upcoming,
-                    onCreate: { iso, title in Task { await meetups.createMeetup(meetDate: iso, title: title) } },
-                    onCancel: { id in if let id { Task { await meetups.cancelMeetup(id) } } },
-                    onClose: { showSetMeetup = false }
-                )
-                .transition(.opacity)
-            }
-        }
-        .fullScreenCover(item: $selfieMeetup) { m in
-            SelfiePromptView(
-                meetup: m,
-                onCapture: { data in
-                    selfieMeetup = nil
-                    Task { await meetups.submitSelfie(meetupId: m.id, data: data) }
-                },
-                onLater: { handledDueId = m.id; selfieMeetup = nil }
-            )
-            .theme(theme)
-        }
-        .onChange(of: meetups.dueMeetup?.id) { _, id in
-            if let id, id != handledDueId, selfieMeetup == nil {
-                selfieMeetup = meetups.dueMeetup
-            }
-        }
-        .onAppear {
-            if let due = meetups.dueMeetup, due.id != handledDueId, selfieMeetup == nil {
-                selfieMeetup = due
-            }
-        }
+        // v1.6.1 — Feature 6/7 overlays live in a ViewModifier so this body's
+        // modifier chain stays small enough for the Swift type-checker.
+        .modifier(ChatFeatureOverlays(
+            mood: mood,
+            meetups: meetups,
+            partnerName: partner.name,
+            showMoodPicker: $showMoodPicker,
+            cheerTarget: $cheerTarget,
+            received: $received,
+            showSetMeetup: $showSetMeetup,
+            selfieMeetup: $selfieMeetup,
+            handledDueId: $handledDueId
+        ))
     }
 
     // MARK: - Header
@@ -736,6 +680,97 @@ private enum HHmm {
         return f
     }()
     static func format(_ date: Date) -> String { formatter.string(from: date) }
+}
+
+// v1.6.1 — Feature 6 (meet-up) + Feature 7 (mood/cheer) overlays, factored
+// out of ChatView.pairedBody so the main body stays type-checkable.
+private struct ChatFeatureOverlays: ViewModifier {
+    @Environment(\.theme) private var theme
+    @ObservedObject var mood: MoodService
+    @ObservedObject var meetups: MeetupService
+    let partnerName: String
+    @Binding var showMoodPicker: Bool
+    @Binding var cheerTarget: Mood?
+    @Binding var received: MoodService.IncomingCheer?
+    @Binding var showSetMeetup: Bool
+    @Binding var selfieMeetup: Meetup?
+    @Binding var handledDueId: UUID?
+
+    func body(content: Content) -> some View {
+        content
+            .overlay { moodPicker }
+            .overlay { cheer }
+            .overlay { receivedCheer }
+            .overlay { setMeetup }
+            .onChange(of: mood.incomingCheer?.id) { _, _ in
+                if let inc = mood.incomingCheer {
+                    received = inc
+                    mood.incomingCheer = nil
+                }
+            }
+            .fullScreenCover(item: $selfieMeetup) { m in
+                SelfiePromptView(
+                    meetup: m,
+                    onCapture: { data in
+                        selfieMeetup = nil
+                        Task { await meetups.submitSelfie(meetupId: m.id, data: data) }
+                    },
+                    onLater: { handledDueId = m.id; selfieMeetup = nil }
+                )
+                .theme(theme)
+            }
+            .onChange(of: meetups.dueMeetup?.id) { _, id in
+                if let id, id != handledDueId, selfieMeetup == nil {
+                    selfieMeetup = meetups.dueMeetup
+                }
+            }
+            .onAppear {
+                if let due = meetups.dueMeetup, due.id != handledDueId, selfieMeetup == nil {
+                    selfieMeetup = due
+                }
+            }
+    }
+
+    @ViewBuilder private var moodPicker: some View {
+        if showMoodPicker {
+            MoodPickerSheet(
+                current: mood.myMood,
+                onPick: { m in Task { await mood.setMood(m) } },
+                onClose: { showMoodPicker = false }
+            )
+            .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder private var cheer: some View {
+        if let target = cheerTarget {
+            CheerOverlay(
+                partnerName: partnerName,
+                mood: target,
+                onComplete: { Task { await mood.sendCheerComplete(targetMood: target) } },
+                onClose: { cheerTarget = nil }
+            )
+        }
+    }
+
+    @ViewBuilder private var receivedCheer: some View {
+        if let rc = received {
+            CheerReceivedOverlay(partnerName: partnerName, mood: rc.mood,
+                                 onClose: { received = nil })
+        }
+    }
+
+    @ViewBuilder private var setMeetup: some View {
+        if showSetMeetup {
+            SetMeetupSheet(
+                existing: meetups.upcoming,
+                onCreate: { iso, title in Task { await meetups.createMeetup(meetDate: iso, title: title) } },
+                onCancel: { id in if let id { Task { await meetups.cancelMeetup(id) } } },
+                onClose: { showSetMeetup = false }
+            )
+            .transition(.opacity)
+        }
+    }
 }
 
 #Preview {

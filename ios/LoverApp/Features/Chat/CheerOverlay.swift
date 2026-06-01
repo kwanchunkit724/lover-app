@@ -58,7 +58,7 @@ struct CheerOverlay: View {
                             .rotationEffect(.degrees(-90))
                             .animation(.easeOut(duration: 0.15), value: progress)
                         Text(target == 1 ? "👏" : "\(count)/\(target)")
-                            .font(DSText.mono(theme, 18, weight: .bold))
+                            .font(DSText.mono(theme, 18).weight(.bold))
                             .foregroundStyle(theme.rose)
                     }
                     .frame(width: 140, height: 140)
