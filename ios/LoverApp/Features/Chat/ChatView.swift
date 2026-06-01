@@ -16,6 +16,8 @@ struct ChatView: View {
     @EnvironmentObject private var chat: ChatService
     @EnvironmentObject private var crypto: CryptoService
     @EnvironmentObject private var presence: PresenceService
+    @EnvironmentObject private var mood: MoodService
+    @EnvironmentObject private var meetups: MeetupService
 
     // v1.6.1 (problem 5) — the 4-tab bar is back at the BOTTOM (pinned in
     // MainTabView). Chat just reports its keyboard state up so the bar can
@@ -40,6 +42,13 @@ struct ChatView: View {
     // v1.6.1 — track whether we've done the first scroll-to-bottom so the
     // entry scroll is instant (no animation) but later scrolls animate.
     @State private var didInitialScroll = false
+    // v1.6.1 Feature 7 (mood/cheer) + Feature 6 (meet-up) state.
+    @State private var showMoodPicker = false
+    @State private var cheerTarget: Mood? = nil          // I'm cheering partner
+    @State private var received: MoodService.IncomingCheer? = nil
+    @State private var showSetMeetup = false
+    @State private var selfieMeetup: Meetup? = nil       // meet-up awaiting my selfie
+    @State private var handledDueId: UUID? = nil         // dismissed selfie prompts
 
     // v1.6.0 — drive keyboard focus from code. Tapping the kaomoji button
     // resigns first responder before expanding the picker, so the picker
@@ -160,6 +169,8 @@ struct ChatView: View {
     private var pairedBody: some View {
         VStack(spacing: 0) {
             header
+            // v1.6.1 Feature 6 — next meet-up countdown.
+            MeetupBanner(upcoming: meetups.upcoming) { showSetMeetup = true }
             // v1.3.2 — visible banner when chatKey isn't ready yet. Without
             // this the user typed and pressed send into a void: ChatService
             // .sendText threw at the seal step and the message just
@@ -305,6 +316,75 @@ struct ChatView: View {
             )
             .theme(theme)
         }
+        // ── Feature 7: mood + cheer ──────────────────────────────────────
+        .overlay {
+            if showMoodPicker {
+                MoodPickerSheet(
+                    current: mood.myMood,
+                    onPick: { m in Task { await mood.setMood(m) } },
+                    onClose: { showMoodPicker = false }
+                )
+                .transition(.opacity)
+            }
+        }
+        .overlay {
+            if let target = cheerTarget {
+                CheerOverlay(
+                    partnerName: partner.name,
+                    mood: target,
+                    onComplete: { Task { await mood.sendCheerComplete(targetMood: target) } },
+                    onClose: { cheerTarget = nil }
+                )
+            }
+        }
+        .overlay {
+            if let rc = received {
+                CheerReceivedOverlay(
+                    partnerName: partner.name,
+                    mood: rc.mood,
+                    onClose: { received = nil }
+                )
+            }
+        }
+        .onChange(of: mood.incomingCheer?.id) { _, _ in
+            if let inc = mood.incomingCheer {
+                received = inc
+                mood.incomingCheer = nil
+            }
+        }
+        // ── Feature 6: meet-up + forced selfie ───────────────────────────
+        .overlay {
+            if showSetMeetup {
+                SetMeetupSheet(
+                    existing: meetups.upcoming,
+                    onCreate: { iso, title in Task { await meetups.createMeetup(meetDate: iso, title: title) } },
+                    onCancel: { id in if let id { Task { await meetups.cancelMeetup(id) } } },
+                    onClose: { showSetMeetup = false }
+                )
+                .transition(.opacity)
+            }
+        }
+        .fullScreenCover(item: $selfieMeetup) { m in
+            SelfiePromptView(
+                meetup: m,
+                onCapture: { data in
+                    selfieMeetup = nil
+                    Task { await meetups.submitSelfie(meetupId: m.id, data: data) }
+                },
+                onLater: { handledDueId = m.id; selfieMeetup = nil }
+            )
+            .theme(theme)
+        }
+        .onChange(of: meetups.dueMeetup?.id) { _, id in
+            if let id, id != handledDueId, selfieMeetup == nil {
+                selfieMeetup = meetups.dueMeetup
+            }
+        }
+        .onAppear {
+            if let due = meetups.dueMeetup, due.id != handledDueId, selfieMeetup == nil {
+                selfieMeetup = due
+            }
+        }
     }
 
     // MARK: - Header
@@ -334,6 +414,26 @@ struct ChatView: View {
             }
 
             Spacer()
+
+            // v1.6.1 Feature 7 — partner's mood (tap to cheer) + my mood chip.
+            if let pm = mood.partnerMood {
+                Button {
+                    if pm.needsCheer || pm == .happy || pm == .love { cheerTarget = pm }
+                } label: {
+                    Text(pm.emoji).font(.system(size: 20))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("伴侶心情 \(pm.label)，撳一下\(pm.cheerVerb)")
+            }
+            Button { showMoodPicker = true } label: {
+                Text(mood.myMood?.emoji ?? "🙂")
+                    .font(.system(size: 18))
+                    .opacity(mood.myMood == nil ? 0.4 : 1)
+                    .padding(6)
+                    .background(theme.paperAlt, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("設定我嘅心情")
 
             // v1.5 — Vanish mode toggle. Pinkish heart-with-slash icon when on.
             Button {
@@ -645,5 +745,7 @@ private enum HHmm {
         .environmentObject(PairingService())
         .environmentObject(ChatService(crypto: CryptoService()))
         .environmentObject(PresenceService(myUserId: { nil }))
+        .environmentObject(MoodService())
+        .environmentObject(MeetupService(crypto: CryptoService()))
         .theme(.jbeam)
 }

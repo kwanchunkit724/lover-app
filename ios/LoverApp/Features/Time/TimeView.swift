@@ -12,6 +12,7 @@ struct TimeView: View {
     @Environment(\.theme) private var theme
     @EnvironmentObject private var entryService: EntryService
     @EnvironmentObject private var anniversaryService: AnniversaryService
+    @EnvironmentObject private var meetups: MeetupService    // v1.6.1 Feature 6
 
     // Default the calendar header to the current month so freshly-paired
     // couples see "today" highlighted on first launch.
@@ -50,6 +51,15 @@ struct TimeView: View {
                     anniversaryRibbon(next)
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
+                        .padding(.bottom, 12)
+                }
+
+                // v1.6.1 Feature 6 — meet-ups (countdown + completed selfies).
+                let visibleMeetups = meetups.all.filter { $0.status != "cancelled" }
+                if !visibleMeetups.isEmpty {
+                    meetupsSection(visibleMeetups)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
                         .padding(.bottom, 12)
                 }
 
@@ -98,6 +108,49 @@ struct TimeView: View {
                 onClose: { presentedEntryID = nil }
             )
             .theme(theme)
+        }
+    }
+
+    // MARK: - Meet-ups (Feature 6)
+
+    private func meetupsSection(_ list: [Meetup]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("💕 見面")
+                .font(DSText.mono(theme, 10).weight(.semibold))
+                .foregroundStyle(theme.rose)
+                .padding(.leading, 4)
+
+            ForEach(list) { m in
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(m.title)
+                            .font(.system(size: 15, weight: .semibold, design: .serif))
+                            .foregroundStyle(theme.ink)
+                            .lineLimit(1)
+                        Text(TimeFormatting.mdString(m.meet_date) +
+                             (m.status == "completed"
+                                ? " · 已完成 ✓"
+                                : (m.daysUntil <= 0 ? " · 今日！" : " · 仲有 \(m.daysUntil) 日")))
+                            .font(DSText.mono(theme, 11))
+                            .foregroundStyle(m.status == "completed" ? theme.sage : theme.inkMuted)
+                    }
+                    Spacer(minLength: 0)
+                    // Completed meet-ups show the two selfies.
+                    HStack(spacing: -10) {
+                        ForEach([m.selfie_a_handle, m.selfie_b_handle].compactMap { $0 }, id: \.self) { handle in
+                            EncryptedAsyncImage(mediaHandle: handle, maxHeight: 44, cornerRadius: 22)
+                                .frame(width: 44, height: 44)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(theme.surface, lineWidth: 2))
+                        }
+                    }
+                }
+                .padding(12)
+                .background(theme.surface)
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(theme.line, lineWidth: 0.5))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
         }
     }
 

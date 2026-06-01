@@ -12,6 +12,9 @@ struct LoverApp: App {
     @StateObject private var entries: EntryService
     @StateObject private var playHistory: PlayHistoryService
     @StateObject private var presence: PresenceService
+    // v1.6.1 — Feature 7 (mood/cheer) + Feature 6 (meet-up).
+    @StateObject private var mood = MoodService()
+    @StateObject private var meetups: MeetupService
 
     init() {
         let c = CryptoService()
@@ -20,6 +23,7 @@ struct LoverApp: App {
         _anniversaries  = StateObject(wrappedValue: AnniversaryService(crypto: c))
         _entries        = StateObject(wrappedValue: EntryService(crypto: c))
         _playHistory    = StateObject(wrappedValue: PlayHistoryService(crypto: c))
+        _meetups        = StateObject(wrappedValue: MeetupService(crypto: c))
         // Phase C — presence reads myUserId lazily on each start() so it
         // doesn't capture a stale signed-out state.
         _presence       = StateObject(wrappedValue: PresenceService(myUserId: {
@@ -41,6 +45,8 @@ struct LoverApp: App {
                 .environmentObject(entries)
                 .environmentObject(playHistory)
                 .environmentObject(presence)
+                .environmentObject(mood)
+                .environmentObject(meetups)
                 .theme(profileStore.theme)
                 .task { await auth.bootstrap() }
         }
@@ -75,6 +81,8 @@ struct RootView: View {
     @EnvironmentObject private var entries: EntryService
     @EnvironmentObject private var playHistory: PlayHistoryService
     @EnvironmentObject private var presence: PresenceService
+    @EnvironmentObject private var mood: MoodService
+    @EnvironmentObject private var meetups: MeetupService
 
     var body: some View {
         Group {
@@ -113,7 +121,10 @@ struct RootView: View {
                 entries.stop()
                 playHistory.stop()
                 presence.stop()
+                mood.stop()
+                meetups.stop()
                 crypto.reset()
+                pairing.resetState()
             }
         }
         .onChange(of: pairing.isPaired) { _, isPaired in
@@ -127,7 +138,10 @@ struct RootView: View {
                 entries.stop()
                 playHistory.stop()
                 presence.stop()
+                mood.stop()
+                meetups.stop()
                 crypto.reset()
+                pairing.resetState()
             }
         }
         // v1.3.1 — bug surfaced in v1.3.0 testing: chatKey often stayed nil
@@ -150,9 +164,13 @@ struct RootView: View {
             switch phase {
             case .background, .inactive:
                 presence.pause()
+                mood.pause()
+                meetups.pause()
             case .active:
                 if let coupleId = pairing.couple?.id {
                     presence.resume(coupleId: coupleId)
+                    mood.resume(coupleId: coupleId)
+                    meetups.resume(coupleId: coupleId)
                 }
             @unknown default:
                 break
@@ -205,5 +223,7 @@ struct RootView: View {
         entries.start(coupleId: coupleId)
         playHistory.start(coupleId: coupleId)
         presence.start(coupleId: coupleId)
+        mood.start(coupleId: coupleId)
+        meetups.start(coupleId: coupleId)
     }
 }

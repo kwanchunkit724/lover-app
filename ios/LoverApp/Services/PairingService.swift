@@ -76,6 +76,18 @@ final class PairingService: ObservableObject {
 
     var isPaired: Bool { couple != nil }
 
+    /// v1.6.1 — explicitly clear all pairing state. MUST be called on
+    /// sign-out / account-deletion: otherwise the in-memory couple/partner
+    /// survive and a different account signing in on the same device briefly
+    /// sees the previous couple (wrong-couple data exposure) until refresh
+    /// returns. (review: high-severity stale-state bug.)
+    func resetState() {
+        couple = nil
+        partner = nil
+        activeCode = nil
+        lastError = nil
+    }
+
     // MARK: - Bootstrap
 
     /// Called after sign-in. Fetches the existing couple row (if any) and
