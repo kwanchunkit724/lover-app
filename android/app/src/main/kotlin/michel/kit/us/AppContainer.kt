@@ -8,8 +8,11 @@ import kotlinx.coroutines.Dispatchers
 import michel.kit.us.data.AnniversaryRepository
 import michel.kit.us.data.AuthRepository
 import michel.kit.us.data.ChatRepository
+import michel.kit.us.data.ChecklistRepository
 import michel.kit.us.data.CryptoService
 import michel.kit.us.data.EntryRepository
+import michel.kit.us.data.MeetupRepository
+import michel.kit.us.data.MoodRepository
 import michel.kit.us.data.KeyManager
 import michel.kit.us.data.PairingRepository
 import michel.kit.us.data.PresenceRepository
@@ -38,6 +41,10 @@ class AppContainer(context: Context) {
     val entries: EntryRepository = EntryRepository(crypto, scope)
     val anniversaries: AnniversaryRepository = AnniversaryRepository(crypto, scope)
     val userProfile: UserProfileRepository = UserProfileRepository()
+    // v1.6.x parity — mood/cheer, meet-up, checklist.
+    val mood: MoodRepository = MoodRepository(scope)
+    val meetups: MeetupRepository = MeetupRepository(crypto, scope)
+    val checklist: ChecklistRepository = ChecklistRepository(crypto, scope)
     val presence: PresenceRepository = PresenceRepository(scope) {
         runCatching {
             SupabaseClient.instance.auth.currentUserOrNull()?.id?.let(UUID::fromString)

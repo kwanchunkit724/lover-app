@@ -93,6 +93,9 @@ private fun RootRouter() {
                     container.entries.start(c.coupleUuid())
                     container.anniversaries.start(c.coupleUuid())
                     container.presence.start(c.coupleUuid())
+                    container.mood.start(c.coupleUuid())
+                    container.meetups.start(c.coupleUuid())
+                    container.checklist.start(c.coupleUuid())
                 }
             }
         } else {
@@ -101,6 +104,9 @@ private fun RootRouter() {
             container.entries.stop()
             container.anniversaries.stop()
             container.presence.stop()
+            container.mood.stop()
+            container.meetups.stop()
+            container.checklist.stop()
         }
     }
 
@@ -112,9 +118,19 @@ private fun RootRouter() {
     DisposableEffect(lifecycleOwner, couple) {
         val obs = androidx.lifecycle.LifecycleEventObserver { _, event ->
             when (event) {
-                androidx.lifecycle.Lifecycle.Event.ON_STOP -> container.presence.pause()
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                    container.presence.pause()
+                    container.mood.pause()
+                    container.meetups.pause()
+                    container.checklist.pause()
+                }
                 androidx.lifecycle.Lifecycle.Event.ON_START -> {
-                    couple?.let { container.presence.resume(it.coupleUuid()) }
+                    couple?.let {
+                        container.presence.resume(it.coupleUuid())
+                        container.mood.resume(it.coupleUuid())
+                        container.meetups.resume(it.coupleUuid())
+                        container.checklist.resume(it.coupleUuid())
+                    }
                 }
                 else -> Unit
             }
