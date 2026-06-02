@@ -12,11 +12,23 @@ struct Composer: View {
     let onTapVideo: () -> Void
     let onTapPlus: () -> Void
     let onTapCamera: () -> Void
+    var onTapMic: () -> Void = {}
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 8) {
             iconButton(.plus, action: onTapPlus)
             iconButton(.camera, action: onTapCamera)
+            // v1.6.5 — voice record (re-added). SF Symbol so it doesn't depend
+            // on a DSIcon glyph.
+            Button(action: onTapMic) {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 16))
+                    .foregroundStyle(theme.inkSoft)
+                    .frame(width: 36, height: 36)
+                    .background(theme.paperAlt)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
 
             HStack(spacing: 4) {
                 TextField("訊息…", text: $input, axis: .vertical)

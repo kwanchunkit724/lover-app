@@ -13,6 +13,8 @@ final class AudioPlayer: NSObject, ObservableObject {
     @Published private(set) var isPlaying = false
     @Published private(set) var progress: Double = 0   // 0.0 - 1.0
     @Published private(set) var durationSec: Double = 0
+    /// v1.6.5 — playback speed (1.0 / 1.5 / 2.0).
+    @Published private(set) var rate: Float = 1.0
 
     private var player: AVAudioPlayer?
     private var tickTask: Task<Void, Never>?
@@ -24,12 +26,22 @@ final class AudioPlayer: NSObject, ObservableObject {
             try AVAudioSession.sharedInstance().setActive(true)
             let p = try AVAudioPlayer(data: data)
             p.delegate = self
+            p.enableRate = true          // allow variable-speed playback
+            p.rate = rate
             p.prepareToPlay()
             self.player = p
             self.durationSec = p.duration
         } catch {
             self.player = nil
         }
+    }
+
+    /// Cycle 1x → 1.5x → 2x → 1x, applied live.
+    func cycleSpeed() {
+        rate = rate == 1.0 ? 1.5 : (rate == 1.5 ? 2.0 : 1.0)
+        player?.rate = rate
+        // AVAudioPlayer applies the new rate only while playing.
+        if let p = player, isPlaying, !p.isPlaying { p.play() }
     }
 
     func toggle() {

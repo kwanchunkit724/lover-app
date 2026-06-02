@@ -57,6 +57,20 @@ struct EncryptedAudioPlayback: View {
             Text(String(format: "0:%02d", durationSec))
                 .font(DSText.mono(theme, 10))
                 .foregroundStyle(dim)
+
+            // v1.6.5 — playback speed toggle (only meaningful once loaded).
+            if loadedOnce {
+                Button { player.cycleSpeed() } label: {
+                    Text(player.rate == 1.0 ? "1x" : (player.rate == 1.5 ? "1.5x" : "2x"))
+                        .font(DSText.mono(theme, 10).weight(.semibold))
+                        .foregroundStyle(fg)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(isFromMe ? theme.bubbleMeText.opacity(0.2) : theme.paperAlt,
+                                    in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
         }
         .frame(minWidth: 160)
     }

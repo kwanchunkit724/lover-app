@@ -18,6 +18,7 @@ struct ChatView: View {
     @EnvironmentObject private var presence: PresenceService
     @EnvironmentObject private var mood: MoodService
     @EnvironmentObject private var meetups: MeetupService
+    @EnvironmentObject private var checklist: ChecklistService
 
     // v1.6.1 (problem 5) — the 4-tab bar is back at the BOTTOM (pinned in
     // MainTabView). Chat just reports its keyboard state up so the bar can
@@ -49,6 +50,8 @@ struct ChatView: View {
     @State private var showSetMeetup = false
     @State private var selfieMeetup: Meetup? = nil       // meet-up awaiting my selfie
     @State private var handledDueId: UUID? = nil         // dismissed selfie prompts
+    @State private var showChecklist = false             // shared to-buy/to-do list
+    @StateObject private var voiceRecorder = VoiceRecorder()  // v1.6.5 voice
 
     // v1.6.0 — drive keyboard focus from code. Tapping the kaomoji button
     // resigns first responder before expanding the picker, so the picker
@@ -178,36 +181,38 @@ struct ChatView: View {
             if !crypto.isReady {
                 cryptoNotReadyBanner
             }
-            if chat.vanishMode {
-                vanishBanner
-            }
             messageList
             if let replyTo {
                 replyPreview(replyTo)
             }
-            Composer(
-                input: $input,
-                inputFocused: $inputFocused,
-                onSend: send,
-                onTapKaomoji: {
-                    // v1.6.0 — kaomoji picker dismisses the keyboard first
-                    // so it can claim the full 300pt expanded sheet height,
-                    // instead of getting squeezed above the keyboard like
-                    // the old version. Re-focusing the text field hides it.
-                    if !showKaomoji {
-                        inputFocused = false
-                    }
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        showKaomoji.toggle()
-                    }
-                },
-                onTapVideo: { showVideoPicker = true },
-                onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
-                // v1.0.4 — camera icon now opens the actual camera, not
-                // the photo library. Plus button still opens the action
-                // sheet where the user can pick album / camera / etc.
-                onTapCamera: { showCamera = true }
-            )
+            if voiceRecorder.isRecording {
+                recordingBar
+            } else {
+                Composer(
+                    input: $input,
+                    inputFocused: $inputFocused,
+                    onSend: send,
+                    onTapKaomoji: {
+                        // v1.6.0 — kaomoji picker dismisses the keyboard first
+                        // so it can claim the full 300pt expanded sheet height,
+                        // instead of getting squeezed above the keyboard like
+                        // the old version. Re-focusing the text field hides it.
+                        if !showKaomoji {
+                            inputFocused = false
+                        }
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            showKaomoji.toggle()
+                        }
+                    },
+                    onTapVideo: { showVideoPicker = true },
+                    onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
+                    // v1.0.4 — camera icon now opens the actual camera, not
+                    // the photo library. Plus button still opens the action
+                    // sheet where the user can pick album / camera / etc.
+                    onTapCamera: { showCamera = true },
+                    onTapMic: { voiceRecorder.start() }
+                )
+            }
             if showKaomoji {
                 KaomojiPicker(
                     onPick: { kao in input.append(kao) },
@@ -316,6 +321,11 @@ struct ChatView: View {
             )
             .theme(theme)
         }
+        .sheet(isPresented: $showChecklist) {
+            ChecklistSheet()
+                .environmentObject(checklist)
+                .theme(theme)
+        }
         // v1.6.1 — Feature 6/7 overlays live in a ViewModifier so this body's
         // modifier chain stays small enough for the Swift type-checker.
         .modifier(ChatFeatureOverlays(
@@ -330,6 +340,8 @@ struct ChatView: View {
             handledDueId: $handledDueId,
             onCheerComplete: { m in
                 guard case .signedIn(let uuid) = auth.state else { return }
+                // Flip the partner's mood to happy in the header right away.
+                mood.markPartnerCheered()
                 Task {
                     await mood.sendCheerComplete(targetMood: m)
                     // Post a visible line in the chat so the cheer shows up in
@@ -399,17 +411,26 @@ struct ChatView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("設定我嘅心情")
 
-            // v1.5 — Vanish mode toggle. Pinkish heart-with-slash icon when on.
-            Button {
-                let next = !chat.vanishMode
-                Task { await chat.setVanishMode(enabled: next) }
-            } label: {
-                Image(systemName: chat.vanishMode ? "timer" : "timer.circle")
+            // v1.6.5 Feature — shared quick checklist (short-term memory:
+            // what to buy / do). Placed right behind the mood, replacing the
+            // removed 閱後即焚 toggle.
+            Button { showChecklist = true } label: {
+                Image(systemName: "checklist")
                     .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(chat.vanishMode ? theme.rose : theme.inkMuted)
+                    .foregroundStyle(theme.inkMuted)
+                    .overlay(alignment: .topTrailing) {
+                        if checklist.openCount > 0 {
+                            Text("\(checklist.openCount)")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(3)
+                                .background(theme.rose, in: Circle())
+                                .offset(x: 7, y: -7)
+                        }
+                    }
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(chat.vanishMode ? "關閉閱後即焚" : "開啟閱後即焚")
+            .accessibilityLabel("購物 / 待辦清單")
         }
         .padding(.horizontal, 14)
         .padding(.top, 4)
@@ -623,6 +644,43 @@ struct ChatView: View {
         Task { await chat.sendText(toSend, senderId: uuid, replyToId: replyId) }
     }
 
+    // MARK: - Voice recording (v1.6.5)
+
+    private var recordingBar: some View {
+        HStack(spacing: 14) {
+            Button { voiceRecorder.cancel() } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(theme.inkMuted)
+            }
+            .buttonStyle(.plain)
+
+            Circle().fill(.red).frame(width: 9, height: 9)
+            Text(String(format: "錄緊音 0:%02d", voiceRecorder.elapsed))
+                .font(DSText.mono(theme, 13).weight(.semibold))
+                .foregroundStyle(theme.ink)
+            Spacer()
+            Button(action: sendVoice) {
+                DSIcon(name: .arrow, size: 18, color: .white, strokeWidth: 2.4)
+                    .frame(width: 40, height: 40)
+                    .background(theme.rose)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(theme.paper)
+        .overlay(Rectangle().frame(height: 0.5).foregroundStyle(theme.line), alignment: .top)
+    }
+
+    private func sendVoice() {
+        guard let (data, dur) = voiceRecorder.finish() else { return }
+        guard case .signedIn(let uuid) = auth.state, crypto.isReady else { return }
+        Task { await chat.sendVoice(data: data, durationSec: dur, senderId: uuid) }
+    }
+
     // v1.3.2/.3 — pinned diagnostic banner shown while crypto.chatKey is
     // still nil. v1.3.3 adds the actual state values (partner pubkey
     // length, last error, my-key status) so when the banner sticks we can
@@ -819,5 +877,6 @@ private struct ChatFeatureOverlays: ViewModifier {
         .environmentObject(PresenceService(myUserId: { nil }))
         .environmentObject(MoodService())
         .environmentObject(MeetupService(crypto: CryptoService()))
+        .environmentObject(ChecklistService(crypto: CryptoService()))
         .theme(.jbeam)
 }

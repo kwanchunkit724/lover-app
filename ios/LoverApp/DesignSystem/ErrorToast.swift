@@ -14,9 +14,21 @@ struct ErrorToast: ViewModifier {
     @Binding var message: String?
     @Environment(\.theme) private var theme
 
+    /// Hide task-cancellation noise (a fetch cancelled on view teardown /
+    /// service restart surfaces as "Swift.CancellationError error 1" — not a
+    /// real failure the user should see).
+    private var visibleMessage: String? {
+        guard let m = message else { return nil }
+        let low = m.lowercased()
+        if m.contains("CancellationError") || low.contains("cancel") || low.contains("error 1") {
+            return nil
+        }
+        return m
+    }
+
     func body(content: Content) -> some View {
         content.overlay(alignment: .bottom) {
-            if let msg = message {
+            if let msg = visibleMessage {
                 Button { message = nil } label: {
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "exclamationmark.triangle.fill")

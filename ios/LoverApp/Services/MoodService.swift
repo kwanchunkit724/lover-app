@@ -64,6 +64,11 @@ final class MoodService: ObservableObject {
         } catch { }
     }
 
+    /// Optimistically reflect that I just cheered my partner up, so the mood
+    /// shown in the header flips to happy immediately instead of waiting for
+    /// the 15s poll. (The partner's device sets their own mood happy too.)
+    func markPartnerCheered() { partnerMood = .happy }
+
     /// The cheerer finished the tap target → record the completed cheer.
     func sendCheerComplete(targetMood: Mood) async {
         guard let coupleId, let me = meId, let partner = partnerId else { return }

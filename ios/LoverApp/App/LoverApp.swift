@@ -15,6 +15,7 @@ struct LoverApp: App {
     // v1.6.1 — Feature 7 (mood/cheer) + Feature 6 (meet-up).
     @StateObject private var mood = MoodService()
     @StateObject private var meetups: MeetupService
+    @StateObject private var checklist: ChecklistService
 
     init() {
         let c = CryptoService()
@@ -24,6 +25,7 @@ struct LoverApp: App {
         _entries        = StateObject(wrappedValue: EntryService(crypto: c))
         _playHistory    = StateObject(wrappedValue: PlayHistoryService(crypto: c))
         _meetups        = StateObject(wrappedValue: MeetupService(crypto: c))
+        _checklist      = StateObject(wrappedValue: ChecklistService(crypto: c))
         // Phase C — presence reads myUserId lazily on each start() so it
         // doesn't capture a stale signed-out state.
         _presence       = StateObject(wrappedValue: PresenceService(myUserId: {
@@ -47,6 +49,7 @@ struct LoverApp: App {
                 .environmentObject(presence)
                 .environmentObject(mood)
                 .environmentObject(meetups)
+                .environmentObject(checklist)
                 .theme(profileStore.theme)
                 .task { await auth.bootstrap() }
         }
@@ -83,6 +86,7 @@ struct RootView: View {
     @EnvironmentObject private var presence: PresenceService
     @EnvironmentObject private var mood: MoodService
     @EnvironmentObject private var meetups: MeetupService
+    @EnvironmentObject private var checklist: ChecklistService
 
     var body: some View {
         Group {
@@ -123,6 +127,7 @@ struct RootView: View {
                 presence.stop()
                 mood.stop()
                 meetups.stop()
+                checklist.stop()
                 crypto.reset()
                 pairing.resetState()
             }
@@ -140,6 +145,7 @@ struct RootView: View {
                 presence.stop()
                 mood.stop()
                 meetups.stop()
+                checklist.stop()
                 crypto.reset()
                 pairing.resetState()
             }
@@ -166,11 +172,13 @@ struct RootView: View {
                 presence.pause()
                 mood.pause()
                 meetups.pause()
+                checklist.pause()
             case .active:
                 if let coupleId = pairing.couple?.id {
                     presence.resume(coupleId: coupleId)
                     mood.resume(coupleId: coupleId)
                     meetups.resume(coupleId: coupleId)
+                    checklist.resume(coupleId: coupleId)
                 }
             @unknown default:
                 break
@@ -225,5 +233,6 @@ struct RootView: View {
         presence.start(coupleId: coupleId)
         mood.start(coupleId: coupleId)
         meetups.start(coupleId: coupleId)
+        checklist.start(coupleId: coupleId)
     }
 }
