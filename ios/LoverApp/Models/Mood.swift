@@ -13,13 +13,15 @@ enum Mood: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
-    var emoji: String {
+    /// Kaomoji face (the app's aesthetic — used instead of emoji everywhere
+    /// a mood is shown).
+    var kao: String {
         switch self {
-        case .happy: return "😊"
-        case .sad:   return "😢"
-        case .angry: return "😠"
-        case .love:  return "🥰"
-        case .tired: return "😩"
+        case .happy: return "(◕‿◕)"
+        case .sad:   return "(｡•́︿•̀｡)"
+        case .angry: return "(╬ಠ益ಠ)"
+        case .love:  return "(♡˙︶˙♡)"
+        case .tired: return "(ᴗ_ᴗ｡)"
         }
     }
 

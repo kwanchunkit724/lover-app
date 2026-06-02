@@ -25,7 +25,9 @@ struct MoodPickerSheet: View {
                             onClose()
                         } label: {
                             VStack(spacing: 6) {
-                                Text(mood.emoji).font(.system(size: 34))
+                                Text(mood.kao)
+                                    .font(DSText.mono(theme, 15))
+                                    .foregroundStyle(active ? theme.rose : theme.ink)
                                 Text(mood.label)
                                     .font(DSText.mono(theme, 10))
                                     .foregroundStyle(active ? theme.rose : theme.inkMuted)

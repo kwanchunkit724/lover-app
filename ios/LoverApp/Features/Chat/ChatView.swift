@@ -364,17 +364,21 @@ struct ChatView: View {
                 Button {
                     if pm.needsCheer || pm == .happy || pm == .love { cheerTarget = pm }
                 } label: {
-                    Text(pm.emoji).font(.system(size: 20))
+                    Text(pm.kao)
+                        .font(DSText.mono(theme, 12))
+                        .foregroundStyle(theme.rose)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("伴侶心情 \(pm.label)，撳一下\(pm.cheerVerb)")
             }
             Button { showMoodPicker = true } label: {
-                Text(mood.myMood?.emoji ?? "🙂")
-                    .font(.system(size: 18))
-                    .opacity(mood.myMood == nil ? 0.4 : 1)
-                    .padding(6)
-                    .background(theme.paperAlt, in: Circle())
+                Text(mood.myMood?.kao ?? "(･_･)")
+                    .font(DSText.mono(theme, 11))
+                    .foregroundStyle(theme.inkSoft)
+                    .opacity(mood.myMood == nil ? 0.45 : 1)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(theme.paperAlt, in: Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("設定我嘅心情")
@@ -710,6 +714,8 @@ private struct ChatFeatureOverlays: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .errorToast(Binding(get: { meetups.lastError },
+                                set: { meetups.lastError = $0 }))
             .overlay { moodPicker }
             .overlay { cheer }
             .overlay { receivedCheer }

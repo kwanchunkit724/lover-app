@@ -11,12 +11,12 @@ import Supabase
 @MainActor
 final class ChatService: ObservableObject {
 
-    struct Reaction: Hashable {
+    struct Reaction: Hashable, Codable {
         let userId: UUID
         let emoji: String
     }
 
-    struct DecryptedMessage: Identifiable, Equatable {
+    struct DecryptedMessage: Identifiable, Equatable, Codable {
         let id: UUID
         let senderId: UUID
         let payload: ChatPayload
@@ -86,6 +86,9 @@ final class ChatService: ObservableObject {
     func start(coupleId: UUID) {
         if self.coupleId == coupleId, realtimeTask != nil { return }
         self.coupleId = coupleId
+        // v1.6.3 — instant cold open: paint the last cached messages from disk
+        // immediately, before any network. The fetch then refreshes them.
+        if messages.isEmpty { loadCache(coupleId: coupleId) }
         pollTask?.cancel()
         realtimeTask?.cancel()
         reactionsTask?.cancel()
@@ -503,6 +506,7 @@ final class ChatService: ObservableObject {
                 if let existing = rx[merged[i].id] { merged[i].reactions = existing }
             }
             self.messages = merged
+            saveCache()
         } catch {
             lastError = error.localizedDescription
         }
@@ -541,6 +545,37 @@ final class ChatService: ObservableObject {
             _ = coupleId
         } catch {
             // Silent — reactions are non-critical.
+        }
+    }
+
+    // MARK: - Disk cache (instant cold open)
+
+    private func cacheURL(_ coupleId: UUID) -> URL? {
+        guard let dir = FileManager.default.urls(for: .cachesDirectory,
+                                                 in: .userDomainMask).first else { return nil }
+        return dir.appendingPathComponent("chat-cache-\(coupleId.uuidString).json")
+    }
+
+    /// Synchronously load the last persisted page so messages show the instant
+    /// the chat appears (the small JSON decode is cheap). Overwritten by the
+    /// first network fetch.
+    private func loadCache(coupleId: UUID) {
+        guard let url = cacheURL(coupleId),
+              let data = try? Data(contentsOf: url),
+              let cached = try? JSONDecoder.iso.decode([DecryptedMessage].self, from: data)
+        else { return }
+        self.messages = cached
+    }
+
+    /// Persist the newest page off the main thread, OS-encrypted at rest
+    /// (.completeFileProtection → readable only while the device is unlocked).
+    private func saveCache() {
+        guard let coupleId, let url = cacheURL(coupleId) else { return }
+        let snapshot = Array(messages.suffix(pageSize))
+        Task.detached(priority: .utility) {
+            if let data = try? JSONEncoder.iso.encode(snapshot) {
+                try? data.write(to: url, options: [.atomic, .completeFileProtection])
+            }
         }
     }
 

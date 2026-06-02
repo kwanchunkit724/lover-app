@@ -37,6 +37,9 @@ final class MeetupService: ObservableObject {
     @Published private(set) var dueMeetup: Meetup?
     /// Full list for the Time tab.
     @Published private(set) var all: [Meetup] = []
+    /// Surfaced so the chat can toast a failure instead of silently doing
+    /// nothing (the original "set date → nothing happens" symptom).
+    @Published var lastError: String?
 
     private let crypto: CryptoService
     private let media: MediaService
@@ -60,6 +63,9 @@ final class MeetupService: ObservableObject {
         if self.coupleId == coupleId, channel != nil { return }
         stop()
         self.coupleId = coupleId
+        // Resolve meId synchronously so createMeetup never silently no-ops just
+        // because the async bootstrap hasn't set it yet.
+        self.meId = SB.client.auth.currentUser?.id
         realtimeTask = Task { [weak self] in await self?.bootstrap(coupleId: coupleId) }
     }
 
@@ -77,7 +83,10 @@ final class MeetupService: ObservableObject {
     // MARK: - Mutations
 
     func createMeetup(meetDate: String, title: String) async {
-        guard let coupleId, let me = meId else { return }
+        guard let coupleId, let me = meId else {
+            lastError = "未準備好（請稍後再試或重開 app）"
+            return
+        }
         struct Row: Encodable {
             let couple_id: UUID; let created_by: UUID; let meet_date: String; let title: String
         }
@@ -88,7 +97,9 @@ final class MeetupService: ObservableObject {
                             title: title.isEmpty ? "下次見面" : title))
                 .execute()
             await fetchOnce()
-        } catch { }
+        } catch {
+            lastError = "建立見面失敗：\(error.localizedDescription)"
+        }
     }
 
     /// Encrypt + upload the selfie, then attach it to the meet-up (server
@@ -102,7 +113,9 @@ final class MeetupService: ObservableObject {
                                         params: Args(p_meetup_id: meetupId, p_handle: path))
                 .execute()
             await fetchOnce()
-        } catch { }
+        } catch {
+            lastError = "上載自拍失敗：\(error.localizedDescription)"
+        }
     }
 
     func cancelMeetup(_ id: UUID) async {
@@ -173,7 +186,9 @@ final class MeetupService: ObservableObject {
                 let mine = isUserA ? m.selfie_a_handle : m.selfie_b_handle
                 return mine == nil
             }
-        } catch { }
+        } catch {
+            lastError = "載入見面失敗：\(error.localizedDescription)"
+        }
     }
 
     private struct CoupleRow: Decodable { let user_a_id: UUID; let user_b_id: UUID }
