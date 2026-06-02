@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.EmojiEmotions
 import androidx.compose.material.icons.outlined.PhotoCamera
@@ -91,20 +92,20 @@ fun ChatScreen() {
         )
     }
 
+    val checklistItems by container.checklist.items.collectAsStateWithLifecycle()
+    var showChecklist by remember { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize().background(palette.paper)) {
         Column(modifier = Modifier.fillMaxSize()) {
             ChatHeader(
                 partner = partnerPerson,
                 online = partnerOnline,
-                vanishOn = vanish,
-                onToggleVanish = vm::toggleVanish
+                checklistCount = checklistItems.count { !it.done },
+                onOpenChecklist = { showChecklist = true }
             )
 
             if (!cryptoReady) {
                 CryptoPreparingBanner()
-            }
-            if (vanish) {
-                VanishBanner()
             }
 
             MessageList(
@@ -204,6 +205,10 @@ fun ChatScreen() {
                 onClose = vm::closeReactionPicker
             )
         }
+
+        if (showChecklist) {
+            ChecklistPanel(onClose = { showChecklist = false })
+        }
     }
 }
 
@@ -211,8 +216,8 @@ fun ChatScreen() {
 private fun ChatHeader(
     partner: Person,
     online: Boolean,
-    vanishOn: Boolean,
-    onToggleVanish: () -> Unit
+    checklistCount: Int,
+    onOpenChecklist: () -> Unit
 ) {
     val palette = LocalLoverColors.current
     Row(
@@ -247,14 +252,16 @@ private fun ChatHeader(
                 )
             }
         }
-        IconButton(onClick = onToggleVanish) {
-            Icon(
-                imageVector = if (vanishOn) Icons.Outlined.Timer else Icons.Outlined.TimerOff,
-                contentDescription = stringResource(
-                    if (vanishOn) R.string.chat_vanish_on else R.string.chat_vanish_off
-                ),
-                tint = if (vanishOn) palette.rose else palette.inkMuted
-            )
+        IconButton(onClick = onOpenChecklist) {
+            BadgedBox(badge = {
+                if (checklistCount > 0) Badge(containerColor = palette.rose) { Text("$checklistCount") }
+            }) {
+                Icon(
+                    imageVector = Icons.Outlined.Checklist,
+                    contentDescription = "清單",
+                    tint = palette.inkMuted
+                )
+            }
         }
     }
     HorizontalDivider(thickness = 0.5.dp, color = palette.line)
