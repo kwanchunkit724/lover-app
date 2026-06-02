@@ -18,6 +18,9 @@ struct ChecklistItem: Identifiable, Equatable {
 final class ChecklistService: ObservableObject {
 
     @Published private(set) var items: [ChecklistItem] = []
+    /// Surfaced so the panel can show why an add/toggle failed instead of the
+    /// "+ does nothing" symptom.
+    @Published var lastError: String?
 
     /// Count of not-yet-done items — drives the header badge.
     var openCount: Int { items.filter { !$0.done }.count }
@@ -53,7 +56,11 @@ final class ChecklistService: ObservableObject {
 
     func add(_ text: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, let coupleId, let me = meId else { return }
+        guard !trimmed.isEmpty else { return }
+        guard let coupleId, let me = meId else {
+            lastError = "未準備好（請重開 app 再試）"
+            return
+        }
         struct Row: Encodable { let couple_id: UUID; let sender_id: UUID; let ciphertext_b64: String }
         do {
             let cipher = try crypto.seal(ChatPayload.text(trimmed))
@@ -61,7 +68,9 @@ final class ChecklistService: ObservableObject {
                 .insert(Row(couple_id: coupleId, sender_id: me, ciphertext_b64: cipher))
                 .execute()
             await fetchOnce()
-        } catch { }
+        } catch {
+            lastError = "加入失敗：\(error.localizedDescription)"
+        }
     }
 
     func toggle(_ item: ChecklistItem) async {

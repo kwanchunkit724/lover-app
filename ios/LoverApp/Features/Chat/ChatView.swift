@@ -321,10 +321,21 @@ struct ChatView: View {
             )
             .theme(theme)
         }
-        .sheet(isPresented: $showChecklist) {
-            ChecklistSheet()
-                .environmentObject(checklist)
-                .theme(theme)
+        // v1.6.5 — checklist as a compact top-right panel (~1/4 screen), not
+        // a full sheet. Dim backdrop taps to close.
+        .overlay {
+            if showChecklist {
+                ZStack(alignment: .topTrailing) {
+                    Color.black.opacity(0.12).ignoresSafeArea()
+                        .onTapGesture { showChecklist = false }
+                    ChecklistSheet(onClose: { showChecklist = false })
+                        .environmentObject(checklist)
+                        .theme(theme)
+                        .padding(.top, 52)
+                        .padding(.trailing, 8)
+                }
+                .transition(.opacity)
+            }
         }
         // v1.6.1 — Feature 6/7 overlays live in a ViewModifier so this body's
         // modifier chain stays small enough for the Swift type-checker.
