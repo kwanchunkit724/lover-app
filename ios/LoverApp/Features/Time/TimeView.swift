@@ -89,11 +89,18 @@ struct TimeView: View {
             }
         }
         .background(theme.paper)
+        // v1.6.3 — pull the latest meet-ups when the Time tab appears, so the
+        // 見面 section can't be left stale/empty by a missed realtime event.
+        .task { await meetups.refresh() }
         // v1.4.1 — surface entries / play-history backend errors so user
         // can screenshot when something fails silently.
         .errorToast(Binding(
             get: { entryService.lastError },
             set: { entryService.lastError = $0 }
+        ))
+        .errorToast(Binding(
+            get: { meetups.lastError },
+            set: { meetups.lastError = $0 }
         ))
         .sheet(isPresented: $addingEntry) {
             AddEntryView(onClose: { addingEntry = false })

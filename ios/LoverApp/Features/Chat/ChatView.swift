@@ -327,7 +327,16 @@ struct ChatView: View {
             received: $received,
             showSetMeetup: $showSetMeetup,
             selfieMeetup: $selfieMeetup,
-            handledDueId: $handledDueId
+            handledDueId: $handledDueId,
+            onCheerComplete: { m in
+                guard case .signedIn(let uuid) = auth.state else { return }
+                Task {
+                    await mood.sendCheerComplete(targetMood: m)
+                    // Post a visible line in the chat so the cheer shows up in
+                    // the conversation, not only in the live overlay.
+                    await chat.sendText(m.cheerDoneMessage, senderId: uuid)
+                }
+            }
         ))
     }
 
@@ -365,19 +374,26 @@ struct ChatView: View {
                     if pm.needsCheer || pm == .happy || pm == .love { cheerTarget = pm }
                 } label: {
                     Text(pm.kao)
-                        .font(DSText.mono(theme, 12))
+                        .font(.system(size: 14, design: .monospaced))
                         .foregroundStyle(theme.rose)
+                        .fixedSize()
+                        .lineLimit(1)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .background(theme.roseSoft, in: Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("伴侶心情 \(pm.label)，撳一下\(pm.cheerVerb)")
             }
             Button { showMoodPicker = true } label: {
                 Text(mood.myMood?.kao ?? "(･_･)")
-                    .font(DSText.mono(theme, 11))
+                    .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(theme.inkSoft)
+                    .fixedSize()
+                    .lineLimit(1)
                     .opacity(mood.myMood == nil ? 0.45 : 1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
                     .background(theme.paperAlt, in: Capsule())
             }
             .buttonStyle(.plain)
@@ -711,6 +727,9 @@ private struct ChatFeatureOverlays: ViewModifier {
     @Binding var showSetMeetup: Bool
     @Binding var selfieMeetup: Meetup?
     @Binding var handledDueId: UUID?
+    /// Called when I finish cheering my partner — records the cheer AND posts
+    /// a visible line in the chat thread.
+    let onCheerComplete: (Mood) -> Void
 
     func body(content: Content) -> some View {
         content
@@ -765,7 +784,7 @@ private struct ChatFeatureOverlays: ViewModifier {
             CheerOverlay(
                 partnerName: partnerName,
                 mood: target,
-                onComplete: { Task { await mood.sendCheerComplete(targetMood: target) } },
+                onComplete: { onCheerComplete(target) },
                 onClose: { cheerTarget = nil }
             )
         }

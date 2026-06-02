@@ -17,7 +17,7 @@ struct MoodPickerSheet: View {
                     .font(DSText.ui(theme, 16, weight: .semibold))
                     .foregroundStyle(theme.ink)
 
-                HStack(spacing: 14) {
+                HStack(spacing: 8) {
                     ForEach(Mood.allCases) { mood in
                         let active = mood == current
                         Button {
@@ -26,14 +26,19 @@ struct MoodPickerSheet: View {
                         } label: {
                             VStack(spacing: 6) {
                                 Text(mood.kao)
-                                    .font(DSText.mono(theme, 15))
+                                    .font(.system(size: 16, design: .monospaced))
                                     .foregroundStyle(active ? theme.rose : theme.ink)
+                                    .fixedSize()
+                                    .lineLimit(1)
                                 Text(mood.label)
                                     .font(DSText.mono(theme, 10))
                                     .foregroundStyle(active ? theme.rose : theme.inkMuted)
+                                    .fixedSize()
+                                    .lineLimit(1)
                             }
+                            .frame(maxWidth: .infinity)
                             .padding(.vertical, 10)
-                            .padding(.horizontal, 8)
+                            .padding(.horizontal, 4)
                             .background {
                                 if active {
                                     RoundedRectangle(cornerRadius: 14, style: .continuous)

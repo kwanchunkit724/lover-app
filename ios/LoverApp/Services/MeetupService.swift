@@ -80,6 +80,10 @@ final class MeetupService: ObservableObject {
     func pause() { stop() }
     func resume(coupleId: UUID) { start(coupleId: coupleId) }
 
+    /// Public refresh so views (e.g. the Time tab) can pull the latest on
+    /// appear, guarding against any stale/missed realtime update.
+    func refresh() async { await fetchOnce() }
+
     // MARK: - Mutations
 
     func createMeetup(meetDate: String, title: String) async {

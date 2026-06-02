@@ -14,14 +14,27 @@ enum Mood: String, Codable, CaseIterable, Identifiable, Sendable {
     var id: String { rawValue }
 
     /// Kaomoji face (the app's aesthetic — used instead of emoji everywhere
-    /// a mood is shown).
+    /// a mood is shown). Kept to simple, single-width glyphs (no combining
+    /// accents) so they don't misalign in a chip.
     var kao: String {
         switch self {
         case .happy: return "(◕‿◕)"
-        case .sad:   return "(｡•́︿•̀｡)"
-        case .angry: return "(╬ಠ益ಠ)"
-        case .love:  return "(♡˙︶˙♡)"
-        case .tired: return "(ᴗ_ᴗ｡)"
+        case .sad:   return "(╥_╥)"
+        case .angry: return "(`Д´)"
+        case .love:  return "(♡‿♡)"
+        case .tired: return "(-_-)"
+        }
+    }
+
+    /// Chat line posted to the thread when the partner finishes cheering, so
+    /// the cheer is visible in the conversation (not just the live overlay).
+    var cheerDoneMessage: String {
+        switch self {
+        case .happy: return "同你擊掌 ✋ (◕‿◕)"
+        case .love:  return "錫返你一啖 (♡‿♡)"
+        case .sad:   return "氹返你開心喇 (◕‿◕)"
+        case .angry: return "氹返你唔好嬲喇 (◕‿◕)"
+        case .tired: return "幫你叉返電 ⚡ (◕‿◕)"
         }
     }
 
