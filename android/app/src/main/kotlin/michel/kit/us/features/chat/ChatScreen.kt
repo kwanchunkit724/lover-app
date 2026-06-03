@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Checklist
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.EmojiEmotions
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Timer
@@ -102,6 +103,23 @@ fun ChatScreen() {
     val moodScope = rememberCoroutineScope()
     val meetupUpcoming by container.meetups.upcoming.collectAsStateWithLifecycle()
     var showSetMeetup by remember { mutableStateOf(false) }
+    // v1.6.x — forced selfie on the meet-up day.
+    val dueMeetup by container.meetups.dueMeetup.collectAsStateWithLifecycle()
+    var selfieDismissed by remember { mutableStateOf<String?>(null) }
+    val selfieCtx = LocalContext.current
+    val selfieCamera = rememberCameraLauncher(remember {
+        PhotoPickerCallbacks(
+            onPicked = { bytes ->
+                container.meetups.dueMeetup.value?.let { m ->
+                    moodScope.launch { container.meetups.submitSelfie(UUID.fromString(m.id), bytes) }
+                }
+            },
+            onCancelled = {}
+        )
+    })
+    val selfiePermLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) selfieCamera() }
 
     Box(modifier = Modifier.fillMaxSize().background(palette.paper)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -165,7 +183,38 @@ fun ChatScreen() {
                 )
             )
 
-            Composer(
+            // v1.6.x — voice recorder + RECORD_AUDIO permission gate.
+            val voiceRecorder = remember { VoiceRecorder(ctx) }
+            var isRecording by remember { mutableStateOf(false) }
+            var recElapsed by remember { mutableStateOf(0) }
+            val recordPermLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission()
+            ) { granted -> if (granted && voiceRecorder.start()) isRecording = true }
+            val startMic: () -> Unit = {
+                val granted = ContextCompat.checkSelfPermission(
+                    ctx, Manifest.permission.RECORD_AUDIO
+                ) == PackageManager.PERMISSION_GRANTED
+                if (granted) { if (voiceRecorder.start()) isRecording = true }
+                else recordPermLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            }
+            LaunchedEffect(isRecording) {
+                if (isRecording) { recElapsed = 0; while (isRecording) { kotlinx.coroutines.delay(1000); recElapsed++ } }
+            }
+
+            if (isRecording) {
+                VoiceRecordingBar(
+                    elapsed = recElapsed,
+                    onCancel = { voiceRecorder.cancel(); isRecording = false },
+                    onSend = {
+                        val result = voiceRecorder.stop()
+                        isRecording = false
+                        val me = meId
+                        if (result != null && me != null) {
+                            moodScope.launch { container.chat.sendVoice(result.first, result.second, me) }
+                        }
+                    }
+                )
+            } else Composer(
                 value = input,
                 onValueChange = { v ->
                     vm.setInput(v)
@@ -186,6 +235,7 @@ fun ChatScreen() {
                     }
                 },
                 onTapVideo = launchVideo,
+                onTapMic = startMic,
                 onTextFieldFocused = {
                     if (showKaomoji) showKaomoji = false
                 },
@@ -261,6 +311,19 @@ fun ChatScreen() {
                 onCancelMeetup = { id -> moodScope.launch { container.meetups.cancelMeetup(UUID.fromString(id)) } },
                 onClose = { showSetMeetup = false }
             )
+        }
+        dueMeetup?.let { m ->
+            if (m.id != selfieDismissed) {
+                SelfiePromptOverlay(
+                    onTake = {
+                        val granted = ContextCompat.checkSelfPermission(
+                            selfieCtx, Manifest.permission.CAMERA
+                        ) == PackageManager.PERMISSION_GRANTED
+                        if (granted) selfieCamera() else selfiePermLauncher.launch(Manifest.permission.CAMERA)
+                    },
+                    onLater = { selfieDismissed = m.id }
+                )
+            }
         }
     }
 }
@@ -495,6 +558,29 @@ private fun ReplyComposingRow(
 }
 
 @Composable
+private fun VoiceRecordingBar(elapsed: Int, onCancel: () -> Unit, onSend: () -> Unit) {
+    val palette = LocalLoverColors.current
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().background(palette.nav).padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        IconButton(onClick = onCancel) {
+            Icon(Icons.Outlined.Close, contentDescription = "取消", tint = palette.inkMuted, modifier = Modifier.size(22.dp))
+        }
+        Box(Modifier.size(9.dp).clip(RoundedCornerShape(50)).background(Color.Red))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            String.format("錄緊音 0:%02d", elapsed),
+            style = DSText.mono(13, androidx.compose.ui.text.font.FontWeight.SemiBold).copy(color = palette.ink)
+        )
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = onSend) {
+            Icon(Icons.Outlined.Send, contentDescription = "send", tint = palette.rose, modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+@Composable
 private fun Composer(
     value: String,
     onValueChange: (String) -> Unit,
@@ -503,6 +589,7 @@ private fun Composer(
     onTapPhoto: () -> Unit,
     onTapKaomoji: () -> Unit,
     onTapVideo: () -> Unit,
+    onTapMic: () -> Unit = {},
     onTextFieldFocused: () -> Unit,
     focusRequester: FocusRequester
 ) {
@@ -528,6 +615,15 @@ private fun Composer(
             Icon(
                 Icons.Outlined.Videocam,
                 contentDescription = "影片",
+                tint = if (enabled) palette.rose else palette.inkMuted,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        // 🎤 voice record (v1.6.x — re-added)
+        IconButton(onClick = onTapMic, enabled = enabled) {
+            Icon(
+                Icons.Outlined.Mic,
+                contentDescription = "錄音",
                 tint = if (enabled) palette.rose else palette.inkMuted,
                 modifier = Modifier.size(22.dp)
             )

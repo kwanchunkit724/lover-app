@@ -103,3 +103,29 @@ fun SetMeetupDialog(
         }
     }
 }
+
+/** Full-screen prompt shown on the meet-up day until the user submits a selfie. */
+@Composable
+fun SelfiePromptOverlay(onTake: () -> Unit, onLater: () -> Unit) {
+    val palette = LocalLoverColors.current
+    Box(
+        modifier = Modifier.fillMaxSize().background(palette.paper),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("( ´ ▽ ` )ﾉ", style = DSText.mono(34).copy(color = palette.rose))
+            Spacer(Modifier.height(18.dp))
+            Text("今日見面喇！🎉", style = DSText.ui(22, FontWeight.SemiBold).copy(color = palette.ink))
+            Spacer(Modifier.height(8.dp))
+            Text("影張自拍留念，會自動加入紀念冊", style = DSText.ui(14).copy(color = palette.inkMuted))
+            Spacer(Modifier.height(22.dp))
+            Button(onClick = onTake, colors = ButtonDefaults.buttonColors(containerColor = palette.rose)) {
+                Text("影自拍")
+            }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onLater) {
+                Text("遲啲先", style = DSText.mono(12).copy(color = palette.inkMuted))
+            }
+        }
+    }
+}

@@ -1,6 +1,7 @@
 package michel.kit.us.features.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,6 +60,7 @@ fun EncryptedAudioPlayback(
     var failed by remember(mediaHandle) { mutableStateOf(false) }
     var isPlaying by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
+    var rate by remember { mutableFloatStateOf(1f) }   // v1.6.x playback speed
 
     val player = remember {
         ExoPlayer.Builder(ctx).build().apply {
@@ -173,6 +175,21 @@ fun EncryptedAudioPlayback(
             String.format("0:%02d", durationSec),
             style = DSText.mono(10).copy(color = dim)
         )
+
+        if (loadedOnce) {
+            Text(
+                if (rate == 1f) "1x" else if (rate == 1.5f) "1.5x" else "2x",
+                style = DSText.mono(10).copy(color = fg),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (isFromMe) palette.bubbleMeText.copy(alpha = 0.2f) else palette.paperAlt)
+                    .clickable {
+                        rate = if (rate == 1f) 1.5f else if (rate == 1.5f) 2f else 1f
+                        player.setPlaybackSpeed(rate)
+                    }
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+            )
+        }
     }
 }
 
