@@ -56,6 +56,8 @@ fun TimeScreen(onOpenAnniversaries: () -> Unit) {
     val viewMonth by vm.viewMonth.collectAsStateWithLifecycle()
     val today = remember { TimeFormatting.todayISO() }
     val scroll = rememberScrollState()
+    val meetups by container.meetups.all.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { container.meetups.refresh() }
 
     var showAddEntry by remember { mutableStateOf(false) }
     var presented by remember { mutableStateOf<DecryptedEntry?>(null) }
@@ -80,6 +82,32 @@ fun TimeScreen(onOpenAnniversaries: () -> Unit) {
                 rose = palette.rose,
                 onClick = onOpenAnniversaries
             )
+        }
+
+        // v1.6.x — meet-ups (countdown + completed).
+        val visibleMeetups = meetups.filter { it.status != "cancelled" }
+        if (visibleMeetups.isNotEmpty()) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text("💕 見面", style = DSText.mono(10, FontWeight.SemiBold).copy(color = palette.rose), modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
+                visibleMeetups.forEach { m ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                            .clip(RoundedCornerShape(14.dp)).background(palette.surface)
+                            .padding(12.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(m.title, style = DSText.ui(15, FontWeight.SemiBold).copy(color = palette.ink), maxLines = 1)
+                            val sub = when {
+                                m.status == "completed" -> "${m.meet_date} · 已完成 ✓"
+                                m.daysUntil <= 0 -> "${m.meet_date} · 今日！"
+                                else -> "${m.meet_date} · 仲有 ${m.daysUntil} 日"
+                            }
+                            Text(sub, style = DSText.mono(11).copy(color = if (m.status == "completed") palette.sage else palette.inkMuted))
+                        }
+                    }
+                }
+            }
         }
 
         // Month header
