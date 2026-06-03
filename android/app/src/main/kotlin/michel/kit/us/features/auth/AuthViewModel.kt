@@ -63,5 +63,18 @@ class AuthViewModel(private val repo: AuthRepository) : ViewModel() {
         }
     }
 
+    fun signInAnonymously() {
+        if (_busy.value) return
+        _busy.value = true
+        _error.value = null
+        viewModelScope.launch {
+            runCatching { repo.signInAnonymously() }
+                .onFailure { _error.value = it.message ?: "匿名登入失敗" }
+            _busy.value = false
+        }
+    }
+
+    fun setBusy(v: Boolean) { _busy.value = v }
+
     fun showError(msg: String) { _error.value = msg }
 }

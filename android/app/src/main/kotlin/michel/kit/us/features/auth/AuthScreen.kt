@@ -120,6 +120,7 @@ fun AuthScreen() {
                     vm.showError("Google 登入未設定 — Web Client ID 仲未填")
                     return@OutlinedButton
                 }
+                vm.setBusy(true)
                 coroutineScope.launch {
                     runCatching {
                         val credentialManager = CredentialManager.create(context)
@@ -141,7 +142,7 @@ fun AuthScreen() {
                         } else {
                             vm.showError("唔識嘅憑證類型")
                         }
-                    }.onFailure { vm.showError(it.message ?: "Google 登入失敗") }
+                    }.onFailure { vm.showError(it.message ?: "Google 登入失敗"); vm.setBusy(false) }
                 }
             },
             enabled = !busy,
@@ -151,6 +152,23 @@ fun AuthScreen() {
                 text = "Continue with Google",
                 style = DSText.ui(14).copy(color = palette.ink)
             )
+        }
+
+        // Debug-only anonymous sign-in — lets emulator/sideloaded testing work
+        // where Google can't (signing SHA-1 not registered). Tree-shaken from
+        // release behaviour by the runtime debuggable check; never shown to
+        // real users.
+        val isDebuggable = (context.applicationInfo.flags and
+            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
+        if (isDebuggable) {
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = vm::signInAnonymously,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().height(46.dp)
+            ) {
+                Text("🧪 試玩（匿名）", style = DSText.ui(14).copy(color = palette.rose))
+            }
         }
 
         Spacer(Modifier.height(14.dp))

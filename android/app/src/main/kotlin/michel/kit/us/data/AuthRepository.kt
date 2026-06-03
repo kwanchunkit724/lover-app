@@ -80,6 +80,18 @@ class AuthRepository(
         push.bootstrap()
     }
 
+    /**
+     * Anonymous sign-in — for testing on emulators/sideloaded debug builds
+     * where Google Sign-In can't work (the build's signing SHA-1 isn't
+     * registered with the Google OAuth client). Gated to debug builds in the
+     * UI. Requires "Allow anonymous sign-ins" enabled in the Supabase project.
+     */
+    suspend fun signInAnonymously() {
+        auth.signInAnonymously()
+        runCatching { upsertProfile() }
+        runCatching { push.bootstrap() }
+    }
+
     suspend fun signUpWithEmail(email: String, password: String) {
         auth.signUpWith(Email) {
             this.email = email.trim()
