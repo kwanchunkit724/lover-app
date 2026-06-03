@@ -217,7 +217,6 @@ private fun readUriAsCompressedJpeg(ctx: Context, uri: Uri): ByteArray? = runCat
 }.onFailure {
     android.util.Log.e("PhotoPicker", "readUriAsCompressedJpeg failed", it)
 }.getOrNull()
-}
 
 private fun readFileAsCompressedJpeg(file: File): ByteArray? {
     val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
