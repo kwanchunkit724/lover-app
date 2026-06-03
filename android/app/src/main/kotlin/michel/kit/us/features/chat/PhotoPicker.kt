@@ -184,11 +184,16 @@ private const val MAX_DIMENSION = 1600
 private const val JPEG_QUALITY = 85
 
 private fun readUriAsCompressedJpeg(ctx: Context, uri: Uri): ByteArray? = runCatching {
-    // 1) Decode bounds-only to compute inSampleSize.
+    // 1) Decode bounds-only to compute inSampleSize. NOTE: an inJustDecodeBounds
+    //    decode ALWAYS returns a null Bitmap by design (it only fills outWidth/
+    //    outHeight), so we must NOT null-check its result — the old
+    //    `?: return null` here fired every time and aborted the whole decode,
+    //    which is why picking a gallery photo silently sent nothing. Only guard
+    //    that the stream opened.
     val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    ctx.contentResolver.openInputStream(uri)?.use {
+    (ctx.contentResolver.openInputStream(uri) ?: return@runCatching null).use {
         BitmapFactory.decodeStream(it, null, boundsOpts)
-    } ?: return@runCatching null
+    }
     val sample = computeSampleSize(boundsOpts.outWidth, boundsOpts.outHeight, MAX_DIMENSION)
 
     // 2) Decode at sample size.
