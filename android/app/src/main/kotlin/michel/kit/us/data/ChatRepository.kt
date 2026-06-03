@@ -353,11 +353,11 @@ class ChatRepository(
 
             val now = Instant.now()
             val decoded: MutableList<DecryptedMessage> = rows.mapNotNull { row ->
-                val createdAt = Instant.parse(row.created_at)
-                val expiresAt = row.expires_at?.let(Instant::parse)
-                val deletedAt = row.deleted_at?.let(Instant::parse)
-                val editedAt  = row.edited_at?.let(Instant::parse)
-                val readAt    = row.read_at?.let(Instant::parse)
+                val createdAt = IsoDate.instant(row.created_at)
+                val expiresAt = row.expires_at?.let(IsoDate::instant)
+                val deletedAt = row.deleted_at?.let(IsoDate::instant)
+                val editedAt  = row.edited_at?.let(IsoDate::instant)
+                val readAt    = row.read_at?.let(IsoDate::instant)
 
                 // Client-side TTL filter — server eventually deletes via cron.
                 if (expiresAt != null && expiresAt.isBefore(now)) return@mapNotNull null
@@ -423,8 +423,10 @@ class ChatRepository(
                 }
             }
 
+            android.util.Log.i("ChatDbg", "fetchOnce cid=$cid rows=${rowsDesc.size} decoded=${decoded.size}")
             _messages.value = decoded
         } catch (t: Throwable) {
+            android.util.Log.e("ChatDbg", "fetchOnce FAIL cid=$cid", t)
             _lastError.value = t.message
         } finally {
             _isLoading.value = false

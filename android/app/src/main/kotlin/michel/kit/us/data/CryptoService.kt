@@ -218,4 +218,20 @@ class CryptoService {
 // well enough for round-trip (both sides parse with their own iso decoder).
 internal object IsoDate {
     fun now(): String = java.time.Instant.now().toString()
+
+    /**
+     * Tolerant ISO-8601 → Instant. Postgres/PostgREST returns timestamptz with
+     * a numeric offset ("2026-06-03T12:26:51.446483+00:00"), NOT a 'Z'. On some
+     * platform java.time builds (older Android) `Instant.parse` only accepts a
+     * 'Z' terminator and throws DateTimeParseException on "+00:00" — which, in
+     * ChatRepository.fetchOnce, propagated out of the row mapper and silently
+     * emptied the whole message list. OffsetDateTime.parse handles both 'Z' and
+     * numeric offsets on every platform; we keep Instant.parse as a fast path.
+     */
+    fun instant(raw: String): java.time.Instant =
+        try {
+            java.time.Instant.parse(raw)
+        } catch (_: java.time.format.DateTimeParseException) {
+            java.time.OffsetDateTime.parse(raw).toInstant()
+        }
 }

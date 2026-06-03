@@ -144,7 +144,7 @@ class EntryRepository(
                     id = UUID.fromString(row.id),
                     senderId = UUID.fromString(row.sender_id),
                     payload = payload,
-                    createdAt = Instant.parse(row.created_at)
+                    createdAt = IsoDate.instant(row.created_at)
                 )
             }
         } catch (t: Throwable) {

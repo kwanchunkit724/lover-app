@@ -88,7 +88,7 @@ fun ChatScreen() {
             initial = n.firstOrNull()?.toString() ?: "?",
             tint = Person.Tint.sage,
             lastSeenAt = partner?.lastSeenAt?.let {
-                runCatching { java.time.Instant.parse(it) }.getOrNull()
+                runCatching { michel.kit.us.data.IsoDate.instant(it) }.getOrNull()
             }
         )
     }

@@ -139,6 +139,6 @@ class PresenceRepository(
             }
             .decodeList()
         val raw = rows.firstOrNull()?.lastSeenAt ?: return null
-        return runCatching { Instant.parse(raw) }.getOrNull()
+        return runCatching { IsoDate.instant(raw) }.getOrNull()
     }
 }

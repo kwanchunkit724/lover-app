@@ -173,7 +173,7 @@ class MoodRepository(
             }.decodeList()
             val latest = rows.firstOrNull() ?: return
             if (UUID.fromString(latest.to_user_id) != me) return
-            if (Instant.parse(latest.created_at).isBefore(startedAt.minusSeconds(5))) return
+            if (IsoDate.instant(latest.created_at).isBefore(startedAt.minusSeconds(5))) return
             val mood = Mood.fromWire(latest.mood) ?: Mood.happy
             _incomingCheer.value = mood
             setMood(Mood.happy)
