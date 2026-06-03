@@ -183,31 +183,40 @@ private fun SheetOptionRow(
 private const val MAX_DIMENSION = 1600
 private const val JPEG_QUALITY = 85
 
-private fun readUriAsCompressedJpeg(ctx: Context, uri: Uri): ByteArray? {
+private fun readUriAsCompressedJpeg(ctx: Context, uri: Uri): ByteArray? = runCatching {
     // 1) Decode bounds-only to compute inSampleSize.
     val boundsOpts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     ctx.contentResolver.openInputStream(uri)?.use {
         BitmapFactory.decodeStream(it, null, boundsOpts)
-    } ?: return null
+    } ?: return@runCatching null
     val sample = computeSampleSize(boundsOpts.outWidth, boundsOpts.outHeight, MAX_DIMENSION)
 
     // 2) Decode at sample size.
     val decodeOpts = BitmapFactory.Options().apply { inSampleSize = sample }
     val bitmap = ctx.contentResolver.openInputStream(uri)?.use {
         BitmapFactory.decodeStream(it, null, decodeOpts)
-    } ?: return null
+    } ?: return@runCatching null
 
     // 3) Apply EXIF orientation (some Android galleries don't auto-rotate).
-    val orientation = ctx.contentResolver.openInputStream(uri)?.use {
-        ExifInterface(it).getAttributeInt(
-            ExifInterface.TAG_ORIENTATION,
-            ExifInterface.ORIENTATION_NORMAL
-        )
-    } ?: ExifInterface.ORIENTATION_NORMAL
+    //    ExifInterface(InputStream) can THROW on PNG/HEIC/screenshot streams on
+    //    some platforms — guard it so a missing/invalid EXIF block never aborts
+    //    the whole send (previously this threw inside the IO coroutine with no
+    //    catch, so picking a PNG silently sent nothing).
+    val orientation = runCatching {
+        ctx.contentResolver.openInputStream(uri)?.use {
+            ExifInterface(it).getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+        } ?: ExifInterface.ORIENTATION_NORMAL
+    }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
 
     val rotated = applyExifOrientation(bitmap, orientation)
     val resized = scaleIfNeeded(rotated, MAX_DIMENSION)
-    return compressToJpeg(resized)
+    compressToJpeg(resized)
+}.onFailure {
+    android.util.Log.e("PhotoPicker", "readUriAsCompressedJpeg failed", it)
+}.getOrNull()
 }
 
 private fun readFileAsCompressedJpeg(file: File): ByteArray? {

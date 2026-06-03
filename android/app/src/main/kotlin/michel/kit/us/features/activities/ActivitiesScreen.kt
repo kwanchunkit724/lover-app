@@ -8,10 +8,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +30,12 @@ fun ActivitiesScreen() {
     val palette = LocalLoverColors.current
     val scroll = rememberScrollState()
 
+    var showDeck by remember { mutableStateOf(false) }
+    if (showDeck) {
+        CardDeckScreen(onClose = { showDeck = false })
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -48,7 +52,7 @@ fun ActivitiesScreen() {
         Spacer(Modifier.height(16.dp))
 
         // Featured card
-        FeatureCard(rose = palette.rose)
+        FeatureCard(rose = palette.rose, onDraw = { showDeck = true })
         Spacer(Modifier.height(16.dp))
 
         // Grid (use a non-scrollable LazyVerticalGrid with a fixed height fallback)
@@ -57,7 +61,11 @@ fun ActivitiesScreen() {
         tiles.chunked(2).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 row.forEach { a ->
-                    Box(Modifier.weight(1f)) { ActivityTile(a) }
+                    Box(Modifier.weight(1f)) {
+                        ActivityTile(a, onClick = {
+                            if (a.kind == CatalogActivity.Kind.cards) showDeck = true
+                        })
+                    }
                 }
                 if (row.size == 1) Box(Modifier.weight(1f))
             }
@@ -67,7 +75,7 @@ fun ActivitiesScreen() {
 }
 
 @Composable
-private fun FeatureCard(rose: Color) {
+private fun FeatureCard(rose: Color, onDraw: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -87,6 +95,7 @@ private fun FeatureCard(rose: Color) {
             Box(
                 modifier = Modifier
                     .clip(CircleShape)
+                    .clickable(onClick = onDraw)
                     .background(Color.White)
                     .padding(horizontal = 18.dp, vertical = 10.dp)
             ) {
@@ -99,7 +108,7 @@ private fun FeatureCard(rose: Color) {
 }
 
 @Composable
-private fun ActivityTile(activity: CatalogActivity) {
+private fun ActivityTile(activity: CatalogActivity, onClick: () -> Unit) {
     val palette = LocalLoverColors.current
     val (fg, bg) = when (activity.kind) {
         CatalogActivity.Kind.cards     -> palette.rose to palette.roseSoft
@@ -116,7 +125,7 @@ private fun ActivityTile(activity: CatalogActivity) {
             .clip(RoundedCornerShape(14.dp))
             .background(palette.surface)
             .border(0.5.dp, palette.line, RoundedCornerShape(14.dp))
-            .clickable(onClick = { /* Round 2: detail sheets */ })
+            .clickable(onClick = onClick)
             .padding(14.dp)
     ) {
         Box(
