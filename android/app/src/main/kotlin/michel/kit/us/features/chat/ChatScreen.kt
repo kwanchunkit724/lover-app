@@ -100,6 +100,8 @@ fun ChatScreen() {
     var showMoodPicker by remember { mutableStateOf(false) }
     var cheerTarget by remember { mutableStateOf<michel.kit.us.data.Mood?>(null) }
     val moodScope = rememberCoroutineScope()
+    val meetupUpcoming by container.meetups.upcoming.collectAsStateWithLifecycle()
+    var showSetMeetup by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize().background(palette.paper)) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -113,6 +115,8 @@ fun ChatScreen() {
                 checklistCount = checklistItems.count { !it.done },
                 onOpenChecklist = { showChecklist = true }
             )
+
+            MeetupBanner(upcoming = meetupUpcoming, onClick = { showSetMeetup = true })
 
             if (!cryptoReady) {
                 CryptoPreparingBanner()
@@ -236,7 +240,7 @@ fun ChatScreen() {
                     val me = meId
                     moodScope.launch {
                         container.mood.sendCheerComplete(target)
-                        if (me != null) container.chat.sendText(target.cheerDoneMessage, UUID.fromString(me))
+                        if (me != null) container.chat.sendText(target.cheerDoneMessage, me)
                     }
                 },
                 onClose = { cheerTarget = null }
@@ -247,6 +251,15 @@ fun ChatScreen() {
                 partnerName = partnerPerson.name,
                 mood = m,
                 onClose = { container.mood.consumeIncomingCheer() }
+            )
+        }
+
+        if (showSetMeetup) {
+            SetMeetupDialog(
+                existing = meetupUpcoming,
+                onCreate = { iso, title -> moodScope.launch { container.meetups.createMeetup(iso, title) } },
+                onCancelMeetup = { id -> moodScope.launch { container.meetups.cancelMeetup(UUID.fromString(id)) } },
+                onClose = { showSetMeetup = false }
             )
         }
     }
