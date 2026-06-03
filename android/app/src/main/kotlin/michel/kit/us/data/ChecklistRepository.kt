@@ -139,15 +139,25 @@ class ChecklistRepository(
         val deletes = channel.postgresChangeFlow<PostgresAction.Delete>(schema = "public") {
             table = "checklist_items"
         }
-        try {
-            channel.subscribe(blockUntilSubscribed = true)
-        } catch (t: Throwable) {
+        val subscribed = try {
+            channel.subscribe(blockUntilSubscribed = true); true
+        } catch (t: Throwable) { false }
+        if (!subscribed) {
+            withContext(NonCancellable) { runCatching { client.realtime.removeChannel(channel) } }
             return
         }
-        coroutineScope {
-            launch { inserts.collect { fetchOnce() } }
-            launch { updates.collect { fetchOnce() } }
-            launch { deletes.collect { fetchOnce() } }
+        try {
+            coroutineScope {
+                launch { inserts.collect { fetchOnce() } }
+                launch { updates.collect { fetchOnce() } }
+                launch { deletes.collect { fetchOnce() } }
+            }
+        } finally {
+            // Remove the channel so a fresh, un-joined one is created on the
+            // next start(). Without this, resume() reuses the cached joined
+            // channel and postgresChangeFlow throws "cannot call ... after
+            // joining the channel", crashing the app on background→resume.
+            withContext(NonCancellable) { runCatching { client.realtime.removeChannel(channel) } }
         }
     }
 

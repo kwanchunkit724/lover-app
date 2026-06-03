@@ -17,6 +17,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import michel.kit.us.features.activities.ActivitiesScreen
 import michel.kit.us.features.auth.AuthScreen
@@ -73,31 +75,13 @@ private fun RootRouter() {
     // One-time: show onboarding splash on very first launch.
     var seenOnboarding by rememberSaveable { mutableStateOf(false) }
 
-    // When we transition into signed-in, fetch the couple row + bootstrap
-    // crypto (needs partner pubkey).
+    // Sign-in / sign-out bootstrap: initial couple + profile fetch, or tear
+    // everything down on logout.
     LaunchedEffect(userId) {
         val uid = userId
         if (uid != null) {
             container.pairing.refresh(uid)
             container.userProfile.refresh(uid)
-            val c = container.pairing.couple.value
-            val partner = container.pairing.partner.value
-            if (c != null && partner?.publicKey != null) {
-                runCatching {
-                    container.crypto.prepare(
-                        coupleId = c.coupleUuid(),
-                        partnerPublicKeyBase64 = partner.publicKey,
-                        myPrivateKey = container.keyManager.myPrivateKey()
-                    )
-                    container.chat.start(c.coupleUuid())
-                    container.entries.start(c.coupleUuid())
-                    container.anniversaries.start(c.coupleUuid())
-                    container.presence.start(c.coupleUuid())
-                    container.mood.start(c.coupleUuid())
-                    container.meetups.start(c.coupleUuid())
-                    container.checklist.start(c.coupleUuid())
-                }
-            }
         } else {
             container.crypto.reset()
             container.chat.stop()
@@ -107,6 +91,51 @@ private fun RootRouter() {
             container.mood.stop()
             container.meetups.stop()
             container.checklist.stop()
+        }
+    }
+
+    // While signed in but not yet paired, poll for the couple row so the
+    // *generator* side advances into the app the moment the partner redeems
+    // the code. Owning the poll here (not just in PairingViewModel) means it
+    // survives recomposition + works regardless of which pairing sub-screen
+    // is shown. Without this the generator stayed stuck on the code screen.
+    LaunchedEffect(userId, couple) {
+        val uid = userId ?: return@LaunchedEffect
+        if (couple != null) return@LaunchedEffect
+        while (isActive && container.pairing.couple.value == null) {
+            delay(3000)
+            runCatching { container.pairing.refresh(uid) }
+        }
+    }
+
+    // When the couple becomes known — at cold start (already paired) OR live
+    // (just paired via the poll above) — derive the E2EE key + start every
+    // per-couple repo. Keyed on couple?.id so it fires whether the couple was
+    // present at sign-in or appeared later. The previous code only started
+    // these inside LaunchedEffect(userId), so pairing *after* sign-in left
+    // chat/crypto un-started (messages never loaded, repos never subscribed).
+    LaunchedEffect(userId, couple?.id) {
+        val uid = userId ?: return@LaunchedEffect
+        val c = couple ?: return@LaunchedEffect
+        var partner = container.pairing.partner.value
+        if (partner?.publicKey == null) {
+            runCatching { container.pairing.refresh(uid) }
+            partner = container.pairing.partner.value
+        }
+        val pubKey = partner?.publicKey ?: return@LaunchedEffect
+        runCatching {
+            container.crypto.prepare(
+                coupleId = c.coupleUuid(),
+                partnerPublicKeyBase64 = pubKey,
+                myPrivateKey = container.keyManager.myPrivateKey()
+            )
+            container.chat.start(c.coupleUuid())
+            container.entries.start(c.coupleUuid())
+            container.anniversaries.start(c.coupleUuid())
+            container.presence.start(c.coupleUuid())
+            container.mood.start(c.coupleUuid())
+            container.meetups.start(c.coupleUuid())
+            container.checklist.start(c.coupleUuid())
         }
     }
 

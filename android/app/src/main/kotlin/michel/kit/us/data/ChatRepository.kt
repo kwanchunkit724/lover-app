@@ -317,18 +317,29 @@ class ChatRepository(
             table = "message_reactions"
         }
 
-        try {
-            channel.subscribe(blockUntilSubscribed = true)
+        val subscribed = try {
+            channel.subscribe(blockUntilSubscribed = true); true
         } catch (t: Throwable) {
-            _lastError.value = "realtime: ${t.message}"
+            _lastError.value = "realtime: ${t.message}"; false
+        }
+        if (!subscribed) {
+            withContext(NonCancellable) { runCatching { realtime.removeChannel(channel) } }
             return
         }
 
-        coroutineScope {
-            launch { msgInserts.collect { fetchOnce() } }
-            launch { msgUpdates.collect { fetchOnce() } }
-            launch { reactInserts.collect { fetchReactions() } }
-            launch { reactDeletes.collect { fetchReactions() } }
+        try {
+            coroutineScope {
+                launch { msgInserts.collect { fetchOnce() } }
+                launch { msgUpdates.collect { fetchOnce() } }
+                launch { reactInserts.collect { fetchReactions() } }
+                launch { reactDeletes.collect { fetchReactions() } }
+            }
+        } finally {
+            // Remove the channel so the next start()/resume() creates a fresh,
+            // un-joined one. Reusing the cached joined channel makes
+            // postgresChangeFlow throw "cannot call ... after joining",
+            // crashing the app on background→resume.
+            withContext(NonCancellable) { runCatching { realtime.removeChannel(channel) } }
         }
     }
 
@@ -423,10 +434,8 @@ class ChatRepository(
                 }
             }
 
-            android.util.Log.i("ChatDbg", "fetchOnce cid=$cid rows=${rowsDesc.size} decoded=${decoded.size}")
             _messages.value = decoded
         } catch (t: Throwable) {
-            android.util.Log.e("ChatDbg", "fetchOnce FAIL cid=$cid", t)
             _lastError.value = t.message
         } finally {
             _isLoading.value = false

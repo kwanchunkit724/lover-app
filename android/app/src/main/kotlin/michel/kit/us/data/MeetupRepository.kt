@@ -147,10 +147,20 @@ class MeetupRepository(
         val updates = channel.postgresChangeFlow<PostgresAction.Update>(schema = "public") {
             table = "meetups"; filter("couple_id", FilterOperator.EQ, cidStr)
         }
-        try { channel.subscribe(blockUntilSubscribed = true) } catch (_: Throwable) { return }
-        coroutineScope {
-            launch { inserts.collect { fetchOnce() } }
-            launch { updates.collect { fetchOnce() } }
+        val subscribed = try { channel.subscribe(blockUntilSubscribed = true); true } catch (_: Throwable) { false }
+        if (!subscribed) {
+            withContext(NonCancellable) { runCatching { client.realtime.removeChannel(channel) } }
+            return
+        }
+        try {
+            coroutineScope {
+                launch { inserts.collect { fetchOnce() } }
+                launch { updates.collect { fetchOnce() } }
+            }
+        } finally {
+            // See ChecklistRepository.runRealtime — remove the cached channel so
+            // resume() builds a fresh one instead of crashing on rejoin.
+            withContext(NonCancellable) { runCatching { client.realtime.removeChannel(channel) } }
         }
     }
 

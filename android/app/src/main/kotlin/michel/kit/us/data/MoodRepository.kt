@@ -158,8 +158,19 @@ class MoodRepository(
             table = "cheers"
             filter("couple_id", FilterOperator.EQ, cidStr)
         }
-        try { channel.subscribe(blockUntilSubscribed = true) } catch (_: Throwable) { return }
-        inserts.collect { handleCheerEvent() }
+        val subscribed = try { channel.subscribe(blockUntilSubscribed = true); true } catch (_: Throwable) { false }
+        if (!subscribed) {
+            withContext(NonCancellable) { runCatching { client.realtime.removeChannel(channel) } }
+            return
+        }
+        try {
+            inserts.collect { handleCheerEvent() }
+        } finally {
+            // See ChecklistRepository.runRealtime — remove the channel so a
+            // fresh one is created on resume(), avoiding the "postgresChangeFlow
+            // after joining" crash on background→resume.
+            withContext(NonCancellable) { runCatching { client.realtime.removeChannel(channel) } }
+        }
     }
 
     private suspend fun handleCheerEvent() {
