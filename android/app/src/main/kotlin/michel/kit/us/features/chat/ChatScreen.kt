@@ -94,12 +94,22 @@ fun ChatScreen() {
 
     val checklistItems by container.checklist.items.collectAsStateWithLifecycle()
     var showChecklist by remember { mutableStateOf(false) }
+    val myMood by container.mood.myMood.collectAsStateWithLifecycle()
+    val partnerMood by container.mood.partnerMood.collectAsStateWithLifecycle()
+    val incomingCheer by container.mood.incomingCheer.collectAsStateWithLifecycle()
+    var showMoodPicker by remember { mutableStateOf(false) }
+    var cheerTarget by remember { mutableStateOf<michel.kit.us.data.Mood?>(null) }
+    val moodScope = rememberCoroutineScope()
 
     Box(modifier = Modifier.fillMaxSize().background(palette.paper)) {
         Column(modifier = Modifier.fillMaxSize()) {
             ChatHeader(
                 partner = partnerPerson,
                 online = partnerOnline,
+                myMood = myMood,
+                partnerMood = partnerMood,
+                onOpenMoodPicker = { showMoodPicker = true },
+                onCheerPartner = { cheerTarget = it },
                 checklistCount = checklistItems.count { !it.done },
                 onOpenChecklist = { showChecklist = true }
             )
@@ -209,6 +219,36 @@ fun ChatScreen() {
         if (showChecklist) {
             ChecklistPanel(onClose = { showChecklist = false })
         }
+
+        if (showMoodPicker) {
+            MoodPickerDialog(
+                current = myMood,
+                onPick = { m -> moodScope.launch { container.mood.setMood(m) } },
+                onClose = { showMoodPicker = false }
+            )
+        }
+        cheerTarget?.let { target ->
+            CheerOverlay(
+                partnerName = partnerPerson.name,
+                mood = target,
+                onComplete = {
+                    container.mood.markPartnerCheered()
+                    val me = meId
+                    moodScope.launch {
+                        container.mood.sendCheerComplete(target)
+                        if (me != null) container.chat.sendText(target.cheerDoneMessage, UUID.fromString(me))
+                    }
+                },
+                onClose = { cheerTarget = null }
+            )
+        }
+        incomingCheer?.let { m ->
+            CheerReceivedOverlay(
+                partnerName = partnerPerson.name,
+                mood = m,
+                onClose = { container.mood.consumeIncomingCheer() }
+            )
+        }
     }
 }
 
@@ -216,6 +256,10 @@ fun ChatScreen() {
 private fun ChatHeader(
     partner: Person,
     online: Boolean,
+    myMood: michel.kit.us.data.Mood?,
+    partnerMood: michel.kit.us.data.Mood?,
+    onOpenMoodPicker: () -> Unit,
+    onCheerPartner: (michel.kit.us.data.Mood) -> Unit,
     checklistCount: Int,
     onOpenChecklist: () -> Unit
 ) {
@@ -252,6 +296,20 @@ private fun ChatHeader(
                 )
             }
         }
+        // v1.6.x — partner mood (tap to cheer) + my mood chip.
+        partnerMood?.let { pm ->
+            MoodChip(kao = pm.kao, tint = palette.rose, faded = false, bg = palette.roseSoft) { onCheerPartner(pm) }
+            Spacer(Modifier.width(6.dp))
+        }
+        MoodChip(
+            kao = myMood?.kao ?: "(･_･)",
+            tint = palette.inkMuted,
+            faded = myMood == null,
+            bg = palette.paperAlt,
+            onClick = onOpenMoodPicker
+        )
+        Spacer(Modifier.width(2.dp))
+
         IconButton(onClick = onOpenChecklist) {
             BadgedBox(badge = {
                 if (checklistCount > 0) Badge(containerColor = palette.rose) { Text("$checklistCount") }
