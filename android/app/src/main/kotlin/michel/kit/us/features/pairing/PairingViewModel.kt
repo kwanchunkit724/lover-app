@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import michel.kit.us.data.PairingRepository
 import java.time.LocalDate
@@ -27,8 +29,18 @@ class PairingViewModel(val repo: PairingRepository) : ViewModel() {
     fun setAnniversary(d: LocalDate) { _anniversary.value = d }
     fun setCode(c: String) { _codeInput.value = c.filter(Char::isDigit).take(6) }
 
-    fun generate() {
-        viewModelScope.launch { repo.createCode(_anniversary.value) }
+    fun generate(meId: UUID) {
+        viewModelScope.launch {
+            repo.createCode(_anniversary.value)
+            // Poll until the partner redeems the code: the couple appears and
+            // RootRouter (observing pairing.couple) routes us into the app.
+            // Without this the generator stayed stuck on the code screen.
+            while (isActive) {
+                delay(3000)
+                runCatching { repo.refresh(meId) }
+                if (repo.couple.value != null) break
+            }
+        }
     }
 
     fun redeem(meId: UUID, onSuccess: () -> Unit) {

@@ -65,7 +65,7 @@ fun PairingScreen(meId: UUID, onPaired: () -> Unit) {
         when (step) {
             PairingViewModel.Step.Pick -> {
                 Button(
-                    onClick = { vm.setStep(PairingViewModel.Step.Generate); vm.generate() },
+                    onClick = { vm.setStep(PairingViewModel.Step.Generate); vm.generate(meId) },
                     colors = ButtonDefaults.buttonColors(containerColor = palette.rose, contentColor = palette.bubbleMeText),
                     modifier = Modifier.fillMaxWidth().height(48.dp)
                 ) { Text(stringResource(R.string.pairing_generate), style = DSText.ui(15)) }

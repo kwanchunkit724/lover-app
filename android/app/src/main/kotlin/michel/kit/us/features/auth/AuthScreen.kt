@@ -142,7 +142,15 @@ fun AuthScreen() {
                         } else {
                             vm.showError("唔識嘅憑證類型")
                         }
-                    }.onFailure { vm.showError(it.message ?: "Google 登入失敗"); vm.setBusy(false) }
+                    }.onFailure {
+                        // On a Play-signed build the upload/app-signing-key SHA-1
+                        // may not be registered in Google Cloud yet, so
+                        // CredentialManager fails with a cryptic error. Point the
+                        // tester at the always-working email/password path instead
+                        // of surfacing the raw exception.
+                        vm.showError("Google 登入暫時用唔到，請用上面 Email / 密碼註冊登入")
+                        vm.setBusy(false)
+                    }
                 }
             },
             enabled = !busy,
