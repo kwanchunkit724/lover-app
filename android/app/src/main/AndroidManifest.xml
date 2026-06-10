@@ -10,10 +10,13 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
 
-    <!-- Photo picker: API 33+ uses READ_MEDIA_IMAGES, API ≤32 falls back to
-         READ_EXTERNAL_STORAGE. maxSdkVersion stops the latter from being
-         requested on devices that have the granular media permission. -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- Photo/video access uses the Android Photo Picker
+         (ActivityResultContracts.PickVisualMedia), which needs NO runtime
+         media permission, so READ_MEDIA_IMAGES is intentionally NOT declared
+         (declaring it triggers Play's Photo & Video Permissions policy review
+         for no benefit). READ_EXTERNAL_STORAGE is kept only for API ≤32 legacy
+         pickers and is capped with maxSdkVersion so it is never requested on
+         devices that have the granular media model. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
 

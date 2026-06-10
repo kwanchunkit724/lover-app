@@ -71,7 +71,7 @@ android {
         minSdk = 26
         // targetSdk 35 keeps us aligned with Play Store's 2025+ floor.
         targetSdk = 35
-        versionCode = 4
+        versionCode = 5
         versionName = "1.6.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
