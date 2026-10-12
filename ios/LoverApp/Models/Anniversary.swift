@@ -19,10 +19,15 @@ struct Anniversary: Identifiable, Hashable {
     /// even when `today` carries a wall-clock time (previous impl compared midnight < now
     /// and incorrectly rolled forward to next year/month).
     func nextOccurrence(today: Date = Date()) -> (date: Date, daysAway: Int, ordinal: Int?) {
-        let calendar = Calendar(identifier: .gregorian)
+        // Pin calendar + formatter to Asia/Hong_Kong so "yyyy-MM-dd" baseDate
+        // and start-of-day math agree regardless of the device/CI timezone
+        // (UTC runners were shifting HKT midnight → previous UTC day).
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Hong_Kong")!
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = TimeZone(identifier: "Asia/Hong_Kong")
+        formatter.timeZone = calendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
         let base = formatter.date(from: baseDate) ?? today
         let todayStart = calendar.startOfDay(for: today)
 

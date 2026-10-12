@@ -72,13 +72,23 @@ jobs:
       - name: Pick iPhone Simulator
         id: sim
         run: |
+          # Prefer a numbered iPhone (16/17/…) over SE; fall back to any iPhone.
           NAME=$(xcrun simctl list devices available \
-            | grep -E 'iPhone' \
+            | grep -E 'iPhone [0-9]' \
             | grep -v unavailable \
             | sed -E 's/^[[:space:]]+//' \
             | sed -E 's/ \([A-F0-9-]+\).*//' \
             | sort -V \
             | tail -1)
+          if [ -z "$NAME" ]; then
+            NAME=$(xcrun simctl list devices available \
+              | grep -E 'iPhone' \
+              | grep -v unavailable \
+              | sed -E 's/^[[:space:]]+//' \
+              | sed -E 's/ \([A-F0-9-]+\).*//' \
+              | sort -V \
+              | tail -1)
+          fi
           if [ -z "$NAME" ]; then
             echo "No iPhone simulator available" >&2
             xcrun simctl list devices available >&2
