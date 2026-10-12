@@ -1,0 +1,108 @@
+name: CI
+
+# PR gate: web lint/typecheck/unit + iOS unit tests on Simulator.
+# Intentionally NOT on push to main / tags — release stays on
+# ios-testflight.yml (tag-triggered) and android-*.yml.
+
+on:
+  pull_request:
+  workflow_dispatch: {}
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (lint + typecheck + unit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+  ios:
+    name: iOS (unit tests)
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          NEWEST=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$NEWEST" ]; then
+            sudo xcode-select -s "$NEWEST/Contents/Developer"
+          fi
+          xcodebuild -version
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Pick iPhone Simulator
+        id: sim
+        run: |
+          # Prefer a numbered iPhone (16/17/…) over SE; fall back to any iPhone.
+          NAME=$(xcrun simctl list devices available \
+            | grep -E 'iPhone [0-9]' \
+            | grep -v unavailable \
+            | sed -E 's/^[[:space:]]+//' \
+            | sed -E 's/ \([A-F0-9-]+\).*//' \
+            | sort -V \
+            | tail -1)
+          if [ -z "$NAME" ]; then
+            NAME=$(xcrun simctl list devices available \
+              | grep -E 'iPhone' \
+              | grep -v unavailable \
+              | sed -E 's/^[[:space:]]+//' \
+              | sed -E 's/ \([A-F0-9-]+\).*//' \
+              | sort -V \
+              | tail -1)
+          fi
+          if [ -z "$NAME" ]; then
+            echo "No iPhone simulator available" >&2
+            xcrun simctl list devices available >&2
+            exit 1
+          fi
+          echo "Using simulator: $NAME"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Run LoverAppTests
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project LoverApp.xcodeproj \
+            -scheme LoverApp \
+            -destination "platform=iOS Simulator,name=${{ steps.sim.outputs.name }}" \
+            -only-testing:LoverAppTests \
+            CODE_SIGNING_ALLOWED=NO

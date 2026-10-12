@@ -400,7 +400,7 @@ struct PairingView: View {
             // Hidden TextField focuses the keyboard onto the row.
             TextField("", text: Binding(
                 get: { enteredCode },
-                set: { v in enteredCode = String(v.filter(\.isNumber).prefix(6)) }
+                set: { v in enteredCode = PairingCode.sanitize(v) }
             ))
             .keyboardType(.numberPad)
             .focused($codeFieldFocused)
@@ -416,7 +416,7 @@ struct PairingView: View {
         DisplayDate.formatter.string(from: enteredAnniversary)
     }
 
-    private var canSubmit: Bool { enteredCode.count == 6 }
+    private var canSubmit: Bool { PairingCode.isValid(enteredCode) }
 
     private func submitRedemption() {
         guard case let .signedIn(meId) = auth.state else { return }
