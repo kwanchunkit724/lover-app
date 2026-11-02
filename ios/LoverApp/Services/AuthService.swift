@@ -3,6 +3,9 @@ import AuthenticationServices
 import CryptoKit
 import Supabase
 
+// KK auth is Sign in with Apple or email OTP only.
+// Do not add signInAnonymously or a guest path.
+//
 // Native Sign in with Apple → Supabase. Apple gives us an identityToken (a
 // signed JWT containing the user's stable Apple ID). We pass it to Supabase
 // Auth's signInWithIdToken, which validates the JWT against Apple's public

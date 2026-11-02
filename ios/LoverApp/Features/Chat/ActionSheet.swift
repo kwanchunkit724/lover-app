@@ -9,6 +9,7 @@ struct ChatActionSheet: View {
     let onClose: () -> Void
     let onCamera: () -> Void
     let onAlbum: () -> Void
+    var onFile: () -> Void = {}
 
     private struct Item: Identifiable {
         let id: String
@@ -27,6 +28,7 @@ struct ChatActionSheet: View {
         let items: [Item] = [
             .init(id: "cam", icon: .cam, label: "影相", action: onCamera),
             .init(id: "img", icon: .image, label: "相簿", action: onAlbum),
+            .init(id: "file", icon: .book, label: "檔案", action: onFile),
         ]
 
         return ZStack(alignment: .bottom) {

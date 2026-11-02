@@ -23,18 +23,16 @@ final class ScreenshotTests: XCTestCase {
         snapshot(name: "01-chat")
     }
 
-    // 時間 tab — placeholder until v0.3 builds the real tab
-    func test_screenshot_timeTab() throws {
-        app.buttons["時間"].firstMatch.tap()
+    func test_screenshot_memoryTab() throws {
+        app.buttons["記憶空間"].firstMatch.tap()
         sleep(1)
-        snapshot(name: "02-time")
+        snapshot(name: "02-memory")
     }
 
-    // 玩樂 tab — placeholder until v0.5
-    func test_screenshot_playTab() throws {
-        app.buttons["玩樂"].firstMatch.tap()
+    func test_screenshot_wantTab() throws {
+        app.buttons["想你知道"].firstMatch.tap()
         sleep(1)
-        snapshot(name: "03-play")
+        snapshot(name: "03-want")
     }
 
     // 我哋 tab — placeholder until v0.4

@@ -16,6 +16,7 @@ struct LoverApp: App {
     @StateObject private var mood = MoodService()
     @StateObject private var meetups: MeetupService
     @StateObject private var checklist: ChecklistService
+    @StateObject private var kk = KKAppModel()
 
     init() {
         let c = CryptoService()
@@ -50,6 +51,7 @@ struct LoverApp: App {
                 .environmentObject(mood)
                 .environmentObject(meetups)
                 .environmentObject(checklist)
+                .environmentObject(kk)
                 .theme(profileStore.theme)
                 .task { await auth.bootstrap() }
         }
@@ -87,6 +89,7 @@ struct RootView: View {
     @EnvironmentObject private var mood: MoodService
     @EnvironmentObject private var meetups: MeetupService
     @EnvironmentObject private var checklist: ChecklistService
+    @EnvironmentObject private var kk: KKAppModel
 
     var body: some View {
         Group {
@@ -100,8 +103,9 @@ struct RootView: View {
                 case .signedOut, .error:
                     SignInView()
                 case .signedIn(let userId):
-                    MainTabView()
+                    signedInShell()
                         .task {
+                            kk.bind(userId: userId)
                             await pairing.refresh(meId: userId)
                             if pairing.isPaired {
                                 await preparePaired(meId: userId)
@@ -112,6 +116,7 @@ struct RootView: View {
         }
         .onChange(of: auth.state) { _, newState in
             if case .signedIn(let id) = newState {
+                kk.bind(userId: id)
                 Task {
                     await pairing.refresh(meId: id)
                     if pairing.isPaired {
@@ -119,6 +124,7 @@ struct RootView: View {
                     }
                 }
             } else {
+                kk.clearSession()
                 // Sign-out / error: tear down per-couple services + chat key.
                 chat.stop()
                 anniversaries.stop()
@@ -170,19 +176,27 @@ struct RootView: View {
             switch phase {
             case .background, .inactive:
                 presence.pause()
-                mood.pause()
-                meetups.pause()
                 checklist.pause()
             case .active:
                 if let coupleId = pairing.couple?.id {
                     presence.resume(coupleId: coupleId)
-                    mood.resume(coupleId: coupleId)
-                    meetups.resume(coupleId: coupleId)
                     checklist.resume(coupleId: coupleId)
                 }
             @unknown default:
                 break
             }
+        }
+    }
+
+    @ViewBuilder
+    private func signedInShell() -> some View {
+        if !kk.dailyMood.isReady {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if kk.dailyMood.needsGate() {
+            DailyMoodGateView()
+        } else {
+            MainTabView()
         }
     }
 
@@ -224,15 +238,13 @@ struct RootView: View {
         }
     }
 
-    /// Start every per-couple background service. Idempotent.
+    /// Chat, presence, and the short checklist still run.
+    /// Time, activities, anniversaries, and meetups are not started:
+    /// those screens are gone from the KK shell. The service objects stay
+    /// so sign-out can stop them, and so a later PR can delete the files.
     private func startCoupleServices(coupleId: UUID) {
         chat.start(coupleId: coupleId)
-        anniversaries.start(coupleId: coupleId)
-        entries.start(coupleId: coupleId)
-        playHistory.start(coupleId: coupleId)
         presence.start(coupleId: coupleId)
-        mood.start(coupleId: coupleId)
-        meetups.start(coupleId: coupleId)
         checklist.start(coupleId: coupleId)
     }
 }

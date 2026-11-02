@@ -92,7 +92,7 @@ struct PairingView: View {
             Text("配對")
                 .font(.system(size: 28, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
-            Text("揀其中一個方法 —\n兩部手機要輸入同一個紀念日先成功")
+            Text("揀其中一個方法 —\n而家嘅配對仍然對一次「你哋嘅日子」。伺服器未改到可留空。")
                 .font(DSText.ui(theme, 13))
                 .foregroundStyle(theme.inkSoft)
                 .multilineTextAlignment(.center)
@@ -108,7 +108,7 @@ struct PairingView: View {
             choiceCard(
                 icon: "keyboard",
                 title: "對方畀咗我配對碼",
-                subtitle: "輸入 TA 個 6 位數字 + 紀念日",
+                subtitle: "輸入 TA 個 6 位數字同日子",
                 action: { mode = .enter }
             )
 
@@ -171,11 +171,11 @@ struct PairingView: View {
     /// onboarding — explicit confirmation each time.
     private var generatePickAnniversary: some View {
         VStack(spacing: 16) {
-            Text("揀紀念日")
+            Text("你哋嘅日子")
                 .font(.system(size: 24, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
                 .padding(.top, 12)
-            Text("揀好之後生成配對碼。\n對方喺佢手機要輸入同一個日期，先至成功。")
+            Text("揀好之後生成 6 位配對碼。\n對方要輸入同一個日期。KK 之後可以留空，而家個伺服器仲未得。")
                 .font(DSText.ui(theme, 13))
                 .foregroundStyle(theme.inkSoft)
                 .multilineTextAlignment(.center)
@@ -233,7 +233,7 @@ struct PairingView: View {
                     .font(.system(size: 24, weight: .semibold, design: .serif))
                     .foregroundStyle(theme.ink)
                     .padding(.top, 12)
-                Text("TA 喺自己手機輸入呢個 code +\n下面個紀念日。")
+                Text("TA 喺自己手機輸入呢個 code +\n下面個日子。")
                     .font(DSText.ui(theme, 13))
                     .foregroundStyle(theme.inkSoft)
                     .multilineTextAlignment(.center)
@@ -243,7 +243,7 @@ struct PairingView: View {
                 expiryRow(active.expiresAt)
 
                 VStack(spacing: 6) {
-                    Text("對方要輸入嘅紀念日")
+                    Text("對方要輸入嘅日子")
                         .font(DSText.mono(theme, 11))
                         .foregroundStyle(theme.inkMuted)
                     Text(DisplayDate.from(iso: active.anniversaryISO))
@@ -313,7 +313,7 @@ struct PairingView: View {
 
             digitsRow
 
-            Text("紀念日")
+            Text("你哋嘅日子")
                 .font(DSText.mono(theme, 12))
                 .foregroundStyle(theme.inkMuted)
                 .frame(maxWidth: .infinity, alignment: .leading)

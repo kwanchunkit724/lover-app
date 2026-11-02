@@ -205,7 +205,7 @@ final class PairingService: ObservableObject {
         let raw = (error as NSError).userInfo["message"] as? String
                 ?? error.localizedDescription
         let lowered = raw.lowercased()
-        if lowered.contains("anniversary_mismatch") { return "紀念日對唔上 — 兩個人輸入嘅日子要一樣" }
+        if lowered.contains("anniversary_mismatch") { return "日子對唔上 — 兩個人輸入嘅日子要一樣" }
         if lowered.contains("invalid_code")          { return "配對碼錯咗 — 再對下" }
         if lowered.contains("code_expired")          { return "配對碼過期 — 重新生成一個" }
         if lowered.contains("already_paired")        { return "已經配對咗 — 唔可以再 pair" }

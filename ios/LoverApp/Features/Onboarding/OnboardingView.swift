@@ -1,14 +1,11 @@
 import SwiftUI
 
-// First-launch flow. Five steps:
-//   1. welcome      — kawaii intro + start button
-//   2. yourName     — text field for self
-//   3. partnerName  — text field for partner
-//   4. anniversary  — date picker for "一齊嘅日子"
-//   5. theme        — pick from the 3 themes
-// On finish, writes UserProfile to UserProfileStore and the app falls through
-// to MainTabView. No backend yet — Phase 3 will sync this to Supabase and add
-// the partner-side anniversary cross-check during pairing.
+// First-launch flow. Four steps:
+//   1. welcome
+//   2. yourName
+//   3. partnerName
+//   4. theme
+// Couple day is optional and lives in Settings, not here.
 
 struct OnboardingView: View {
     @EnvironmentObject private var profileStore: UserProfileStore
@@ -16,11 +13,10 @@ struct OnboardingView: View {
     @State private var step: Step = .welcome
     @State private var myName: String = ""
     @State private var partnerName: String = ""
-    @State private var anniversary: Date = Date()
     @State private var themeId: String = "jbeam"
 
     enum Step: Int, CaseIterable {
-        case welcome, yourName, partnerName, anniversary, theme
+        case welcome, yourName, partnerName, theme
     }
 
     /// Live theme reflecting the user's current selection in the theme step,
@@ -65,7 +61,6 @@ struct OnboardingView: View {
                         placeholder: "TA 嘅暱稱",
                         text: $partnerName
                     )
-                    case .anniversary: anniversaryStep
                     case .theme:       themeStep
                     }
                 }
@@ -91,14 +86,14 @@ struct OnboardingView: View {
             Text("(♡˙︶˙♡)")
                 .font(.system(size: 56, weight: .semibold, design: .monospaced))
                 .foregroundStyle(theme.rose)
-            Text("Us")
+            Text("KK")
                 .font(.system(size: 44, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
             Text("我哋兩個人嘅小天地")
                 .font(DSText.ui(theme, 16))
                 .foregroundStyle(theme.inkSoft)
                 .padding(.top, 4)
-            Text("先設定下基本資料\n之後再同對方配對")
+            Text("時間簿、玩樂、紀念日列表已經唔喺呢度。\n先設定名，日子可以之後先填。")
                 .font(DSText.ui(theme, 13))
                 .foregroundStyle(theme.inkMuted)
                 .multilineTextAlignment(.center)
@@ -120,33 +115,6 @@ struct OnboardingView: View {
             DSTextField(placeholder: placeholder, text: text)
                 .submitLabel(.next)
                 .onSubmit { advanceIfPossible() }
-        }
-        .padding(.horizontal, 24)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var anniversaryStep: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("一齊咗幾耐？")
-                .font(.system(size: 28, weight: .semibold, design: .serif))
-                .foregroundStyle(theme.ink)
-            Text("揀返開始拍拖嗰日。\n配對嗰陣兩個人輸入嘅日期要一樣，先至成功配對。")
-                .font(DSText.ui(theme, 13))
-                .foregroundStyle(theme.inkMuted)
-
-            DatePicker("", selection: $anniversary, in: ...Date(), displayedComponents: .date)
-                .datePickerStyle(.wheel)
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-                .frame(height: 200)              // wheel collapses to 0 without an explicit height
-                .colorScheme(theme.isDark ? .dark : .light)  // wheel text follows theme
-                .background(theme.surface)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(theme.line, lineWidth: 0.5)
-                )
-                .padding(.top, 4)
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -219,7 +187,6 @@ struct OnboardingView: View {
         case .welcome:     return true
         case .yourName:    return !myName.trimmingCharacters(in: .whitespaces).isEmpty
         case .partnerName: return !partnerName.trimmingCharacters(in: .whitespaces).isEmpty
-        case .anniversary: return true
         case .theme:       return true
         }
     }
@@ -243,7 +210,7 @@ struct OnboardingView: View {
         let profile = UserProfile(
             myName: myName.trimmingCharacters(in: .whitespaces),
             partnerName: partnerName.trimmingCharacters(in: .whitespaces),
-            anniversaryISO: LocalDate.string(from: anniversary),
+            anniversaryISO: "",
             themeId: themeId,
             completedAt: Date()
         )

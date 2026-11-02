@@ -29,6 +29,7 @@ struct KaomojiCatalogue: Decodable {
 
 struct KaomojiPicker: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var kk: KKAppModel
 
     let onPick: (String) -> Void
     let onClose: () -> Void
@@ -41,6 +42,14 @@ struct KaomojiPicker: View {
     var body: some View {
         VStack(spacing: 0) {
             searchRow
+            if let note = kk.kaomoji.capMessage {
+                Text(note)
+                    .font(DSText.mono(theme, 11))
+                    .foregroundStyle(theme.rose)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.top, 6)
+            }
             grid
             categoryStrip
         }
@@ -55,7 +64,7 @@ struct KaomojiPicker: View {
     private var searchRow: some View {
         HStack(spacing: 8) {
             DSIcon(name: .search, size: 14, color: theme.inkMuted)
-            TextField("搜尋顏文字…", text: $query)
+            TextField("搜尋顏文字符號…", text: $query)
                 .font(DSText.ui(theme, 13))
                 .foregroundStyle(theme.ink)
             Button(action: onClose) {
@@ -74,22 +83,36 @@ struct KaomojiPicker: View {
     private var grid: some View {
         let entries = visibleEntries
         return ScrollView {
+            if entries.isEmpty {
+                Text(selectedCategory == "recent" ? "未有最近用過" : "搵唔到")
+                    .font(DSText.mono(theme, 12))
+                    .foregroundStyle(theme.inkMuted)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 28)
+            }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 6),
                                 GridItem(.flexible(), spacing: 6),
                                 GridItem(.flexible(), spacing: 6)], spacing: 6) {
                 ForEach(entries.indices, id: \.self) { i in
+                    let kao = entries[i]
                     Button {
-                        onPick(entries[i])
+                        kk.kaomoji.pushRecent(kao)
+                        onPick(kao)
                     } label: {
-                        Text(entries[i])
+                        Text(kao)
                             .font(DSText.mono(theme, 13))
                             .foregroundStyle(theme.ink)
                             .frame(maxWidth: .infinity, minHeight: 40)
                             .padding(.vertical, 6)
-                            .background(theme.paperAlt)
+                            .background(kk.kaomoji.quick.contains(kao) ? theme.roseSoft : theme.paperAlt)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        Button(kk.kaomoji.quick.contains(kao) ? "取消快捷" : "設為快捷") {
+                            kk.kaomoji.toggleQuick(kao)
+                        }
+                    }
                 }
             }
             .padding(12)
@@ -121,14 +144,16 @@ struct KaomojiPicker: View {
         )
     }
 
+    /// Search matches the kaomoji string only. Category names are not indexed.
     private var visibleEntries: [String] {
-        if !query.isEmpty {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !q.isEmpty {
             return catalogue.categories
                 .flatMap(\.entries)
-                .filter { $0.localizedCaseInsensitiveContains(query) }
+                .filter { $0.contains(q) }
         }
         if selectedCategory == "recent" {
-            return catalogue.quick_react
+            return kk.kaomoji.recent
         }
         return catalogue.categories.first { $0.id == selectedCategory }?.entries ?? []
     }

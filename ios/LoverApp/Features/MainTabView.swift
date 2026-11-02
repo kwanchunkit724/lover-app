@@ -6,6 +6,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @Environment(\.theme) private var theme
+    @EnvironmentObject private var kk: KKAppModel
 
     @State private var selection: AppTab = .chat
     // v1.6.1 (problem 5) — chat reports whether its keyboard is up so we can
@@ -20,10 +21,10 @@ struct MainTabView: View {
     var body: some View {
         ZStack {
             switch selection {
-            case .chat: ChatView(keyboardActive: $chatKeyboardActive)
-            case .time: TimeView()
-            case .play: ActivitiesView()
-            case .us:   ProfileView()
+            case .chat:   ChatView(keyboardActive: $chatKeyboardActive)
+            case .memory: MemorySpaceView()
+            case .want:   WantYouKnowView()
+            case .us:     ProfileView()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -38,6 +39,15 @@ struct MainTabView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showTabBar)
+        .onChange(of: kk.requestedTab) { _, tab in
+            guard let tab else { return }
+            selection = tab
+            kk.requestedTab = nil
+        }
+        .sheet(item: $kk.aiRequest) { request in
+            AIExpandSheet(request: request)
+                .theme(theme)
+        }
     }
 }
 
@@ -60,5 +70,7 @@ private struct PlaceholderTab: View {
 }
 
 #Preview {
-    MainTabView().theme(.jbeam)
+    MainTabView()
+        .environmentObject(KKAppModel())
+        .theme(.jbeam)
 }

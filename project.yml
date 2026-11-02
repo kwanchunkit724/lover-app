@@ -3,9 +3,9 @@
 # never commit a .xcodeproj manually since you can't open one on Windows.
 # Docs: https://github.com/yonaskolb/XcodeGen
 #
-# Note: codebase target name is "LoverApp" (internal) but the user-facing
-# product is "Us" with bundle ID michel.kit.us. The two naming layers are
-# kept separate to avoid renaming source folders.
+# Note: codebase target name is "LoverApp" and PRODUCT_NAME stays "Us"
+# so the test host path does not move. The user-facing product is KK.
+# Bundle ID stays michel.kit.us (Plan A). Do not submit this build.
 
 name: LoverApp
 options:
@@ -67,7 +67,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: michel.kit.us
         PRODUCT_NAME: Us
         CURRENT_PROJECT_VERSION: 1
-        MARKETING_VERSION: 1.6.6
+        MARKETING_VERSION: 2.0.0
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         TARGETED_DEVICE_FAMILY: '1'   # iPhone only
     # XcodeGen-managed Info.plist — the canonical path. Properties below get
@@ -78,7 +78,7 @@ targets:
       path: ios/LoverApp/Info.plist
       properties:
         CFBundleDevelopmentRegion: zh-Hant
-        CFBundleDisplayName: Us
+        CFBundleDisplayName: KK
         # MUST be kept in sync with `MARKETING_VERSION` in settings.base above.
         # When omitted, XcodeGen writes the default "1.0" — and that default
         # ends up in every TestFlight build no matter what we do at CI time
@@ -90,7 +90,7 @@ targets:
         # That's why every previous build shipped as "1.0" regardless of
         # MARKETING_VERSION. Update this literal whenever you bump
         # MARKETING_VERSION.
-        CFBundleShortVersionString: 1.6.6
+        CFBundleShortVersionString: 2.0.0
         # Required by App Store / TestFlight ingest. Must match the
         # AppIcon.appiconset name in Assets.xcassets, otherwise upload
         # rejects with: "Missing Info.plist value. A value for the

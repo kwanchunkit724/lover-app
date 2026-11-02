@@ -8,14 +8,13 @@ struct ProfileView: View {
     @EnvironmentObject private var profileStore: UserProfileStore
     @EnvironmentObject private var auth: AuthService
     @EnvironmentObject private var pairing: PairingService
+    @EnvironmentObject private var kk: KKAppModel
 
     @State private var presented: SettingsRoute? = nil
     @State private var confirmReset = false
     @State private var confirmUnpair = false
     @State private var confirmSignOut = false
     @State private var showPairing = false
-    @EnvironmentObject private var anniversaryService: AnniversaryService
-
     /// Build version pulled from the bundle so the "關於" row isn't a stale
     /// hardcoded string. Phase 9: was hardcoded to "v0.3" — masked the fact
     /// that the user was running outdated builds during testing.
@@ -24,20 +23,9 @@ struct ProfileView: View {
         return "v\(v)"
     }
 
-    /// v1.5.1: real anniversaries only — no MockData fallback. Empty state
-    /// is handled in anniversariesSection.
-    private var anniversaries: [Anniversary] {
-        anniversaryService.items.map { d in
-            Anniversary(
-                id: d.id.uuidString,
-                title: d.payload.title,
-                baseDate: d.payload.baseDateISO,
-                recur: d.payload.recur == .yearly ? .yearly : .monthly,
-                kaomoji: d.payload.kaomoji,
-                emoji: d.payload.emoji,
-                subtitle: d.payload.subtitle
-            )
-        }
+    private func nonemptyISO(_ value: String?) -> String? {
+        guard let value, !value.isEmpty else { return nil }
+        return value
     }
 
     // v1.5.1 — MockData identity fallbacks stripped. Show "…" placeholder
@@ -63,8 +51,8 @@ struct ProfileView: View {
         // Use min() of the two ISO strings (which sort lexically) so both
         // phones derive the SAME value — and the earlier date is more
         // likely the actual relationship start than the later one.
-        let mine   = profileStore.profile?.anniversaryISO
-        let theirs = pairing.partner?.anniversaryISO
+        let mine = nonemptyISO(profileStore.profile?.anniversaryISO)
+        let theirs = nonemptyISO(pairing.partner?.anniversaryISO)
         if let mine, let theirs { return min(mine, theirs) }
         return mine ?? theirs
     }
@@ -73,16 +61,6 @@ struct ProfileView: View {
         guard let iso = anniversaryISO else { return nil }
         let todayISO = LocalDate.string(from: Date())
         return TimeFormatting.daysBetween(iso, todayISO)
-    }
-
-    private var nextAnniv: (anniversary: Anniversary, days: Int, ordinal: Int?)? {
-        let today = Date()
-        return anniversaries
-            .map { a in
-                let occ = a.nextOccurrence(today: today)
-                return (anniversary: a, days: occ.daysAway, ordinal: occ.ordinal)
-            }
-            .min(by: { $0.days < $1.days })
     }
 
     var body: some View {
@@ -106,9 +84,6 @@ struct ProfileView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 22) {
-                    if pairing.isPaired {
-                        anniversariesSection
-                    }
                     settingsSection
                     accountSection
                 }
@@ -132,7 +107,7 @@ struct ProfileView: View {
                 Task { await auth.signOut() }
             }
         } message: {
-            Text("會清除你輸入嘅名同紀念日，登出 App，回到歡迎畫面。")
+            Text("會清除你輸入嘅名同日子，登出 App，回到歡迎畫面。")
         }
         .alert("解除配對？", isPresented: $confirmUnpair) {
             Button("取消", role: .cancel) {}
@@ -171,7 +146,7 @@ struct ProfileView: View {
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
 
-            Text("仲未配對 — Profile / 設定 / 主題照用，配對之後就解鎖對話、紀念日、玩樂。")
+            Text("仲未配對 — 設定照用。配對之後先可以同對方傾偈同共享。")
                 .font(DSText.ui(theme, 12))
                 .foregroundStyle(theme.inkSoft)
                 .multilineTextAlignment(.center)
@@ -225,7 +200,7 @@ struct ProfileView: View {
                 if let days = daysTogether, let iso = anniversaryISO {
                     Text("一齊 \(days) 日 · 自 \(DisplayDate.from(iso: iso))")
                 } else {
-                    Text("…")
+                    Text("你哋嘅日子未設定")
                 }
             }
                 .font(DSText.mono(theme, 11))
@@ -267,40 +242,6 @@ struct ProfileView: View {
 
     // MARK: - Sections
 
-    private var anniversariesSection: some View {
-        ProfileSection(title: "紀念日") {
-            // v1.5.1 — when empty, show ONE prompt row that opens the
-            // anniversaries detail (which has the real add UI). Previously
-            // we rendered "所有紀念日 (6)" from MockData → user tapped in and
-            // saw the empty state.
-            if anniversaries.isEmpty {
-                ProfileRow(
-                    icon: .cal,
-                    label: "未有紀念日 · 入 + 添加",
-                    value: "→",
-                    onTap: { presented = .anniversaries },
-                    isLast: true
-                )
-            } else {
-                if let next = nextAnniv {
-                    ProfileRow(
-                        icon: .heart,
-                        label: "下一個：\(next.anniversary.title)",
-                        value: "\(next.days) 日後 →",
-                        onTap: { presented = .anniversaries }
-                    )
-                }
-                ProfileRow(
-                    icon: .cal,
-                    label: "所有紀念日 (\(anniversaries.count))",
-                    value: "→",
-                    onTap: { presented = .anniversaries },
-                    isLast: true
-                )
-            }
-        }
-    }
-
     private var settingsSection: some View {
         // v1.4.1 — removed 共用相簿 (247) + 提醒時間 (08:00). Both were
         // hardcoded mock placeholders with no tap action. The shared album
@@ -309,10 +250,20 @@ struct ProfileView: View {
         // global "default reminder lead time" setting later, this is where
         // it goes.
         ProfileSection(title: "設定") {
-            ProfileRow(icon: .kao, label: "顏文字偏好", value: "日系 →",
+            ProfileRow(icon: .heart, label: "你哋嘅日子", value: "可選 →",
+                       onTap: { presented = .coupleDay })
+            ProfileRow(icon: .kao, label: "顏文字偏好", value: "快捷 \(kk.kaomoji.quick.count)/6 →",
                        onTap: { presented = .kao })
             ProfileRow(icon: .us, label: "主題", value: "\(theme.name) →",
-                       onTap: { presented = .theme }, isLast: true)
+                       onTap: { presented = .theme })
+            ProfileRow(icon: .sparkle, label: "AI", value: "\(kk.ai.snapshot.used)/\(AIUsageStore.cap) →",
+                       onTap: { presented = .aiUsage })
+            ProfileRow(icon: .clock, label: "傾計 48 小時", value: "→",
+                       onTap: { presented = .chatPolicy })
+            ProfileRow(icon: .more, label: "語言", value: "繁中 →",
+                       onTap: { presented = .language })
+            ProfileRow(icon: .more, label: "已移除功能", value: "→",
+                       onTap: { presented = .removed }, isLast: true)
         }
     }
 
@@ -340,20 +291,48 @@ struct ProfileView: View {
     @ViewBuilder
     private func sheetContent(for route: SettingsRoute) -> some View {
         switch route {
-        case .anniversaries:
-            AnniversariesView(onClose: { presented = nil })
+        case .coupleDay:
+            CoupleDaySettingsView(onClose: { presented = nil })
         case .kao:
             KaoSettingsView(onClose: { presented = nil })
         case .theme:
             ThemeSettingsView(onClose: { presented = nil })
         case .deleteAccount:
             DeleteAccountSheet(onClose: { presented = nil })
+        case .aiUsage:
+            KKInfoSheet(
+                title: "AI",
+                bodyText: "今個月 \(kk.ai.snapshot.used)/\(AIUsageStore.cap) 次，兩個人共用。用盡會鎖。只處理你打嘅字同記憶空間項目。伺服器計數未接上。",
+                kao: "(✧ω✧)",
+                onClose: { presented = nil }
+            )
+        case .chatPolicy:
+            KKInfoSheet(
+                title: "48 小時",
+                bodyText: "傾計訊息 48 小時後自動刪除。傾計端對端加密，伺服器讀唔到；記憶空間儲存在伺服器以便雙方共享同提醒；AI 只處理你提交嘅內容。",
+                kao: "(´｡• ω •｡`)",
+                onClose: { presented = nil }
+            )
+        case .language:
+            KKInfoSheet(
+                title: "語言",
+                bodyText: "而家係繁中。English 稍後先可以切。",
+                kao: "(◕‿◕)",
+                onClose: { presented = nil }
+            )
+        case .removed:
+            KKInfoSheet(
+                title: "已移除",
+                bodyText: "時間簿、玩樂、約會活動、紀念日列表已經唔喺 KK。日子只係設定入面可選嘅一項。",
+                kao: "(´∀｀)♡",
+                onClose: { presented = nil }
+            )
         }
     }
 }
 
 enum SettingsRoute: String, Identifiable {
-    case anniversaries, kao, theme, deleteAccount
+    case coupleDay, kao, theme, deleteAccount, aiUsage, chatPolicy, language, removed
     var id: String { rawValue }
 }
 
@@ -419,11 +398,10 @@ private struct ProfileRow: View {
 }
 
 #Preview {
-    let crypto = CryptoService()
-    return ProfileView()
+    ProfileView()
         .environmentObject(UserProfileStore())
         .environmentObject(AuthService())
         .environmentObject(PairingService())
-        .environmentObject(AnniversaryService(crypto: crypto))
+        .environmentObject(KKAppModel())
         .theme(.jbeam)
 }

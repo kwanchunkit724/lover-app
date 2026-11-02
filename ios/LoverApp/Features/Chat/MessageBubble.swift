@@ -12,6 +12,10 @@ struct MessageBubble: View {
     let onReact: () -> Void
     let onReply: () -> Void
     var onUnsend: (() -> Void)? = nil
+    var isSelecting: Bool = false
+    var isSelected: Bool = false
+    var onBeginMultiSelect: (() -> Void)? = nil
+    var onToggleSelect: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: isFromMe ? .trailing : .leading, spacing: 0) {
@@ -20,11 +24,17 @@ struct MessageBubble: View {
             }
 
             HStack(alignment: .bottom, spacing: 6) {
+                if isSelecting {
+                    Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 18))
+                        .foregroundStyle(isSelected ? theme.rose : theme.inkMuted)
+                }
                 if isFromMe { Spacer(minLength: 40) }
 
                 bubbleContent
                     .contextMenu {
                         if !message.isDeleted {
+                            Button { onBeginMultiSelect?() } label: { Label("揀選", systemImage: "checkmark.circle") }
                             Button { onReact() } label: { Label("回應", systemImage: "face.smiling") }
                             Button { onReply() } label: { Label("回覆", systemImage: "arrowshape.turn.up.left") }
                         }
@@ -59,6 +69,13 @@ struct MessageBubble: View {
             // float in the middle. Forcing full row width gives Spacer real
             // space to push the bubble flush against the correct edge.
             .frame(maxWidth: .infinity)
+            .overlay {
+                if isSelecting {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { onToggleSelect?() }
+                }
+            }
         }
         .padding(.top, isContinuation ? 0 : 8)
         // Extra bottom padding when reactions are present so the
