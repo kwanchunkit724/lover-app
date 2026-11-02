@@ -18,10 +18,13 @@ final class KKAppModel: ObservableObject {
 
     private var bag = Set<AnyCancellable>()
     private var boundUser: UUID?
+    private var observing = false
 
-    init() {
-        // The sink runs later, off the caller's isolation. Hop back to the
-        // main actor before touching objectWillChange.
+    /// Called once the model is fully initialized. Doing this in `init` captures
+    /// `self` in an escaping Combine sink before the instance is ready.
+    func startObserving() {
+        guard !observing else { return }
+        observing = true
         observe(dailyMood.objectWillChange)
         observe(memory.objectWillChange)
         observe(want.objectWillChange)
@@ -38,6 +41,7 @@ final class KKAppModel: ObservableObject {
     }
 
     func bind(userId: UUID) {
+        startObserving()
         guard boundUser != userId else { return }
         boundUser = userId
         dailyMood.bind(userId: userId)

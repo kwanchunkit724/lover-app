@@ -178,61 +178,7 @@ struct ChatView: View {
                 cryptoNotReadyBanner
             }
             messageList
-            if let replyTo, !selecting {
-                replyPreview(replyTo)
-            }
-            if !selecting, !kk.kaomoji.quick.isEmpty {
-                ChatQuickKaomojiBar(items: kk.kaomoji.quick) { kao in
-                    input.append(kao)
-                    kk.kaomoji.pushRecent(kao)
-                }
-            }
-            if selecting {
-                ChatMultiSelectBar(
-                    count: selectedMessageIDs.count,
-                    onMemory: sendSelectionToMemory,
-                    onAI: sendSelectionToAI,
-                    onCancel: clearSelection
-                )
-            } else if voiceRecorder.isRecording {
-                recordingBar
-            } else {
-                Composer(
-                    input: $input,
-                    inputFocused: $inputFocused,
-                    onSend: send,
-                    onTapKaomoji: {
-                        // v1.6.0 — kaomoji picker dismisses the keyboard first
-                        // so it can claim the full 300pt expanded sheet height,
-                        // instead of getting squeezed above the keyboard like
-                        // the old version. Re-focusing the text field hides it.
-                        if !showKaomoji {
-                            inputFocused = false
-                        }
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            showKaomoji.toggle()
-                        }
-                    },
-                    onTapVideo: { showVideoPicker = true },
-                    onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
-                    // v1.0.4 — camera icon now opens the actual camera, not
-                    // the photo library. Plus button still opens the action
-                    // sheet where the user can pick album / camera / etc.
-                    onTapCamera: { showCamera = true },
-                    onTapMic: { voiceRecorder.start() }
-                )
-            }
-            if showKaomoji {
-                KaomojiPicker(
-                    onPick: { kao in
-                        input.append(kao)
-                        kk.kaomoji.pushRecent(kao)
-                    },
-                    onClose: { withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false } }
-                )
-                .frame(minHeight: 300)
-                .transition(.move(edge: .bottom))
-            }
+            composerArea
         }
         // v1.6.0 — re-focus the text field => hide picker.
         // v1.6.1 — also tell MainTabView to hide the bottom bar while typing.
@@ -367,6 +313,64 @@ struct ChatView: View {
             CheerSheet(mood: kk.dailyMood.today(), onClose: { showCheer = false })
                 .theme(theme)
         }
+    }
+
+    /// Split out of `pairedBody` so the type checker does not give up on one
+    /// expression. The previous chat body needed the same split.
+    private var composerArea: some View {
+        VStack(spacing: 0) {
+            if let replyTo, !selecting {
+                replyPreview(replyTo)
+            }
+            if !selecting, !kk.kaomoji.quick.isEmpty {
+                ChatQuickKaomojiBar(items: kk.kaomoji.quick) { kao in
+                    input.append(kao)
+                    kk.kaomoji.pushRecent(kao)
+                }
+            }
+            if selecting {
+                ChatMultiSelectBar(
+                    count: selectedMessageIDs.count,
+                    onMemory: sendSelectionToMemory,
+                    onAI: sendSelectionToAI,
+                    onCancel: clearSelection
+                )
+            } else if voiceRecorder.isRecording {
+                recordingBar
+            } else {
+                Composer(
+                    input: $input,
+                    inputFocused: $inputFocused,
+                    onSend: send,
+                    onTapKaomoji: toggleKaomoji,
+                    onTapVideo: { showVideoPicker = true },
+                    onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
+                    onTapCamera: { showCamera = true },
+                    onTapMic: { voiceRecorder.start() }
+                )
+            }
+            if showKaomoji {
+                KaomojiPicker(
+                    onPick: insertKaomoji,
+                    onClose: { withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false } }
+                )
+                .frame(minHeight: 300)
+            }
+        }
+    }
+
+    private func toggleKaomoji() {
+        if !showKaomoji {
+            inputFocused = false
+        }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showKaomoji.toggle()
+        }
+    }
+
+    private func insertKaomoji(_ kao: String) {
+        input.append(kao)
+        kk.kaomoji.pushRecent(kao)
     }
 
     // MARK: - Header
