@@ -262,13 +262,11 @@ final class WantYouKnowStore: ObservableObject {
 
 @MainActor
 final class AIUsageStore: ObservableObject {
-    static let cap = 10
-
     struct Snapshot: Codable, Equatable {
         var period: String
         var used: Int
-        var remaining: Int { max(0, AIUsageStore.cap - used) }
-        var isLocked: Bool { used >= AIUsageStore.cap }
+        var remaining: Int { max(0, KKAIQuota.monthlyCap - used) }
+        var isLocked: Bool { used >= KKAIQuota.monthlyCap }
     }
 
     @Published private(set) var snapshot = Snapshot(period: "", used: 0)
@@ -304,7 +302,7 @@ final class AIUsageStore: ObservableObject {
             return false
         }
         guard !snapshot.isLocked else {
-            lastNote = "今個月 10 次用完。"
+            lastNote = "今個月 \(KKAIQuota.monthlyCap) 次用完。"
             return false
         }
         snapshot.used += 1

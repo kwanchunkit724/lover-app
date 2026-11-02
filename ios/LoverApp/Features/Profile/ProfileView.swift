@@ -256,7 +256,7 @@ struct ProfileView: View {
                        onTap: { presented = .kao })
             ProfileRow(icon: .us, label: "主題", value: "\(theme.name) →",
                        onTap: { presented = .theme })
-            ProfileRow(icon: .sparkle, label: "AI", value: "\(kk.ai.snapshot.used)/\(AIUsageStore.cap) →",
+            ProfileRow(icon: .sparkle, label: "AI", value: "\(kk.ai.snapshot.used)/\(KKAIQuota.monthlyCap) →",
                        onTap: { presented = .aiUsage })
             ProfileRow(icon: .clock, label: "傾計 48 小時", value: "→",
                        onTap: { presented = .chatPolicy })
@@ -302,7 +302,7 @@ struct ProfileView: View {
         case .aiUsage:
             KKInfoSheet(
                 title: "AI",
-                bodyText: "今個月 \(kk.ai.snapshot.used)/\(AIUsageStore.cap) 次，兩個人共用。用盡會鎖。只處理你打嘅字同記憶空間項目。伺服器計數未接上。",
+                bodyText: "今個月 \(kk.ai.snapshot.used)/\(KKAIQuota.monthlyCap) 次，兩個人共用。用盡會鎖。只處理你打嘅字同記憶空間項目。伺服器計數未接上。",
                 kao: "(✧ω✧)",
                 onClose: { presented = nil }
             )

@@ -22,7 +22,7 @@ struct AIExpandSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("今個月 \(kk.ai.snapshot.used)/\(AIUsageStore.cap)")
+                    Text("今個月 \(kk.ai.snapshot.used)/\(KKAIQuota.monthlyCap)")
                         .font(DSText.mono(theme, 12))
                         .foregroundStyle(kk.ai.snapshot.isLocked ? theme.rose : theme.inkSoft)
 

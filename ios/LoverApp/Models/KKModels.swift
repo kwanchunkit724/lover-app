@@ -75,6 +75,11 @@ enum DailyMood: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Not actor-isolated. Codable snapshots and views both read this.
+enum KKAIQuota {
+    static let monthlyCap = 10
+}
+
 enum KKTime {
     static let zone = TimeZone(identifier: "Asia/Hong_Kong")!
 

@@ -49,8 +49,13 @@ struct MemorySpaceView: View {
             .theme(theme)
         }
         .onAppear { presentDraftIfNeeded() }
-        .onChange(of: kk.memory.draft?.editingId) { _, _ in presentDraftIfNeeded() }
-        .onChange(of: kk.memory.draft?.sourceMessageIds) { _, _ in presentDraftIfNeeded() }
+        .onChange(of: draftToken) { _, _ in presentDraftIfNeeded() }
+    }
+
+    /// String so `onChange` does not have to infer an optional generic.
+    private var draftToken: String {
+        guard let draft = kk.memory.draft, draft.editingId == nil else { return "" }
+        return draft.sourceMessageIds.joined(separator: "\n") + "\n" + draft.originalText
     }
 
     private func presentDraftIfNeeded() {
