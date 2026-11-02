@@ -93,6 +93,22 @@ enum KKTime {
         return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 
+    /// Calendar date in Hong Kong, with no 06:00 roll.
+    /// `kk_set_daily_mood` requires this date and rejects anything else.
+    static func calendarDayKey(now: Date) -> String {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = zone
+        let parts = cal.dateComponents([.year, .month, .day], from: now)
+        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
+    }
+
+    /// Server opens the daily mood write at 06:00 HKT. Before that the RPC rejects the call.
+    static func isMoodGateOpen(now: Date) -> Bool {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = zone
+        return cal.component(.hour, from: now) >= 6
+    }
+
     static func yearMonthKey(now: Date) -> String {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = zone

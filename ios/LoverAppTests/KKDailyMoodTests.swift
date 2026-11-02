@@ -11,6 +11,12 @@ final class KKDailyMoodTests: XCTestCase {
         XCTAssertNotEqual(mood, "\u{6709}\u{5572}" + String(UnicodeScalar(0x6536)!))
         XCTAssertNotEqual(mood, "\u{6709}\u{5572}" + String(UnicodeScalar(0x652F)!))
         XCTAssertEqual(mood.count, 3)
+        let raw = DailyMoodLock.codepoints(of: mood)
+        XCTAssertEqual(raw, [0x6709, 0x5572, 0x6530])
+        let third = Data(String(UnicodeScalar(raw[2])!).utf8)
+        XCTAssertEqual(Array(third), [0xe6, 0x94, 0xb0])
+        let params = KKRPC.SetMoodArgs(p_mood: DailyMood.tired.label, p_hkt_date: "2026-11-02")
+        XCTAssertEqual(DailyMoodLock.codepoints(of: params.p_mood), [0x6709, 0x5572, 0x6530])
     }
 
     func test_sixMoods_whitelist() {

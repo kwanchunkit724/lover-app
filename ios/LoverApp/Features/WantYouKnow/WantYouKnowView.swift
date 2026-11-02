@@ -82,6 +82,7 @@ struct WantYouKnowView: View {
                 WantDetailView(note: note)
             }
         }
+        .task { await kk.want.refreshFromServer() }
         .sheet(isPresented: $showCreate) {
             WantEditorSheet(onClose: { showCreate = false })
                 .theme(theme)
@@ -125,7 +126,7 @@ private struct WantDetailView: View {
                     .font(DSText.ui(theme, 13))
                     .foregroundStyle(theme.inkSoft)
                 if !live.readByMe {
-                    Button("標記已讀") { kk.want.markRead(live.id) }
+                    Button("標記已讀") { Task { await kk.want.markRead(live.id) } }
                         .buttonStyle(.plain)
                         .foregroundStyle(theme.rose)
                 }
@@ -133,14 +134,8 @@ private struct WantDetailView: View {
                     Text("你刪咗。等對方都刪，呢則先會消失。")
                         .font(DSText.ui(theme, 13))
                         .foregroundStyle(theme.inkSoft)
-                    Button("標記對方已刪（本機示意）") {
-                        kk.want.markDeletedByPartner(live.id)
-                        dismiss()
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(theme.inkMuted)
                 } else {
-                    Button("刪除") { kk.want.markDeletedByMe(live.id) }
+                    Button("刪除") { Task { await kk.want.markDeletedByMe(live.id) } }
                         .buttonStyle(.plain)
                         .foregroundStyle(theme.rose)
                 }
@@ -152,7 +147,7 @@ private struct WantDetailView: View {
         .navigationTitle("想你知道")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            if !live.readByMe { kk.want.markRead(live.id) }
+            if !live.readByMe { Task { await kk.want.markRead(live.id) } }
         }
     }
 
@@ -199,13 +194,15 @@ private struct WantEditorSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("儲存") {
-                        kk.want.add(
-                            title: title,
-                            content: content,
-                            deadline: hasDeadline ? deadline : nil,
-                            remind: remind
-                        )
-                        onClose()
+                        Task {
+                            let ok = await kk.want.add(
+                                title: title,
+                                content: content,
+                                deadline: hasDeadline ? deadline : nil,
+                                remind: remind
+                            )
+                            if ok { onClose() }
+                        }
                     }
                     .disabled(content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }

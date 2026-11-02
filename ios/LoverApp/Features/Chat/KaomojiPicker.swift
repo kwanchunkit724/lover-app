@@ -110,7 +110,7 @@ struct KaomojiPicker: View {
                     .buttonStyle(.plain)
                     .contextMenu {
                         Button(kk.kaomoji.quick.contains(kao) ? "取消快捷" : "設為快捷") {
-                            kk.kaomoji.toggleQuick(kao)
+                            Task { await kk.kaomoji.toggleQuick(kao) }
                         }
                     }
                 }

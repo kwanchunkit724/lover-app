@@ -48,6 +48,7 @@ struct MemorySpaceView: View {
             })
             .theme(theme)
         }
+        .task { await kk.memory.refreshFromServer() }
         .onAppear { presentDraftIfNeeded() }
         .onChange(of: draftToken) { _, _ in presentDraftIfNeeded() }
     }
@@ -73,7 +74,7 @@ struct MemorySpaceView: View {
                 Text("記憶空間")
                     .font(.system(size: 22, weight: .semibold, design: .serif))
                     .foregroundStyle(theme.ink)
-                Text("共享 · 本機草稿，未寫上伺服器")
+                Text(kk.memory.lastError ?? "共享")
                     .font(DSText.mono(theme, 10))
                     .foregroundStyle(theme.inkMuted)
             }
@@ -237,8 +238,10 @@ struct MemoryDetailView: View {
                 .buttonStyle(.plain)
 
                 Button(role: .destructive) {
-                    kk.memory.delete(live.id)
-                    dismiss()
+                    Task {
+                        await kk.memory.delete(live.id)
+                        dismiss()
+                    }
                 } label: {
                     Text("刪除")
                         .font(DSText.ui(theme, 15))
@@ -317,8 +320,9 @@ struct MemoryEditorSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("儲存") {
-                        kk.memory.saveDraft()
-                        onClose()
+                        Task {
+                            if await kk.memory.saveDraft() { onClose() }
+                        }
                     }
                 }
             }

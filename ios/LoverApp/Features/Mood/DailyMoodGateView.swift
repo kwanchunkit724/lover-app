@@ -26,7 +26,7 @@ struct DailyMoodGateView: View {
             VStack(spacing: 8) {
                 ForEach(DailyMood.allCases) { mood in
                     Button {
-                        kk.dailyMood.set(mood)
+                        Task { await kk.dailyMood.set(mood) }
                     } label: {
                         HStack(spacing: 12) {
                             Text(mood.kao)
@@ -62,10 +62,12 @@ struct DailyMoodGateView: View {
             }
             .buttonStyle(.plain)
 
-            if kk.dailyMood.pendingRPC != nil {
-                Text("已記低。伺服器同步未接上。")
+            if let error = kk.dailyMood.lastError {
+                Text(error)
                     .font(DSText.mono(theme, 11))
-                    .foregroundStyle(theme.inkMuted)
+                    .foregroundStyle(theme.rose)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
             }
             Spacer()
         }

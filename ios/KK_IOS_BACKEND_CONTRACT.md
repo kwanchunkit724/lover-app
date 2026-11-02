@@ -1,22 +1,14 @@
 # KK iOS backend contract
 
-The iOS client in this branch does **not** call these RPCs and does **not** migrate or wipe data. Names here are the contract the backend branch should implement. Until then, screens persist on device and set a `pending*` flag.
+Live on us-app `stzfhdjuiupejonyckdu`. The client calls these RPCs with the signed-in session. It does not migrate data and does not touch `kaifan_*` or `carwash_*`.
 
-Chat plaintext never goes to the server. Memory Space, 想你知道, and AI submissions are server-readable once the RPCs exist.
-
-## Tables
-
-- `moods_daily` — user + `hkt_date` unique. `mood` is one of the six labels below.
-- `memory_items` — title, original_text, category (`日常` / `約會` / `計劃` / `其他`), note_summary, source_message_refs, photo_thumbs, attachment_markers, reminder_at. No status, owner, or proposer.
-- `want_you_know` + `want_you_know_reads`. A row disappears only after both people delete it.
-- `ai_usage` — couple + period, cap 10, atomic.
-- `kaomoji_prefs` — `quick_react` length ≤ 6, style pack. Recent kaomoji stay on device.
-- chat rows — `sent_at` / expiry, 48h purge. Memory source refs clear in the same job.
-- `couples.anniversary_iso` — nullable. The live pair RPC still requires a date; stop requiring it when this column is nullable.
+Chat plaintext stays in the existing E2EE path. Memory Space, 想你知道, and AI text are server-readable.
 
 ## Mood whitelist
 
-Built in `DailyMoodLock` from scalars:
+`kk_set_daily_mood(p_mood, p_hkt_date)` stores `users.mood`. `p_hkt_date` must be today's Hong Kong calendar date, and the server rejects calls before 06:00 HKT.
+
+Labels, built in `DailyMoodLock`:
 
 1. U+958B U+5FC3
 2. U+5E73 U+975C
@@ -25,26 +17,27 @@ Built in `DailyMoodLock` from scalars:
 5. U+639B U+4F4F U+4F60
 6. U+6709 U+5572 U+7169
 
-U+6536 and U+652F are not valid. The mood day rolls at 06:00 `Asia/Hong_Kong`.
+The third mood is only `"\u{6709}\u{5572}" + String(UnicodeScalar(0x6530)!)`. UTF-8 of that third scalar is `e6 94 b0`. U+6536 and U+652F are rejected in the client before send. If the server rejects U+6530, the client shows the error and does not substitute another character.
 
-## RPCs
+## Wired
 
-| Name | iOS status |
+| Call | Client |
 | --- | --- |
-| `kk_set_daily_mood(mood, hkt_date)` | local write + `pendingRPC` |
-| `kk_memory_*` / `kk_memory_from_chat` | local memory items + `pendingSync` |
-| `kk_want_*` / mark read | local notes + `pendingSync` |
-| `kk_ai_consume_and_run` | local counter only. Input is user text + memory payloads. No chat ciphertext parameter. |
-| `kk_ai_usage_get` | not called |
-| `kk_kaomoji_prefs_get` / `kk_kaomoji_prefs_set` | local quick list + `pendingCloudSync` |
-| existing Apple + email OTP + pair | unchanged. Pair still sends `p_anniversary_iso`. |
+| `kk_set_daily_mood` | `DailyMoodStore.set` |
+| `users.mood` read | `DailyMoodStore.refreshFromServer` |
+| `kk_memory_create` / `kk_memory_update` / `kk_memory_delete` / `kk_memory_from_chat` | `MemorySpaceStore` |
+| `memory_items` select | same, via RLS |
+| `kk_want_create` / `kk_want_mark_read` / `kk_want_soft_delete` | `WantYouKnowStore` |
+| `want_you_know` + `want_you_know_reads` select | same, via RLS |
+| `kk_ai_usage_get` | `AIUsageStore.refreshFromServer` |
+| `kk_ai_consume_and_run` | `AIUsageStore.consumeOnServer` — payload keys are only `user_text`, `memory_ids`, `memory_items` |
+| `kk_kaomoji_prefs_get` / `kk_kaomoji_prefs_set` | `KaomojiPrefsStore` (recent list stays on device) |
+| `kk_purge_expired_messages` | once per sign-in from `KKAppModel` |
 
-## Jobs (server)
+## Still stubbed
 
-- 48h delete of chat and media, then clear memory source refs. Photo thumbs saved on a memory item are copies, not the chat blob.
-- 想你知道: one push at 09:00 HKT on the due date.
-- AI usage period resets on a locked timezone (client assumes HKT year-month).
-
-## Kaomoji
-
-Bundle `ios/LoverApp/Resources/Kaomoji.json`. Sleep category `label_zh` is U+7761. Search compares the kaomoji string only.
+- Gemini Edge is not deployed. A successful consume returns `result.status = stub` and the quota is still consumed. The sheet shows that note.
+- 48h purge Edge/cron is not scheduled. The client call above is only opportunistic.
+- 想你知道 09:00 HKT push is not wired. The `remind` flag is saved; no push is sent.
+- `send-push` stays the existing device-token path. No new KK push job.
+- Pairing RPCs are unchanged and still send `p_anniversary_iso`.

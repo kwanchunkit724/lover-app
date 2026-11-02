@@ -107,9 +107,16 @@ struct AIExpandSheet: View {
     }
 
     private func run() {
-        let ok = kk.ai.consume(userText: text, memoryItemIds: request.memoryItemIds)
-        guard ok else { return }
-        didConsume = true
-        result = "未接到 kk_ai_consume_and_run。呢次只係本機扣數，伺服器未見呢段文字。"
+        let memories = kk.memory.items
+            .filter { request.memoryItemIds.contains($0.id) }
+            .map {
+                KKRPC.AIMemoryInput(id: $0.id.uuidString, title: $0.title, original_text: $0.originalText)
+            }
+        Task {
+            let outcome = await kk.ai.consumeOnServer(userText: text, memories: memories)
+            guard outcome.ok else { return }
+            didConsume = true
+            result = outcome.message
+        }
     }
 }

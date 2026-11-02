@@ -49,6 +49,22 @@ final class KKAppModel: ObservableObject {
         want.bind(userId: userId)
         ai.bind(userId: userId)
         kaomoji.bind(userId: userId)
+        Task { await syncRemote() }
+    }
+
+    /// Pulls server rows and opportunistically purges expired chat.
+    /// 48h Edge/cron is still TODO; this call is not that schedule.
+    private func syncRemote() async {
+        await dailyMood.refreshFromServer()
+        await memory.refreshFromServer()
+        await want.refreshFromServer()
+        await ai.refreshFromServer()
+        await kaomoji.refreshFromServer()
+        do {
+            try await KKRPC.purgeExpiredMessages()
+        } catch {
+            memory.lastError = error.localizedDescription
+        }
     }
 
     func clearSession() {
