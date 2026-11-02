@@ -6,7 +6,7 @@
  *   memory_items, want_you_know, want_you_know_reads, ai_usage, kaomoji_prefs
  * RPCs (kk_ prefix):
  *   kk_set_daily_mood — reuse users.mood / mood_updated_at; HKT day; 06:00 gate;
- *     moods: 開心/平靜/有啲攥/低落/掛住你/有啲煩
+ *     moods: 開心/平靜/有啲攰/低落/掛住你/有啲煩
  *   kk_memory_* / kk_memory_from_chat (merge from chat, NO quota)
  *   kk_want_* + mark_read (want_you_know + want_you_know_reads)
  *   kk_ai_consume_and_run — ONLY user text + memory items (whitelist; never chat ciphertext)
@@ -23,11 +23,11 @@
 
 export type MemoryCategory = "日常" | "約會" | "計劃" | "其他";
 
-/** Pending Chunkit confirmation: 有啲攥 (not 有啲攤). */
+/** Locked sixth mood: 有啲攰 (U+6530) per Chunkit decision 2026-11-02. Do NOT use 收 (U+6536) or 支 (U+652F). */
 export type MoodId =
   | "開心"
   | "平靜"
-  | "有啲攥"
+  | "有啲攰"
   | "低落"
   | "掛住你"
   | "有啲煩";
@@ -35,7 +35,7 @@ export type MoodId =
 export const MOODS: { id: MoodId; kao: string; en: string }[] = [
   { id: "開心", kao: "(ﾉ´ヮ`)ﾉ*:・ﾟ", en: "Happy" },
   { id: "平靜", kao: "(◕‿◕)", en: "Calm" },
-  { id: "有啲攥", kao: "(・_・;)", en: "Meh" },
+  { id: "有啲攰", kao: "(・_・;)", en: "Meh" },
   { id: "低落", kao: "(´；ω；`)", en: "Low" },
   { id: "掛住你", kao: "(♡˙︶˙♡)", en: "Miss you" },
   { id: "有啲煩", kao: "(￣ヘ￣)", en: "Stressed" },

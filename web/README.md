@@ -53,6 +53,6 @@ localStorage mock. Planned contract (names must stay aligned with iOS/backend):
   `kk_ai_consume_and_run`, `kk_ai_usage_get`, `kk_kaomoji_prefs_get/set`
 - Reuse: `couples.anniversary_iso` (nullable), `messages.expires_at` + 48h purge,
   `pairing_codes`, `users.mood` / `mood_updated_at`
-- Mood values: 開心 / 平靜 / **有啲攥** / 低落 / 掛住你 / 有啲煩
+- Mood values: 開心 / 平靜 / **有啲攰** / 低落 / 掛住你 / 有啲煩
 
 Chat crypto + pairing still use the existing `lib/services/*` + Supabase layer.
