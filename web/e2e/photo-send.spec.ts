@@ -4,6 +4,8 @@
 
 import { test, expect, Browser, BrowserContext, Page } from "@playwright/test";
 
+test.skip(true, "Anonymous sign-in removed in KK");
+
 type U = { ctx: BrowserContext; page: Page };
 
 const makeUser = async (browser: Browser, name: string): Promise<U> => {

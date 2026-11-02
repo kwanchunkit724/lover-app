@@ -183,7 +183,7 @@ export default function PairPage() {
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-ink-soft">你哋嘅紀念日（兩邊要一樣）</span>
+              <span className="mb-1 block text-sm font-medium text-ink-soft">配對驗證日期（兩邊要一樣 · 內部）</span>
               <input
                 type="date"
                 value={partnerAnniv}
@@ -222,7 +222,7 @@ export default function PairPage() {
 const translateError = (raw: string): string => {
   if (raw.includes("invalid_code")) return "Code 唔啱，請再 check 過。";
   if (raw.includes("code_expired")) return "Code 已經過期，請伴侶生成新嘅。";
-  if (raw.includes("anniversary_mismatch")) return "紀念日唔啱對，請 confirm 同伴侶輸入嘅一致。";
+  if (raw.includes("anniversary_mismatch")) return "配對驗證日期唔啱對，請同伴侶用同一個日期。";
   if (raw.includes("already_paired")) return "你哋已經配對咗。";
   if (raw.includes("cannot_pair_with_self")) return "唔可以自己同自己配對 (◍•﹏•)";
   return raw;

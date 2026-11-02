@@ -4,7 +4,6 @@ import { TabBar } from "@/components/TabBar";
 import { ToastProvider } from "@/components/Toast";
 import "./globals.css";
 
-// Brand fonts — match design-import/index.html.
 const klee = Klee_One({
   weight: ["400", "600"],
   subsets: ["latin"],
@@ -34,8 +33,9 @@ const notoTC = Noto_Sans_TC({
 });
 
 export const metadata: Metadata = {
-  title: "Us 我哋 — 兩個人嘅小天地",
-  description: "情侶專屬封關係空間｜E2EE 加密信息、紀念日、協作記載",
+  title: "KK — for us · 情侶空間",
+  description:
+    "KK 情侶空間｜粵語繁中｜傾計 E2EE、記憶空間、想你知道｜Apple / Email OTP",
 };
 
 export default function RootLayout({

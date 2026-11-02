@@ -1,18 +1,16 @@
 @import "tailwindcss";
 
-/* Brand tokens — sourced from design-import/theme.js + index.html.
- * Cream bg, rose accents, ink text. Subtle radial gradients give the
- * kawaii "soft daylight" feel matching the iOS app's home gradient. */
+/* KK brand — cream/warm-paper + terracotta accent; kaomoji-led */
 :root {
-  --color-cream: #FBF4EE;
-  --color-cream-deep: #F5E9DE;
-  --color-rose: #D88B82;
-  --color-rose-soft: #F8DDD7;
-  --color-mint: #E5EBDB;
-  --color-ink: #3D2E27;
-  --color-ink-soft: #6E5B52;
-  --color-surface: #FFFFFF;
-  --color-line: #E8DCCF;
+  --color-cream: #f7f6f4;
+  --color-cream-deep: #f0eeea;
+  --color-rose: #c4785a;
+  --color-rose-soft: #f5ebe6;
+  --color-mint: #e5ebdb;
+  --color-ink: #1c1b1a;
+  --color-ink-soft: #6b6864;
+  --color-surface: #ffffff;
+  --color-line: #e8e5e0;
 }
 
 @theme inline {
@@ -31,10 +29,7 @@
 }
 
 body {
-  background:
-    radial-gradient(circle at 20% 10%, var(--color-rose-soft) 0%, transparent 40%),
-    radial-gradient(circle at 80% 80%, var(--color-mint) 0%, transparent 40%),
-    var(--color-cream);
+  background: var(--color-cream);
   color: var(--color-ink);
   font-family: var(--font-zen-maru), var(--font-noto-tc), system-ui, sans-serif;
   min-height: 100vh;
@@ -46,7 +41,7 @@ h1, h2, h3 {
 }
 
 .kao {
-  font-family: var(--font-dm-mono), monospace;
+  font-family: var(--font-dm-mono), "Apple Color Emoji", monospace;
   color: var(--color-rose);
 }
 

@@ -1,3 +1,4 @@
+/** KK: anon login removed — suite skipped until OTP harness. */
 // Mobile viewport smoke + CRUD-delete sanity. Covers gaps the main
 // pair-and-chat test doesn't exercise:
 //   - 375×667 viewport (iPhone SE) sanity: header + bottom tabs fit
@@ -22,6 +23,7 @@ const makeAnonOnboarded = async (browser: Browser, viewport = { width: 1280, hei
 };
 
 test.describe("Mobile + CRUD-delete", () => {
+  test.skip(true, "Anonymous sign-in removed in KK");
   test("iPhone SE viewport — login + onboarding + pair page fit", async ({ browser }) => {
     const { ctx, page } = await makeAnonOnboarded(browser, { width: 375, height: 667 });
 

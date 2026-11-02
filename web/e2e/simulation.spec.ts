@@ -8,6 +8,8 @@
 import { test, expect, Browser, BrowserContext, Page } from "@playwright/test";
 import path from "path";
 
+test.skip(true, "Anonymous sign-in removed in KK");
+
 type U = { ctx: BrowserContext; page: Page; name: string };
 
 const SHOTS = path.join(process.cwd(), "sim-shots");

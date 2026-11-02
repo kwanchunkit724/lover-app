@@ -33,9 +33,6 @@ export default defineConfig({
         url: "http://localhost:3000",
         reuseExistingServer: true,
         timeout: 60_000,
-        // Anon "試玩" sign-in is gated behind this flag in app code; the e2e
-        // suite drives it, so enable it for the test dev server only. (Also
-        // mirrored in .env.local so a reused dev server has it too.)
-        env: { NEXT_PUBLIC_ENABLE_TEST_SIGNIN: "1" },
+        // KK removed anonymous test sign-in; leave env empty.
       },
 });
