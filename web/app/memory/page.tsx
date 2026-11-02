@@ -7,6 +7,7 @@ import {
   getMoodForToday,
   kk_ai_usage_get,
   kk_memory_list,
+  refreshMoodFromServer,
   type AiUsage,
   type MemoryCategory,
   type MemoryItem,
@@ -21,12 +22,20 @@ export default function MemoryPage() {
   const [quota, setQuota] = useState<AiUsage | null>(null);
 
   useEffect(() => {
-    if (!getMoodForToday()) {
-      router.replace("/mood");
-      return;
-    }
-    void kk_memory_list().then(setItems);
-    void kk_ai_usage_get().then(setQuota);
+    void (async () => {
+      const mood = getMoodForToday() || (await refreshMoodFromServer());
+      if (!mood) {
+        router.replace("/mood");
+        return;
+      }
+      try {
+        setItems(await kk_memory_list());
+        setQuota(await kk_ai_usage_get());
+      } catch {
+        setItems([]);
+        setQuota(null);
+      }
+    })();
   }, [router]);
 
   const shown =

@@ -8,6 +8,7 @@ import {
   kk_want_list,
   kk_want_mark_read,
   kk_want_delete,
+  refreshMoodFromServer,
   type WantYouKnowItem,
 } from "@/lib/kk/api";
 
@@ -15,14 +16,17 @@ export default function TellPage() {
   const router = useRouter();
   const [items, setItems] = useState<WantYouKnowItem[]>([]);
 
-  const reload = () => void kk_want_list().then(setItems);
+  const reload = () => void kk_want_list().then(setItems).catch(() => setItems([]));
 
   useEffect(() => {
-    if (!getMoodForToday()) {
-      router.replace("/mood");
-      return;
-    }
-    reload();
+    void (async () => {
+      const mood = getMoodForToday() || (await refreshMoodFromServer());
+      if (!mood) {
+        router.replace("/mood");
+        return;
+      }
+      reload();
+    })();
   }, [router]);
 
   return (

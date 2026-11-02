@@ -29,7 +29,7 @@ Removed / redirected: 時間簿 (`/time` → `/memory`), `/profile` → `/us`. D
 
 ```bash
 cd web
-cp .env.local.example .env.local   # if present; set NEXT_PUBLIC_SUPABASE_*
+create .env.local with NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY
 npm install
 npm run dev
 ```
@@ -43,16 +43,33 @@ Vercel project: **`lover-app-web`** (historically deployed via CLI).
 **Production deploy only after** backend RPCs/tables are ready and tests pass.
 Do not `vercel deploy --prod` from this branch until then.
 
+## Env
+
+Required (publishable; RLS enforces access — never commit secrets):
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://stzfhdjuiupejonyckdu.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<us-app anon or sb_publishable_… key>
+```
+
+Copy into `.env.local` (gitignored). No additional KK-specific secrets for the
+web client. Gemini Edge is optional; AI RPC returns a stub until it is deployed.
+
 ## Backend adapter
 
-UI talks to `lib/kk/api.ts`. Where tables/RPCs do not exist yet, it uses a
-localStorage mock. Planned contract (names must stay aligned with iOS/backend):
+UI talks to `lib/kk/api.ts`, which calls live Supabase `kk_*` RPCs + RLS selects
+on us-app (`stzfhdjuiupejonyckdu`). Contract:
 
-- Tables: `memory_items`, `want_you_know`, `want_you_know_reads`, `ai_usage`, `kaomoji_prefs`
-- RPCs: `kk_set_daily_mood`, `kk_memory_*`, `kk_memory_from_chat`, `kk_want_*`,
-  `kk_ai_consume_and_run`, `kk_ai_usage_get`, `kk_kaomoji_prefs_get/set`
-- Reuse: `couples.anniversary_iso` (nullable), `messages.expires_at` + 48h purge,
-  `pairing_codes`, `users.mood` / `mood_updated_at`
-- Mood values: 開心 / 平靜 / **有啲攰** / 低落 / 掛住你 / 有啲煩
+- Tables: `memory_items`, `want_you_know`, `want_you_know_reads`, `ai_usage`,
+  `kaomoji_prefs`, `kaomoji_catalog`
+- RPCs: `kk_set_daily_mood`, `kk_memory_create/update/delete`, `kk_memory_from_chat`,
+  `kk_want_create/update`, `kk_want_mark_read`, `kk_want_soft_delete`,
+  `kk_ai_consume_and_run`, `kk_ai_usage_get`, `kk_kaomoji_prefs_get/set`,
+  `kk_purge_expired_messages` (optional client; primary purge is Edge/cron)
+- Lists: `memory_items` / `want_you_know` via select (RLS); no list RPC
+- Reuse: `pairing_codes`, `users.mood` / `mood_updated_at`, `messages.expires_at`
+- Mood values: 開心 / 平靜 / **有啲攰** (U+6530) / 低落 / 掛住你 / 有啲煩
+- Sleep kaomoji category `label_zh`: **睡** (U+7761)
 
 Chat crypto + pairing still use the existing `lib/services/*` + Supabase layer.
+`localStorage` remains a cache for daily mood gate + kaomoji prefs fallback.

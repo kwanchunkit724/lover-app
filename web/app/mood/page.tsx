@@ -2,24 +2,45 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MOODS, getMoodForToday, setMoodForToday, type MoodId } from "@/lib/kk/api";
+import {
+  MOODS,
+  getMoodForToday,
+  refreshMoodFromServer,
+  setMoodForToday,
+  type MoodId,
+} from "@/lib/kk/api";
 
 export default function MoodPage() {
   const router = useRouter();
   const [picked, setPicked] = useState<MoodId | null>(null);
   const [cheerSkip, setCheerSkip] = useState(false);
   const [doneMood, setDoneMood] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (getMoodForToday()) {
-      router.replace("/chat");
-    }
+    void (async () => {
+      const cached = getMoodForToday();
+      if (cached) {
+        router.replace("/chat");
+        return;
+      }
+      const remote = await refreshMoodFromServer();
+      if (remote) router.replace("/chat");
+    })();
   }, [router]);
 
-  const continueToApp = () => {
-    if (!picked) return;
-    setMoodForToday(picked);
-    router.replace("/chat");
+  const continueToApp = async () => {
+    if (!picked || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await setMoodForToday(picked);
+      router.replace("/chat");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "設定心情失敗");
+      setBusy(false);
+    }
   };
 
   if (doneMood && !cheerSkip) {
@@ -31,21 +52,24 @@ export default function MoodPage() {
           <p className="mt-2 text-sm text-ink-soft">輕量打氣 · 可以略過</p>
           <button
             type="button"
-            onClick={continueToApp}
-            className="mt-6 w-full rounded-2xl bg-rose py-3 font-medium text-white"
+            onClick={() => void continueToApp()}
+            disabled={busy}
+            className="mt-6 w-full rounded-2xl bg-rose py-3 font-medium text-white disabled:opacity-50"
           >
-            入去 · Continue
+            {busy ? "儲存緊…" : "入去 · Continue"}
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={() => {
               setCheerSkip(true);
-              continueToApp();
+              void continueToApp();
             }}
-            className="mt-3 w-full text-sm text-ink-soft"
+            className="mt-3 w-full text-sm text-ink-soft disabled:opacity-50"
           >
             略過打氣
           </button>
+          {error && <p className="mt-3 text-sm text-rose">{error}</p>}
         </div>
       </main>
     );

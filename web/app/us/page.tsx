@@ -18,6 +18,7 @@ import {
   getQuickReact,
   getRecent,
   getStylePack,
+  kk_kaomoji_prefs_get,
   loadCatalogue,
   setQuickReact,
   setStylePack,
@@ -96,10 +97,13 @@ export default function UsPage() {
       });
     })();
     void kk_ai_usage_get().then(setQuota);
-    void loadCatalogue().then((c) => {
+    void (async () => {
+      await kk_kaomoji_prefs_get();
+      setStyle(getStylePack());
+      const c = await loadCatalogue();
       setQuick(getQuickReact(c));
       setRecent(getRecent());
-    });
+    })();
   }, [router]);
 
   const signOut = async () => {
@@ -234,7 +238,7 @@ export default function UsPage() {
             <span className="kao mr-1">(´∀｀)</span>顏文字偏好
           </h3>
           <p className="text-[11px] text-ink-soft">
-            TODO → kk_kaomoji_prefs_get / kk_kaomoji_prefs_set（而家 localStorage）
+            已同步 kk_kaomoji_prefs_*（localStorage 作 cache）
           </p>
           <div>
             <p className="text-xs font-medium">快捷反應 · ≤6</p>

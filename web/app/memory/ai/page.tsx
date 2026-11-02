@@ -101,6 +101,12 @@ function AiPanel() {
       {error && <p className="mt-3 text-sm text-rose">{error}</p>}
       {result && (
         <div className="mt-4 space-y-3">
+          {result.stub && (
+            <p className="rounded-xl bg-rose-soft px-3 py-2 text-sm text-rose">
+              Gemini AI 尚未上線（stub）。配額已扣除；以下係臨時整理，正式計劃稍後提供。
+              {result.note ? ` · ${result.note}` : ""}
+            </p>
+          )}
           <pre className="whitespace-pre-wrap rounded-2xl bg-surface p-4 text-sm shadow-sm">
             {result.organized}
           </pre>
