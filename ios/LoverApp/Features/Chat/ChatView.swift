@@ -175,7 +175,9 @@ struct ChatView: View {
         VStack(spacing: 0) {
             header
             ChatPolicyBanner()
-            if !crypto.isReady {
+            // The indeterminate spinner never goes idle, and Simulator smoke
+            // waits for quiescence. The fixture has no chat key on purpose.
+            if !crypto.isReady && !UITesting.blocksNetwork {
                 cryptoNotReadyBanner
             }
             messageList

@@ -73,7 +73,14 @@ struct DSTabBar: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                // Combine the kaomoji and the optional title into one button.
+                // A container identifier on the bar hid these from XCUITest,
+                // so the id lives on the button itself. Inactive tabs still
+                // hide the visible title.
+                .accessibilityElement(children: .combine)
                 .accessibilityLabel(tab.label)
+                .accessibilityIdentifier("tab-\(tab.rawValue)")
+                .accessibilityAddTraits(.isButton)
             }
         }
         .padding(.horizontal, 10)

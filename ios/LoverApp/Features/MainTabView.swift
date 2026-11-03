@@ -15,7 +15,10 @@ struct MainTabView: View {
     @State private var chatKeyboardActive = false
 
     private var showTabBar: Bool {
-        !(selection == .chat && chatKeyboardActive)
+        // Simulator smoke has to see the four tabs even if the composer
+        // focus or the kaomoji picker would otherwise slide the bar away.
+        if UITesting.blocksNetwork { return true }
+        return !(selection == .chat && chatKeyboardActive)
     }
 
     var body: some View {

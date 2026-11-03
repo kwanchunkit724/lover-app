@@ -28,6 +28,13 @@ final class PairingService: ObservableObject {
             case pairedAt   = "paired_at"
         }
 
+        init(id: UUID, userAID: UUID, userBID: UUID, pairedAt: Date) {
+            self.id = id
+            self.userAID = userAID
+            self.userBID = userBID
+            self.pairedAt = pairedAt
+        }
+
         /// The OTHER user's id, given mine.
         func partnerId(forMe me: UUID) -> UUID? {
             if userAID == me { return userBID }
@@ -55,6 +62,17 @@ final class PairingService: ObservableObject {
             case publicKey     = "public_key"
             case lastSeenAt    = "last_seen_at"
         }
+
+        init(id: UUID, myName: String, partnerName: String, anniversaryISO: String,
+             themeId: String, publicKey: String?, lastSeenAt: Date?) {
+            self.id = id
+            self.myName = myName
+            self.partnerName = partnerName
+            self.anniversaryISO = anniversaryISO
+            self.themeId = themeId
+            self.publicKey = publicKey
+            self.lastSeenAt = lastSeenAt
+        }
     }
 
     /// Active pairing code issued by THIS device. Carries the anniversary
@@ -76,6 +94,33 @@ final class PairingService: ObservableObject {
 
     var isPaired: Bool { couple != nil }
 
+    init() {
+        if UITesting.mode == .shell {
+            installUITestFixture(meId: UITesting.fixtureUserId)
+        }
+    }
+
+    /// In-memory couple so the chat composer can render in Simulator smoke.
+    /// Does not call create/redeem and does not write a couples row.
+    func installUITestFixture(meId: UUID) {
+        guard UITesting.mode == .shell else { return }
+        couple = Couple(
+            id: UITesting.fixtureCoupleId,
+            userAID: meId,
+            userBID: UITesting.fixturePartnerId,
+            pairedAt: Date(timeIntervalSince1970: 0)
+        )
+        partner = PartnerRow(
+            id: UITesting.fixturePartnerId,
+            myName: "UI Partner",
+            partnerName: "UI Preview",
+            anniversaryISO: "2020-01-01",
+            themeId: "jbeam",
+            publicKey: nil,
+            lastSeenAt: nil
+        )
+    }
+
     /// v1.6.1 — explicitly clear all pairing state. MUST be called on
     /// sign-out / account-deletion: otherwise the in-memory couple/partner
     /// survive and a different account signing in on the same device briefly
@@ -93,6 +138,7 @@ final class PairingService: ObservableObject {
     /// Called after sign-in. Fetches the existing couple row (if any) and
     /// the partner's user row.
     func refresh(meId: UUID) async {
+        if UITesting.blocksNetwork { return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -128,6 +174,10 @@ final class PairingService: ObservableObject {
     /// time so it's an explicit confirmation rather than silently inheriting
     /// a casual onboarding placeholder.
     func createCode(anniversary: Date) async {
+        if UITesting.blocksNetwork {
+            lastError = "UI test fixture does not create pairing codes."
+            return
+        }
         isLoading = true
         defer { isLoading = false }
         lastError = nil
@@ -156,6 +206,10 @@ final class PairingService: ObservableObject {
     /// for whichever side made the call. Both sides fall back to PairingView
     /// on their next refresh.
     func unpair() async {
+        if UITesting.blocksNetwork {
+            lastError = "UI test fixture does not unpair."
+            return
+        }
         isLoading = true
         defer { isLoading = false }
         lastError = nil
@@ -178,6 +232,10 @@ final class PairingService: ObservableObject {
 
     /// Returns true on success, false on failure (with `lastError` populated).
     func redeem(code: String, anniversary: Date, meId: UUID) async -> Bool {
+        if UITesting.blocksNetwork {
+            lastError = "UI test fixture does not redeem pairing codes."
+            return false
+        }
         isLoading = true
         defer { isLoading = false }
         lastError = nil

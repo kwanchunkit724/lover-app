@@ -31,6 +31,7 @@ struct SignInView: View {
 
                 Text("用 Apple 或者 Email 驗證碼登入。無訪客模式。")
                     .font(DSText.ui(theme, 14))
+                    .accessibilityIdentifier("auth-subtitle")
                     .foregroundStyle(theme.inkSoft)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
@@ -79,6 +80,7 @@ struct SignInView: View {
             )
             .signInWithAppleButtonStyle(theme.isDark ? .white : .black)
             .frame(height: 52)
+            .accessibilityIdentifier("auth-apple")
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             HStack(spacing: 8) {
@@ -108,6 +110,7 @@ struct SignInView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("auth-email")
         }
     }
 

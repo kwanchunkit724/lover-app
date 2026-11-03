@@ -49,12 +49,15 @@ final class KKAppModel: ObservableObject {
         want.bind(userId: userId)
         ai.bind(userId: userId)
         kaomoji.bind(userId: userId)
-        Task { await syncRemote() }
+        if !UITesting.blocksNetwork {
+            Task { await syncRemote() }
+        }
     }
 
     /// Pulls server rows and opportunistically purges expired chat.
     /// 48h Edge/cron is still TODO; this call is not that schedule.
     private func syncRemote() async {
+        if UITesting.blocksNetwork { return }
         await dailyMood.refreshFromServer()
         await memory.refreshFromServer()
         await want.refreshFromServer()
