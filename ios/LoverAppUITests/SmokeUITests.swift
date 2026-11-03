@@ -54,14 +54,22 @@ final class SmokeUITests: XCTestCase {
             ("tab-us", "我哋")
         ]
 
+        snapshot(app, name: "smoke-tab-shell")
         for (identifier, label) in expected {
-            let tab = app.buttons[identifier]
-            XCTAssertTrue(tab.waitForExistence(timeout: 30), "missing \(identifier)")
-            XCTAssertEqual(tab.label, label)
+            let tab = identified(app, identifier)
+            XCTAssertTrue(
+                tab.waitForExistence(timeout: 30),
+                "missing \(identifier). buttons: \(buttonSummary(app))"
+            )
+            XCTAssertEqual(tab.label, label, "\(identifier) label was \(tab.label)")
         }
 
         for identifier in ["tab-chat", "tab-memory", "tab-want", "tab-us"] {
-            XCTAssertEqual(app.buttons.matching(identifier: identifier).count, 1, identifier)
+            XCTAssertEqual(
+                app.descendants(matching: .any).matching(identifier: identifier).count,
+                1,
+                identifier
+            )
         }
 
         for gone in ["tab-time", "tab-play", "tab-activities", "tab-date", "時間", "玩樂", "時間簿", "約會活動"] {
@@ -74,19 +82,19 @@ final class SmokeUITests: XCTestCase {
         XCTAssertTrue(app.buttons["composer-kaomoji"].waitForExistence(timeout: 10))
         snapshot(app, name: "smoke-tab-chat")
 
-        app.buttons["tab-memory"].tap()
+        identified(app, "tab-memory").tap()
         XCTAssertTrue(app.staticTexts["記憶空間"].waitForExistence(timeout: 8))
         snapshot(app, name: "smoke-tab-memory")
 
-        app.buttons["tab-want"].tap()
+        identified(app, "tab-want").tap()
         XCTAssertTrue(app.staticTexts["想你知道"].waitForExistence(timeout: 8))
         snapshot(app, name: "smoke-tab-want")
 
-        app.buttons["tab-us"].tap()
+        identified(app, "tab-us").tap()
         XCTAssertTrue(app.staticTexts["我哋"].waitForExistence(timeout: 8))
         snapshot(app, name: "smoke-tab-us")
 
-        app.buttons["tab-chat"].tap()
+        identified(app, "tab-chat").tap()
         XCTAssertTrue(app.buttons["composer-kaomoji"].waitForExistence(timeout: 8))
 
         for gone in ["tab-time", "tab-play", "tab-activities", "時間", "玩樂"] {
@@ -121,6 +129,18 @@ final class SmokeUITests: XCTestCase {
     }
 
     // MARK: - helpers
+
+    /// Tab ids are on the bar buttons. Query any element so a combined
+    /// accessibility node is still found when it is not typed as a button.
+    private func identified(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+        app.descendants(matching: .any)[identifier]
+    }
+
+    private func buttonSummary(_ app: XCUIApplication) -> String {
+        app.buttons.allElementsBoundByIndex.prefix(24).map { button in
+            "\(button.identifier) [\(button.label)]"
+        }.joined(separator: " | ")
+    }
 
     private func launch(_ mode: String) -> XCUIApplication {
         let app = XCUIApplication()

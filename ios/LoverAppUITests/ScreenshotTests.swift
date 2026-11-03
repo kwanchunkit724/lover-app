@@ -16,27 +16,30 @@ final class ScreenshotTests: XCTestCase {
     }
 
     func test_screenshot_chatTab() throws {
-        XCTAssertTrue(app.buttons["tab-chat"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.descendants(matching: .any)["tab-chat"].waitForExistence(timeout: 30))
         snapshot(name: "01-chat")
     }
 
     func test_screenshot_memoryTab() throws {
-        XCTAssertTrue(app.buttons["tab-memory"].waitForExistence(timeout: 30))
-        app.buttons["tab-memory"].tap()
+        let memory = app.descendants(matching: .any)["tab-memory"]
+        XCTAssertTrue(memory.waitForExistence(timeout: 30))
+        memory.tap()
         sleep(1)
         snapshot(name: "02-memory")
     }
 
     func test_screenshot_wantTab() throws {
-        XCTAssertTrue(app.buttons["tab-want"].waitForExistence(timeout: 30))
-        app.buttons["tab-want"].tap()
+        let want = app.descendants(matching: .any)["tab-want"]
+        XCTAssertTrue(want.waitForExistence(timeout: 30))
+        want.tap()
         sleep(1)
         snapshot(name: "03-want")
     }
 
     func test_screenshot_usTab() throws {
-        XCTAssertTrue(app.buttons["tab-us"].waitForExistence(timeout: 30))
-        app.buttons["tab-us"].tap()
+        let us = app.descendants(matching: .any)["tab-us"]
+        XCTAssertTrue(us.waitForExistence(timeout: 30))
+        us.tap()
         sleep(1)
         snapshot(name: "04-us")
     }

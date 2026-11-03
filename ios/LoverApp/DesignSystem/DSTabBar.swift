@@ -73,14 +73,16 @@ struct DSTabBar: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                // Combine the kaomoji and the optional title into one button.
+                // A container identifier on the bar hid these from XCUITest,
+                // so the id lives on the button itself. Inactive tabs still
+                // hide the visible title.
+                .accessibilityElement(children: .combine)
                 .accessibilityLabel(tab.label)
-                // Inactive tabs hide the title (Instagram-style). Tests and
-                // VoiceOver use this id plus accessibilityLabel, not the
-                // visible text, which exists only on the active tab.
                 .accessibilityIdentifier("tab-\(tab.rawValue)")
+                .accessibilityAddTraits(.isButton)
             }
         }
-        .accessibilityIdentifier("kk-tab-bar")
         .padding(.horizontal, 10)
         .padding(.top, placement == .top ? 5 : 6)
         // v1.6.1 — no more hardcoded 24pt bottom fake-inset; the caller pins
