@@ -80,30 +80,6 @@ workflows:
           if [ "$status" -ne 0 ]; then
             echo "======= COMPILE ERRORS ======="
             grep -E "error:" /tmp/xcodebuild.log | head -80 || true
-            # The GitHub check summary does not include xcodebuild stdout.
-            # Post the errors on the commit when a token is present.
-            TOKEN="${GITHUB_TOKEN:-${GH_TOKEN:-}}"
-            if [ -n "$TOKEN" ] && [ -n "${CM_COMMIT:-}" ]; then
-              python3 - << 'PY'
-import json, os, urllib.request
-errors = open("/tmp/xcodebuild.log", encoding="utf-8", errors="replace").read().splitlines()
-hits = [line for line in errors if "error:" in line][:40]
-body = "Compile errors:\n\n```\n" + "\n".join(hits) + "\n```"
-req = urllib.request.Request(
-    f"https://api.github.com/repos/kwanchunkit724/lover-app/commits/{os.environ['CM_COMMIT']}/comments",
-    data=json.dumps({"body": body}).encode(),
-    headers={
-        "Authorization": f"Bearer {os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')}",
-        "Accept": "application/vnd.github+json",
-        "Content-Type": "application/json",
-    },
-)
-try:
-    urllib.request.urlopen(req, timeout=20).read()
-except Exception as exc:
-    print("could not post compile errors:", exc)
-PY
-            fi
             exit "$status"
           fi
           xcbeautify < /tmp/xcodebuild.log
