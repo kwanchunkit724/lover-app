@@ -8,6 +8,7 @@ struct DSChip: View {
     let label: String
     var active: Bool = false
     var color: Color? = nil
+    var accessibilityID: String? = nil
     var action: (() -> Void)? = nil
 
     var body: some View {
@@ -23,6 +24,19 @@ struct DSChip: View {
         if let action {
             Button(action: action) { content }
                 .buttonStyle(.plain)
+                .modifier(OptionalAccessibilityID(accessibilityID))
+        } else {
+            content.modifier(OptionalAccessibilityID(accessibilityID))
+        }
+    }
+}
+
+private struct OptionalAccessibilityID: ViewModifier {
+    let identifier: String?
+
+    func body(content: Content) -> some View {
+        if let identifier, !identifier.isEmpty {
+            content.accessibilityIdentifier(identifier)
         } else {
             content
         }

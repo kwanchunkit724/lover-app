@@ -106,6 +106,7 @@ struct RootView: View {
                     signedInShell()
                         .task {
                             kk.bind(userId: userId)
+                            if UITesting.blocksNetwork { return }
                             await pairing.refresh(meId: userId)
                             if pairing.isPaired {
                                 await preparePaired(meId: userId)
@@ -117,6 +118,7 @@ struct RootView: View {
         .onChange(of: auth.state) { _, newState in
             if case .signedIn(let id) = newState {
                 kk.bind(userId: id)
+                if UITesting.blocksNetwork { return }
                 Task {
                     await pairing.refresh(meId: id)
                     if pairing.isPaired {
@@ -140,6 +142,7 @@ struct RootView: View {
         }
         .onChange(of: pairing.isPaired) { _, isPaired in
             if isPaired {
+                if UITesting.blocksNetwork { return }
                 if case .signedIn(let id) = auth.state {
                     Task { await preparePaired(meId: id) }
                 }
@@ -165,6 +168,7 @@ struct RootView: View {
         // the foreground if we're paired but still keyless. This is cheap
         // (one DB read + 1 HKDF) and idempotent.
         .onChange(of: scenePhase) { _, phase in
+            if UITesting.blocksNetwork { return }
             if phase == .active,
                crypto.chatKey == nil,
                pairing.isPaired,
@@ -190,7 +194,9 @@ struct RootView: View {
 
     @ViewBuilder
     private func signedInShell() -> some View {
-        if !kk.dailyMood.isReady {
+        if UITesting.mode == .shell {
+            MainTabView()
+        } else if !kk.dailyMood.isReady {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if kk.dailyMood.needsGate() {
@@ -208,6 +214,7 @@ struct RootView: View {
     /// unpaired, observed by the .onChange handlers above which would
     /// invalidate the next iteration's preconditions).
     private func preparePaired(meId: UUID) async {
+        if UITesting.blocksNetwork { return }
         guard let couple = pairing.couple else { return }
         var delay: UInt64 = 1_000_000_000   // 1s, doubles up to 8s
         for attempt in 0..<60 {             // ~5 minutes worst case

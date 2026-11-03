@@ -67,6 +67,7 @@ struct KaomojiPicker: View {
             TextField("搜尋顏文字符號…", text: $query)
                 .font(DSText.ui(theme, 13))
                 .foregroundStyle(theme.ink)
+                .accessibilityIdentifier("kaomoji-search")
             Button(action: onClose) {
                 DSIcon(name: .close, size: 16, color: theme.inkMuted)
             }
@@ -108,6 +109,8 @@ struct KaomojiPicker: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("kk-kaomoji-\(i)")
+                    .accessibilityLabel(kao)
                     .contextMenu {
                         Button(kk.kaomoji.quick.contains(kao) ? "取消快捷" : "設為快捷") {
                             Task { await kk.kaomoji.toggleQuick(kao) }
@@ -124,13 +127,15 @@ struct KaomojiPicker: View {
             HStack(spacing: 6) {
                 DSChip(label: "最近",
                        active: selectedCategory == "recent",
-                       color: theme.rose) {
+                       color: theme.rose,
+                       accessibilityID: "kaomoji-category-recent") {
                     selectedCategory = "recent"; query = ""
                 }
                 ForEach(catalogue.categories) { c in
                     DSChip(label: c.label,
                            active: selectedCategory == c.id,
-                           color: theme.rose) {
+                           color: theme.rose,
+                           accessibilityID: "kaomoji-category-\(c.id)") {
                         selectedCategory = c.id; query = ""
                     }
                 }
@@ -138,6 +143,7 @@ struct KaomojiPicker: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
+        .accessibilityIdentifier("kaomoji-categories")
         .overlay(
             Rectangle().frame(height: 0.5).foregroundStyle(theme.line),
             alignment: .top

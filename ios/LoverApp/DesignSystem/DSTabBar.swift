@@ -74,8 +74,13 @@ struct DSTabBar: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(tab.label)
+                // Inactive tabs hide the title (Instagram-style). Tests and
+                // VoiceOver use this id plus accessibilityLabel, not the
+                // visible text, which exists only on the active tab.
+                .accessibilityIdentifier("tab-\(tab.rawValue)")
             }
         }
+        .accessibilityIdentifier("kk-tab-bar")
         .padding(.horizontal, 10)
         .padding(.top, placement == .top ? 5 : 6)
         // v1.6.1 — no more hardcoded 24pt bottom fake-inset; the caller pins

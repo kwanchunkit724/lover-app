@@ -36,6 +36,7 @@ final class ChecklistService: ObservableObject {
     // MARK: - Lifecycle
 
     func start(coupleId: UUID) {
+        if UITesting.blocksNetwork { return }
         if self.coupleId == coupleId, channel != nil { return }
         stop()
         self.coupleId = coupleId

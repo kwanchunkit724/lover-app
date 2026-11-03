@@ -41,6 +41,16 @@ final class AuthService: NSObject, ObservableObject {
     /// Called on app launch. If a previous session exists in the keychain,
     /// transition to .signedIn; otherwise .signedOut.
     func bootstrap() async {
+        switch UITesting.mode {
+        case .auth:
+            state = .signedOut
+            return
+        case .shell:
+            state = .signedIn(userId: UITesting.fixtureUserId)
+            return
+        case .off:
+            break
+        }
         do {
             let session = try await SB.client.auth.session
             state = .signedIn(userId: session.user.id)
@@ -68,6 +78,10 @@ final class AuthService: NSObject, ObservableObject {
     /// UserProfile. On failure: surfaces an error string.
     func handleAppleResult(_ result: Result<ASAuthorization, Error>,
                            profile: UserProfile) async {
+        if UITesting.blocksNetwork {
+            state = .error("UI test mode does not sign in.")
+            return
+        }
         switch result {
         case .failure(let error):
             // User cancelled is harmless; everything else surfaces.
@@ -100,6 +114,11 @@ final class AuthService: NSObject, ObservableObject {
 
     /// Signs out, clears local Supabase session.
     func signOut() async {
+        if UITesting.blocksNetwork {
+            state = .signedOut
+            emailLinkSent = nil
+            return
+        }
         try? await SB.client.auth.signOut()
         state = .signedOut
         emailLinkSent = nil
@@ -117,6 +136,10 @@ final class AuthService: NSObject, ObservableObject {
     /// On success: signs out locally, returns true. Caller routes to
     /// onboarding/sign-in.
     func deleteAccount() async -> Bool {
+        if UITesting.blocksNetwork {
+            state = .error("UI test mode does not delete accounts.")
+            return false
+        }
         do {
             try await SB.client.rpc("delete_my_account").execute()
             // Even though the RPC nuked the auth row, our session is now
@@ -144,6 +167,10 @@ final class AuthService: NSObject, ObservableObject {
     /// Sends a one-time password email to the address. Returns true if the
     /// OTP was dispatched, false on error.
     func sendEmailOTP(to email: String) async -> Bool {
+        if UITesting.blocksNetwork {
+            state = .error("UI test mode does not send email codes.")
+            return false
+        }
         let trimmed = email.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, trimmed.contains("@") else {
             state = .error("唔似一個 email 地址喎")
@@ -165,6 +192,10 @@ final class AuthService: NSObject, ObservableObject {
     /// Verifies the 6-digit OTP code the user typed in (or that arrived via
     /// magic link). On success: same user-row upsert as the Apple flow.
     func verifyEmailOTP(email: String, code: String, profile: UserProfile) async {
+        if UITesting.blocksNetwork {
+            state = .error("UI test mode does not verify email codes.")
+            return
+        }
         let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
         let trimmedCode  = code.trimmingCharacters(in: .whitespacesAndNewlines)
         do {

@@ -1,11 +1,9 @@
 import XCTest
 
 // Captures the key SwiftUI screens as XCUIScreenshot attachments.
-// Codemagic uploads these as build artefacts so the user (developing on
-// Windows without SwiftUI Preview) can see the rendered UI after every push.
-//
-// Add a new test method per screen you want to verify visually.
-// Each method must navigate to the screen, settle, then call `snapshot(name:)`.
+// `-UITestingScreenshotMode 1` is the offline shell fixture (same as `shell`):
+// no Supabase session and no production write. Tab buttons are addressed by
+// accessibilityIdentifier because inactive tabs hide their title.
 
 final class ScreenshotTests: XCTestCase {
     var app: XCUIApplication!
@@ -17,45 +15,49 @@ final class ScreenshotTests: XCTestCase {
         app.launch()
     }
 
-    // 對話 tab — the chat detail view (default landing screen)
     func test_screenshot_chatTab() throws {
-        sleep(1)   // allow scroll-to-bottom animation to settle
+        XCTAssertTrue(app.buttons["tab-chat"].waitForExistence(timeout: 30))
         snapshot(name: "01-chat")
     }
 
     func test_screenshot_memoryTab() throws {
-        app.buttons["記憶空間"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["tab-memory"].waitForExistence(timeout: 30))
+        app.buttons["tab-memory"].tap()
         sleep(1)
         snapshot(name: "02-memory")
     }
 
     func test_screenshot_wantTab() throws {
-        app.buttons["想你知道"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["tab-want"].waitForExistence(timeout: 30))
+        app.buttons["tab-want"].tap()
         sleep(1)
         snapshot(name: "03-want")
     }
 
-    // 我哋 tab — placeholder until v0.4
     func test_screenshot_usTab() throws {
-        app.buttons["我哋"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["tab-us"].waitForExistence(timeout: 30))
+        app.buttons["tab-us"].tap()
         sleep(1)
         snapshot(name: "04-us")
     }
 
-    // Composer + kaomoji picker open
     func test_screenshot_chatKaomojiPicker() throws {
+        let kao = app.buttons["composer-kaomoji"]
+        XCTAssertTrue(kao.waitForExistence(timeout: 15))
+        kao.tap()
         sleep(1)
-        // The kao button is the only image-button labelled "kao" inside the composer.
-        // Tap it to open the picker.
-        let kaoButtons = app.buttons.matching(identifier: "kao")
-        if kaoButtons.count > 0 {
-            kaoButtons.firstMatch.tap()
-            sleep(1)
+        let sleepChip = app.buttons["kaomoji-category-sleep"]
+        if sleepChip.waitForExistence(timeout: 5) {
+            if !sleepChip.isHittable {
+                app.swipeLeft()
+            }
+            if sleepChip.isHittable {
+                sleepChip.tap()
+                sleep(1)
+            }
         }
         snapshot(name: "05-chat-kaomoji")
     }
-
-    // MARK: - helpers
 
     private func snapshot(name: String) {
         let screenshot = XCUIScreen.main.screenshot()

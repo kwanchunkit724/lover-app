@@ -9,7 +9,14 @@ import Supabase
 //   try await SB.client.from("users").select().execute()
 
 enum SB {
-    static let client = SupabaseClient(
+    static var client: SupabaseClient {
+        if UITesting.blocksNetwork {
+            preconditionFailure("UITestingScreenshotMode blocks Supabase. This launch must stay offline.")
+        }
+        return live
+    }
+
+    private static let live = SupabaseClient(
         supabaseURL: SupabaseConfig.url,
         supabaseKey: SupabaseConfig.anonKey
     )

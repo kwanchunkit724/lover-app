@@ -51,6 +51,7 @@ final class DailyMoodStore: ObservableObject {
     }
 
     func refreshFromServer() async {
+        if UITesting.blocksNetwork { return }
         guard let userId else { return }
         do {
             guard let row = try await KKRPC.myMood(userId: userId),
@@ -70,6 +71,10 @@ final class DailyMoodStore: ObservableObject {
 
     /// Writes `kk_set_daily_mood` with the locked label. Does not retry with another character.
     func set(_ mood: DailyMood, now: Date = Date()) async {
+        if UITesting.blocksNetwork {
+            lastError = "UI test fixture does not write mood."
+            return
+        }
         guard DailyMoodLock.isAllowed(mood.label) else { return }
         guard KKTime.isMoodGateOpen(now: now) else {
             lastError = "香港時間 06:00 之前伺服器唔收心情。"
@@ -137,6 +142,7 @@ final class MemorySpaceStore: ObservableObject {
     }
 
     func refreshFromServer() async {
+        if UITesting.blocksNetwork { return }
         do {
             let rows = try await KKRPC.listMemories()
             items = rows.compactMap(Self.item(from:))
@@ -307,6 +313,7 @@ final class WantYouKnowStore: ObservableObject {
     }
 
     func refreshFromServer() async {
+        if UITesting.blocksNetwork { return }
         guard let userId else { return }
         do {
             let rows = try await KKRPC.listWants()
@@ -461,6 +468,7 @@ final class AIUsageStore: ObservableObject {
     }
 
     func refreshFromServer() async {
+        if UITesting.blocksNetwork { return }
         do {
             let usage = try await KKRPC.aiUsage()
             snapshot = Snapshot(period: usage.period_ym, used: usage.used)
@@ -575,6 +583,7 @@ final class KaomojiPrefsStore: ObservableObject {
     }
 
     func refreshFromServer() async {
+        if UITesting.blocksNetwork { return }
         do {
             let prefs = try await KKRPC.kaomojiPrefs()
             if prefs.exists == true {
@@ -592,6 +601,10 @@ final class KaomojiPrefsStore: ObservableObject {
     }
 
     func toggleQuick(_ kao: String) async {
+        if UITesting.blocksNetwork {
+            capMessage = "UI test fixture does not save kaomoji prefs."
+            return
+        }
         if let idx = quick.firstIndex(of: kao) {
             quick.remove(at: idx)
             capMessage = nil
