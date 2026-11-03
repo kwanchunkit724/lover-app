@@ -7,9 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test lib/**/*.test.ts",
+    "test": "tsx --test lib/*.test.ts lib/**/*.test.ts",
     "e2e": "playwright test",
-    "e2e:headed": "playwright test --headed"
+    "e2e:headed": "playwright test --headed",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@noble/curves": "^2.2.0",
