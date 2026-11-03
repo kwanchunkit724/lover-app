@@ -167,68 +167,96 @@ struct ChatView: View {
     }
 
     private var pairedBody: some View {
+        // Each helper is its own expression. One chain here fails the type checker.
+        chatNotes(chatMedia(chatOverlays(chatColumn)))
+    }
+
+    private var chatColumn: some View {
         VStack(spacing: 0) {
             header
             ChatPolicyBanner()
-            // v1.3.2 — visible banner when chatKey isn't ready yet. Without
-            // this the user typed and pressed send into a void: ChatService
-            // .sendText threw at the seal step and the message just
-            // disappeared (no bubble on either side, no toast, nothing).
             if !crypto.isReady {
                 cryptoNotReadyBanner
             }
             messageList
             composerArea
         }
-        // v1.6.0 — re-focus the text field => hide picker.
-        // v1.6.1 — also tell MainTabView to hide the bottom bar while typing.
-        .onChange(of: inputFocused) { _, focused in
-            if focused, showKaomoji {
-                withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false }
+    }
+
+    private func chatOverlays<V: View>(_ content: V) -> some View {
+        content
+            .onChange(of: inputFocused) { _, focused in
+                if focused, showKaomoji {
+                    withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false }
+                }
+                keyboardActive?.wrappedValue = focused
             }
-            keyboardActive?.wrappedValue = focused
-        }
-        // Kaomoji picker also occupies the bottom; treat it like the keyboard
-        // so the tab bar gets out of the way.
-        .onChange(of: showKaomoji) { _, shown in
-            keyboardActive?.wrappedValue = shown || inputFocused
-        }
-        .onDisappear { keyboardActive?.wrappedValue = false }
-        .background(theme.paper.ignoresSafeArea())
-        .overlay {
-            if let target = reactionTarget {
-                ReactionPickerSheet(
-                    onPick: { emoji in
-                        guard case .signedIn(let uuid) = auth.state,
-                              let mid = UUID(uuidString: target.id) else { return }
-                        Task { await chat.addReaction(messageId: mid, emoji: emoji, userId: uuid) }
-                    },
-                    onClose: { reactionTarget = nil }
-                )
-                .transition(.opacity)
+            .onChange(of: showKaomoji) { _, shown in
+                keyboardActive?.wrappedValue = shown || inputFocused
             }
+            .onDisappear { keyboardActive?.wrappedValue = false }
+            .background(theme.paper.ignoresSafeArea())
+            .overlay { reactionOverlay }
+            .overlay { actionOverlay }
+            .overlay { checklistOverlay }
+    }
+
+    @ViewBuilder
+    private var reactionOverlay: some View {
+        if let target = reactionTarget {
+            ReactionPickerSheet(
+                onPick: { emoji in
+                    guard case .signedIn(let uuid) = auth.state,
+                          let mid = UUID(uuidString: target.id) else { return }
+                    Task { await chat.addReaction(messageId: mid, emoji: emoji, userId: uuid) }
+                },
+                onClose: { reactionTarget = nil }
+            )
+            .transition(.opacity)
         }
-        .overlay {
-            if showActions {
-                ChatActionSheet(
-                    onClose: { withAnimation(.easeInOut(duration: 0.18)) { showActions = false } },
-                    onFile: {
-                        showActions = false
-                        showFileNote = true
-                    },
-                    onCamera: {
-                        showActions = false
-                        showCamera = true
-                    },
-                    onAlbum: {
-                        showActions = false
-                        showPhotoPicker = true
-                    }
-                )
-                .transition(.opacity)
+    }
+
+    @ViewBuilder
+    private var actionOverlay: some View {
+        if showActions {
+            ChatActionSheet(
+                onClose: { withAnimation(.easeInOut(duration: 0.18)) { showActions = false } },
+                onFile: {
+                    showActions = false
+                    showFileNote = true
+                },
+                onCamera: {
+                    showActions = false
+                    showCamera = true
+                },
+                onAlbum: {
+                    showActions = false
+                    showPhotoPicker = true
+                }
+            )
+            .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder
+    private var checklistOverlay: some View {
+        if showChecklist {
+            ZStack(alignment: .topTrailing) {
+                Color.black.opacity(0.12).ignoresSafeArea()
+                    .onTapGesture { showChecklist = false }
+                ChecklistSheet(onClose: { showChecklist = false })
+                    .environmentObject(checklist)
+                    .theme(theme)
+                    .padding(.top, 52)
+                    .padding(.trailing, 8)
             }
+            .transition(.opacity)
         }
-        .sheet(isPresented: $showVideoPicker) {
+    }
+
+    private func chatMedia<V: View>(_ content: V) -> some View {
+        content
+            .sheet(isPresented: $showVideoPicker) {
             // v1.6.0 — VideoPickerSheet handles PHPicker + 720p H.264
             // compress + 30s trim. Returns ready-to-encrypt bytes; we hand
             // them straight to ChatService.sendVideo (mirror of sendPhoto).
@@ -283,23 +311,11 @@ struct ChatView: View {
             )
             .theme(theme)
         }
-        // v1.6.5 — checklist as a compact top-right panel (~1/4 screen), not
-        // a full sheet. Dim backdrop taps to close.
-        .overlay {
-            if showChecklist {
-                ZStack(alignment: .topTrailing) {
-                    Color.black.opacity(0.12).ignoresSafeArea()
-                        .onTapGesture { showChecklist = false }
-                    ChecklistSheet(onClose: { showChecklist = false })
-                        .environmentObject(checklist)
-                        .theme(theme)
-                        .padding(.top, 52)
-                        .padding(.trailing, 8)
-                }
-                .transition(.opacity)
-            }
-        }
-        .alert("檔案", isPresented: $showFileNote) {
+    }
+
+    private func chatNotes<V: View>(_ content: V) -> some View {
+        content
+            .alert("檔案", isPresented: $showFileNote) {
             Button("知道", role: .cancel) {}
         } message: {
             Text("檔案同圖、片一樣 48 小時後刪除，而且會端對端加密。檔案選擇器未接上。")
