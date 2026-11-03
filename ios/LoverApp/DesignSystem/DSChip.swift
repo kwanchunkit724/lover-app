@@ -24,9 +24,9 @@ struct DSChip: View {
         if let action {
             Button(action: action) { content }
                 .buttonStyle(.plain)
-                .modifier(OptionalAccessibilityID(accessibilityID))
+                .modifier(OptionalAccessibilityID(identifier: accessibilityID))
         } else {
-            content.modifier(OptionalAccessibilityID(accessibilityID))
+            content.modifier(OptionalAccessibilityID(identifier: accessibilityID))
         }
     }
 }
