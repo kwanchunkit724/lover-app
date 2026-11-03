@@ -221,10 +221,6 @@ struct ChatView: View {
         if showActions {
             ChatActionSheet(
                 onClose: { withAnimation(.easeInOut(duration: 0.18)) { showActions = false } },
-                onFile: {
-                    showActions = false
-                    showFileNote = true
-                },
                 onCamera: {
                     showActions = false
                     showCamera = true
@@ -232,6 +228,10 @@ struct ChatView: View {
                 onAlbum: {
                     showActions = false
                     showPhotoPicker = true
+                },
+                onFile: {
+                    showActions = false
+                    showFileNote = true
                 }
             )
             .transition(.opacity)
