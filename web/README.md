@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# KK web
 
-## Getting Started
+KK is the lover-app web client rebranded for couples in Hong Kong:
+**zh-Hant (Cantonese) primary**, English secondary. Cream / warm-paper UI with
+terracotta accent and **kaomoji-led** decoration (not ordinary emoji).
 
-First, run the development server:
+## What it is
+
+Four tabs:
+
+| Tab | Route | Notes |
+|-----|-------|-------|
+| 對話 | `/chat` | E2EE chat (X25519 + AES-GCM). 48h auto-delete banner. Multi-select → merge to 記憶空間 or AI. |
+| 記憶空間 | `/memory` | Shared memories (categories 日常/約會/計劃/其他). AI entries live here (手打提議 / 跟原話搵計劃), quota 10/couple/month. |
+| 想你知道 | `/tell` | Shared notes + read receipts; persists until both delete. |
+| 我哋 | `/us` | Settings, language, AI quota, optional「你哋嘅日子」, kaomoji prefs, unpair, delete account. |
+
+Other routes: `/login` (Apple + Email OTP only — **no guest/anon**), `/onboarding`, `/pair` (6-digit code), `/mood` (daily HKT gate after 06:00).
+
+Removed / redirected: 時間簿 (`/time` → `/memory`), `/profile` → `/us`. Do **not** delete retired Supabase tables (`anniversaries`, `entries`, `play_history`, `meetups`, `checklist_items`).
+
+## Auth
+
+- Sign in with **Apple**
+- **Email OTP**
+- Anonymous / 試玩 login **removed**
+
+## How to run
 
 ```bash
+cd web
+create .env.local with NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_ANON_KEY
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Scripts: `npm run build` · `npm run lint` · `npm test` · `npm run e2e`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Vercel project: **`lover-app-web`** (historically deployed via CLI).
+**Recommend linking the GitHub repo** so previews/PRs deploy automatically.
+**Production deploy only after** backend RPCs/tables are ready and tests pass.
+Do not `vercel deploy --prod` from this branch until then.
 
-## Learn More
+## Env
 
-To learn more about Next.js, take a look at the following resources:
+Required (publishable; RLS enforces access — never commit secrets):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://stzfhdjuiupejonyckdu.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<us-app anon or sb_publishable_… key>
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Copy into `.env.local` (gitignored). No additional KK-specific secrets for the
+web client. Gemini Edge is optional; AI RPC returns a stub until it is deployed.
 
-## Deploy on Vercel
+## Backend adapter
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+UI talks to `lib/kk/api.ts`, which calls live Supabase `kk_*` RPCs + RLS selects
+on us-app (`stzfhdjuiupejonyckdu`). Contract:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Tables: `memory_items`, `want_you_know`, `want_you_know_reads`, `ai_usage`,
+  `kaomoji_prefs`, `kaomoji_catalog`
+- RPCs: `kk_set_daily_mood`, `kk_memory_create/update/delete`, `kk_memory_from_chat`,
+  `kk_want_create/update`, `kk_want_mark_read`, `kk_want_soft_delete`,
+  `kk_ai_consume_and_run`, `kk_ai_usage_get`, `kk_kaomoji_prefs_get/set`,
+  `kk_purge_expired_messages` (optional client; primary purge is Edge/cron)
+- Lists: `memory_items` / `want_you_know` via select (RLS); no list RPC
+- Reuse: `pairing_codes`, `users.mood` / `mood_updated_at`, `messages.expires_at`
+- Mood values: 開心 / 平靜 / **有啲攰** (U+6530) / 低落 / 掛住你 / 有啲煩
+- Sleep kaomoji category `label_zh`: **睡** (U+7761)
+
+Chat crypto + pairing still use the existing `lib/services/*` + Supabase layer.
+`localStorage` remains a cache for daily mood gate + kaomoji prefs fallback.

@@ -1,9 +1,4 @@
-// Session-refresh middleware. Called from the root middleware.ts on every
-// request. Reads the request cookies, refreshes the access token if needed,
-// and writes any updated session cookies back onto the response.
-//
-// Per @supabase/ssr docs: DO NOT run any logic between createServerClient
-// and supabase.auth.getUser() — that's what refreshes the session.
+// Session-refresh middleware. Called from the root proxy on every request.
 
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
@@ -28,19 +23,18 @@ export const updateSession = async (request: NextRequest) => {
     },
   );
 
-  // IMPORTANT: do not run any logic between createServerClient and getUser.
-  // A simple error here will cause hard-to-debug session sync issues.
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Redirect unauthenticated users away from app-protected paths.
   const pathname = request.nextUrl.pathname;
   const isProtected =
     pathname.startsWith("/chat") ||
     pathname.startsWith("/time") ||
     pathname.startsWith("/memory") ||
+    pathname.startsWith("/tell") ||
     pathname.startsWith("/us") ||
+    pathname.startsWith("/mood") ||
     pathname.startsWith("/pair") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/profile");
