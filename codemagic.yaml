@@ -167,7 +167,7 @@ workflows:
           # regardless of MARKETING_VERSION in project.yml. The "v0.3" the
           # user kept seeing in TestFlight was actually a stale Swift hardcode
           # masking the same root issue.
-          MARKETING_VERSION=$(grep "MARKETING_VERSION:" project.yml | head -1 | sed 's/.*MARKETING_VERSION: *//' | tr -d '[:space:]')
+          MARKETING_VERSION=$(grep "MARKETING_VERSION:" project.yml | head -1 | sed 's/.*MARKETING_VERSION: *//' | tr -d '[:space:]"')
           if [ -z "$MARKETING_VERSION" ]; then
             echo "ERROR: could not parse MARKETING_VERSION from project.yml"
             exit 1
