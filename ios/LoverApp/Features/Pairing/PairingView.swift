@@ -294,7 +294,7 @@ struct PairingView: View {
     }
 
     private func expiryRow(_ expiresAt: Date) -> some View {
-        let remaining = max(0, Int(expiresAt.timeIntervalSince(now)))
+        let remaining = PairingCode.secondsRemaining(until: expiresAt, now: now)
         let m = remaining / 60
         let s = remaining % 60
         return Text(remaining > 0 ? "仲有 \(m):\(String(format: "%02d", s)) 過期" : "已過期 — 換一個")
@@ -400,7 +400,7 @@ struct PairingView: View {
             // Hidden TextField focuses the keyboard onto the row.
             TextField("", text: Binding(
                 get: { enteredCode },
-                set: { v in enteredCode = String(v.filter(\.isNumber).prefix(6)) }
+                set: { v in enteredCode = PairingCode.sanitize(v) }
             ))
             .keyboardType(.numberPad)
             .focused($codeFieldFocused)
@@ -416,7 +416,7 @@ struct PairingView: View {
         DisplayDate.formatter.string(from: enteredAnniversary)
     }
 
-    private var canSubmit: Bool { enteredCode.count == 6 }
+    private var canSubmit: Bool { PairingCode.isValid(enteredCode) }
 
     private func submitRedemption() {
         guard case let .signedIn(meId) = auth.state else { return }
