@@ -75,6 +75,77 @@ enum DailyMood: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Copy for the daily mood gate. Postgres `raise exception` codes such as
+/// `profile_missing` stay off the screen; the gate shows these sentences.
+enum MoodGateCopy {
+    static func message(for error: Error) -> String {
+        let ns = error as NSError
+        var parts = [ns.localizedDescription]
+        if let message = ns.userInfo["message"] as? String {
+            parts.append(message)
+        }
+        if let reason = ns.userInfo[NSLocalizedFailureReasonErrorKey] as? String {
+            parts.append(reason)
+        }
+        return message(from: parts.joined(separator: "\n"))
+    }
+
+    static func message(from raw: String) -> String {
+        let lowered = raw.lowercased()
+        if lowered.contains("partner_profile_missing") {
+            return "對方未完成註冊 — 等對方再開一次"
+        }
+        if lowered.contains("profile_missing") {
+            return "未完成註冊 — 再試一次"
+        }
+        if lowered.contains("not_authenticated") || lowered.contains("not authenticated") {
+            return "未登入 — 重新登入"
+        }
+        if lowered.contains("invalid_mood") {
+            return "呢個心情伺服器唔收 — 再揀一次"
+        }
+        if lowered.contains("mood_gate_before_0600") {
+            return "香港時間 06:00 之前伺服器唔收心情。"
+        }
+        if lowered.contains("mood_date_must_be_today") {
+            return "日子對唔上 — 再試一次"
+        }
+        if lowered.contains("not_paired") {
+            return "未配對 — 請先配對"
+        }
+        if isHumanCopy(raw) {
+            return raw
+        }
+        return "暫時做唔到 — 再試一次"
+    }
+
+    /// Sentences we wrote ourselves. A CJK string that also carries a
+    /// snake_case token is still a leaked code.
+    private static func isHumanCopy(_ raw: String) -> Bool {
+        let hasCJK = raw.unicodeScalars.contains { (0x4E00...0x9FFF).contains($0.value) }
+        return hasCJK && !containsMachineCode(raw)
+    }
+
+    private static func containsMachineCode(_ raw: String) -> Bool {
+        var token = ""
+        func isCode(_ token: String) -> Bool {
+            guard let first = token.first, first.isASCII, first.isLetter else { return false }
+            guard token.contains("_") else { return false }
+            return token.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_") }
+        }
+        for ch in raw.lowercased() {
+            if ch.isASCII, ch.isLetter || ch.isNumber || ch == "_" {
+                token.append(ch)
+            } else if isCode(token) {
+                return true
+            } else {
+                token.removeAll(keepingCapacity: true)
+            }
+        }
+        return isCode(token)
+    }
+}
+
 /// Not actor-isolated. Codable snapshots and views both read this.
 enum KKAIQuota {
     static let monthlyCap = 10
