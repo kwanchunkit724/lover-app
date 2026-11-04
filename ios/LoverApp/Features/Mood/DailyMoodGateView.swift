@@ -1,14 +1,11 @@
 import SwiftUI
 
 // Hard gate after 06:00 HKT. Six moods, labels from DailyMoodLock.
-// Cheer is optional and does not change the stored mood.
+// Failures use MoodGateCopy. The raw RPC code never goes into Text.
 
 struct DailyMoodGateView: View {
     @Environment(\.theme) private var theme
     @EnvironmentObject private var kk: KKAppModel
-
-    @State private var showCheer = false
-    @State private var cheerMood: DailyMood?
 
     var body: some View {
         VStack(spacing: 18) {
@@ -52,31 +49,29 @@ struct DailyMoodGateView: View {
             }
             .padding(.horizontal, 20)
 
-            Button {
-                cheerMood = nil
-                showCheer = true
-            } label: {
-                Text("打氣（可選，唔使而家）")
-                    .font(DSText.mono(theme, 12))
-                    .foregroundStyle(theme.inkMuted)
-            }
-            .buttonStyle(.plain)
-
             if let error = kk.dailyMood.lastError {
-                Text(error)
-                    .font(DSText.mono(theme, 11))
-                    .foregroundStyle(theme.rose)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+                VStack(spacing: 8) {
+                    Text(MoodGateCopy.message(from: error))
+                        .font(DSText.ui(theme, 13))
+                        .foregroundStyle(theme.rose)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("kk-mood-error")
+                    Button {
+                        Task { await kk.dailyMood.retry() }
+                    } label: {
+                        Text("再試")
+                            .font(DSText.ui(theme, 14, weight: .medium))
+                            .foregroundStyle(theme.rose)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("kk-mood-retry")
+                }
+                .padding(.horizontal, 24)
             }
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(theme.paper.ignoresSafeArea())
-        .sheet(isPresented: $showCheer) {
-            CheerSheet(mood: cheerMood, onClose: { showCheer = false })
-                .theme(theme)
-        }
     }
 }
 

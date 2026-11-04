@@ -65,8 +65,18 @@ final class DailyMoodStore: ObservableObject {
             persist(next)
             lastError = nil
         } catch {
-            lastError = error.localizedDescription
+            lastError = MoodGateCopy.message(for: error)
         }
+    }
+
+    /// Re-sends the mood write that failed, or reads the server row again.
+    /// `kk_set_daily_mood` ensures the profile row before it stores the mood.
+    func retry(now: Date = Date()) async {
+        if let pending = pendingRPC, let mood = DailyMood.from(label: pending.mood) {
+            await set(mood, now: now)
+            return
+        }
+        await refreshFromServer()
     }
 
     /// Writes `kk_set_daily_mood` with the locked label. Does not retry with another character.
@@ -96,7 +106,7 @@ final class DailyMoodStore: ObservableObject {
         } catch KKRPCError.moodScalarMismatch {
             lastError = "心情字元唔係 U+6530，冇送出。"
         } catch {
-            lastError = error.localizedDescription
+            lastError = MoodGateCopy.message(for: error)
         }
     }
 
