@@ -91,7 +91,7 @@ jobs:
           agvtool new-version -all $BUILD_NUMBER
 
           # Marketing version from project.yml (single source of truth).
-          MARKETING_VERSION=$(grep "MARKETING_VERSION:" project.yml | head -1 | sed 's/.*MARKETING_VERSION: *//' | tr -d '[:space:]')
+          MARKETING_VERSION=$(grep "MARKETING_VERSION:" project.yml | head -1 | sed 's/.*MARKETING_VERSION: *//' | tr -d '[:space:]"')
           if [ -z "$MARKETING_VERSION" ]; then
             echo "ERROR: could not parse MARKETING_VERSION from project.yml"
             exit 1

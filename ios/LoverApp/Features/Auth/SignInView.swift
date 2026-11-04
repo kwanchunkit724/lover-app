@@ -1,13 +1,8 @@
 import SwiftUI
 import AuthenticationServices
 
-// Phase 8 v0.8.0 — multi-method sign-in.
-// Two ways to sign in:
-//   • Sign in with Apple (native sheet)
-//   • Email magic link / OTP (Supabase Email auth)
-//
-// Apple's App Review rule: any app offering third-party social login MUST
-// also offer Sign in with Apple. We always show the Apple button first.
+// KK sign-in: Sign in with Apple, or email one-time code.
+// There is no guest and no anonymous session.
 
 struct SignInView: View {
     @Environment(\.theme) private var theme
@@ -30,12 +25,13 @@ struct SignInView: View {
                     .font(.system(size: 48, weight: .semibold, design: .monospaced))
                     .foregroundStyle(theme.rose)
 
-                Text("差啲就好")
+                Text("KK")
                     .font(.system(size: 32, weight: .semibold, design: .serif))
                     .foregroundStyle(theme.ink)
 
-                Text("登入之後就可以同對方配對。")
+                Text("用 Apple 或者 Email 驗證碼登入。無訪客模式。")
                     .font(DSText.ui(theme, 14))
+                    .accessibilityIdentifier("auth-subtitle")
                     .foregroundStyle(theme.inkSoft)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
@@ -84,6 +80,7 @@ struct SignInView: View {
             )
             .signInWithAppleButtonStyle(theme.isDark ? .white : .black)
             .frame(height: 52)
+            .accessibilityIdentifier("auth-apple")
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             HStack(spacing: 8) {
@@ -113,6 +110,7 @@ struct SignInView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("auth-email")
         }
     }
 
@@ -139,7 +137,7 @@ struct SignInView: View {
                     if isSubmitting {
                         ProgressView().tint(.white)
                     } else {
-                        Text("寄個 link 畀我")
+                        Text("寄驗證碼")
                             .font(DSText.ui(theme, 15, weight: .semibold))
                     }
                 }

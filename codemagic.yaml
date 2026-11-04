@@ -65,6 +65,7 @@ workflows:
           # Info.plist / signing fiddling resolves. Visual verification of
           # the UI happens via TestFlight on real iPhone instead.
           # See memory: project_codemagic_xcode26_simulator_blocker
+          set +e
           xcodebuild build \
             -project "$XCODE_PROJECT" \
             -scheme "$XCODE_SCHEME" \
@@ -73,7 +74,15 @@ workflows:
             -derivedDataPath build \
             CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO \
             ENABLE_DEBUG_DYLIB=NO ENABLE_DEBUG_DYLIB_SUPPORT=NO \
-            | xcbeautify
+            > /tmp/xcodebuild.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "======= COMPILE ERRORS ======="
+            grep -E "error:" /tmp/xcodebuild.log | head -80 || true
+            exit "$status"
+          fi
+          xcbeautify < /tmp/xcodebuild.log
       - name: Build summary
         script: |
           APP_PATH="build/Build/Products/Debug-iphonesimulator/Us.app"
@@ -158,7 +167,7 @@ workflows:
           # regardless of MARKETING_VERSION in project.yml. The "v0.3" the
           # user kept seeing in TestFlight was actually a stale Swift hardcode
           # masking the same root issue.
-          MARKETING_VERSION=$(grep "MARKETING_VERSION:" project.yml | head -1 | sed 's/.*MARKETING_VERSION: *//' | tr -d '[:space:]')
+          MARKETING_VERSION=$(grep "MARKETING_VERSION:" project.yml | head -1 | sed 's/.*MARKETING_VERSION: *//' | tr -d '[:space:]"')
           if [ -z "$MARKETING_VERSION" ]; then
             echo "ERROR: could not parse MARKETING_VERSION from project.yml"
             exit 1

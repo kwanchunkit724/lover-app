@@ -16,9 +16,8 @@ struct ChatView: View {
     @EnvironmentObject private var chat: ChatService
     @EnvironmentObject private var crypto: CryptoService
     @EnvironmentObject private var presence: PresenceService
-    @EnvironmentObject private var mood: MoodService
-    @EnvironmentObject private var meetups: MeetupService
     @EnvironmentObject private var checklist: ChecklistService
+    @EnvironmentObject private var kk: KKAppModel
 
     // v1.6.1 (problem 5) — the 4-tab bar is back at the BOTTOM (pinned in
     // MainTabView). Chat just reports its keyboard state up so the bar can
@@ -39,18 +38,16 @@ struct ChatView: View {
     @State private var pendingPhoto: Data? = nil
     @State private var replyTo: Message? = nil
     // v1.5 — IG features
-    @State private var reactionTarget: Message? = nil   // long-press target for emoji picker
+    @State private var reactionTarget: Message? = nil   // emoji reaction picker
     // v1.6.1 — track whether we've done the first scroll-to-bottom so the
     // entry scroll is instant (no animation) but later scrolls animate.
     @State private var didInitialScroll = false
-    // v1.6.1 Feature 7 (mood/cheer) + Feature 6 (meet-up) state.
-    @State private var showMoodPicker = false
-    @State private var cheerTarget: Mood? = nil          // I'm cheering partner
-    @State private var received: MoodService.IncomingCheer? = nil
-    @State private var showSetMeetup = false
-    @State private var selfieMeetup: Meetup? = nil       // meet-up awaiting my selfie
-    @State private var handledDueId: UUID? = nil         // dismissed selfie prompts
     @State private var showChecklist = false             // shared to-buy/to-do list
+    @State private var selecting = false
+    @State private var selectedMessageIDs: Set<String> = []
+    @State private var showFileNote = false
+    @State private var showAITextNote = false
+    @State private var showCheer = false
     @StateObject private var voiceRecorder = VoiceRecorder()  // v1.6.5 voice
 
     // v1.6.0 — drive keyboard focus from code. Tapping the kaomoji button
@@ -170,103 +167,98 @@ struct ChatView: View {
     }
 
     private var pairedBody: some View {
+        // Each helper is its own expression. One chain here fails the type checker.
+        chatNotes(chatMedia(chatOverlays(chatColumn)))
+    }
+
+    private var chatColumn: some View {
         VStack(spacing: 0) {
             header
-            // v1.6.1 Feature 6 — next meet-up countdown.
-            MeetupBanner(upcoming: meetups.upcoming) { showSetMeetup = true }
-            // v1.3.2 — visible banner when chatKey isn't ready yet. Without
-            // this the user typed and pressed send into a void: ChatService
-            // .sendText threw at the seal step and the message just
-            // disappeared (no bubble on either side, no toast, nothing).
-            if !crypto.isReady {
+            ChatPolicyBanner()
+            // The indeterminate spinner never goes idle, and Simulator smoke
+            // waits for quiescence. The fixture has no chat key on purpose.
+            if !crypto.isReady && !UITesting.blocksNetwork {
                 cryptoNotReadyBanner
             }
             messageList
-            if let replyTo {
-                replyPreview(replyTo)
-            }
-            if voiceRecorder.isRecording {
-                recordingBar
-            } else {
-                Composer(
-                    input: $input,
-                    inputFocused: $inputFocused,
-                    onSend: send,
-                    onTapKaomoji: {
-                        // v1.6.0 — kaomoji picker dismisses the keyboard first
-                        // so it can claim the full 300pt expanded sheet height,
-                        // instead of getting squeezed above the keyboard like
-                        // the old version. Re-focusing the text field hides it.
-                        if !showKaomoji {
-                            inputFocused = false
-                        }
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            showKaomoji.toggle()
-                        }
-                    },
-                    onTapVideo: { showVideoPicker = true },
-                    onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
-                    // v1.0.4 — camera icon now opens the actual camera, not
-                    // the photo library. Plus button still opens the action
-                    // sheet where the user can pick album / camera / etc.
-                    onTapCamera: { showCamera = true },
-                    onTapMic: { voiceRecorder.start() }
-                )
-            }
-            if showKaomoji {
-                KaomojiPicker(
-                    onPick: { kao in input.append(kao) },
-                    onClose: { withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false } }
-                )
-                .frame(minHeight: 300)
-                .transition(.move(edge: .bottom))
-            }
+            composerArea
         }
-        // v1.6.0 — re-focus the text field => hide picker.
-        // v1.6.1 — also tell MainTabView to hide the bottom bar while typing.
-        .onChange(of: inputFocused) { _, focused in
-            if focused, showKaomoji {
-                withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false }
+    }
+
+    private func chatOverlays<V: View>(_ content: V) -> some View {
+        content
+            .onChange(of: inputFocused) { _, focused in
+                if focused, showKaomoji {
+                    withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false }
+                }
+                keyboardActive?.wrappedValue = focused
             }
-            keyboardActive?.wrappedValue = focused
-        }
-        // Kaomoji picker also occupies the bottom; treat it like the keyboard
-        // so the tab bar gets out of the way.
-        .onChange(of: showKaomoji) { _, shown in
-            keyboardActive?.wrappedValue = shown || inputFocused
-        }
-        .onDisappear { keyboardActive?.wrappedValue = false }
-        .background(theme.paper.ignoresSafeArea())
-        .overlay {
-            if let target = reactionTarget {
-                ReactionPickerSheet(
-                    onPick: { emoji in
-                        guard case .signedIn(let uuid) = auth.state,
-                              let mid = UUID(uuidString: target.id) else { return }
-                        Task { await chat.addReaction(messageId: mid, emoji: emoji, userId: uuid) }
-                    },
-                    onClose: { reactionTarget = nil }
-                )
-                .transition(.opacity)
+            .onChange(of: showKaomoji) { _, shown in
+                keyboardActive?.wrappedValue = shown || inputFocused
             }
+            .onDisappear { keyboardActive?.wrappedValue = false }
+            .background(theme.paper.ignoresSafeArea())
+            .overlay { reactionOverlay }
+            .overlay { actionOverlay }
+            .overlay { checklistOverlay }
+    }
+
+    @ViewBuilder
+    private var reactionOverlay: some View {
+        if let target = reactionTarget {
+            ReactionPickerSheet(
+                onPick: { emoji in
+                    guard case .signedIn(let uuid) = auth.state,
+                          let mid = UUID(uuidString: target.id) else { return }
+                    Task { await chat.addReaction(messageId: mid, emoji: emoji, userId: uuid) }
+                },
+                onClose: { reactionTarget = nil }
+            )
+            .transition(.opacity)
         }
-        .overlay {
-            if showActions {
-                ChatActionSheet(
-                    onClose: { withAnimation(.easeInOut(duration: 0.18)) { showActions = false } },
-                    onCamera: {
-                        showActions = false
-                        showCamera = true
-                    },
-                    onAlbum: {
-                        showActions = false
-                        showPhotoPicker = true
-                    }
-                )
-                .transition(.opacity)
+    }
+
+    @ViewBuilder
+    private var actionOverlay: some View {
+        if showActions {
+            ChatActionSheet(
+                onClose: { withAnimation(.easeInOut(duration: 0.18)) { showActions = false } },
+                onCamera: {
+                    showActions = false
+                    showCamera = true
+                },
+                onAlbum: {
+                    showActions = false
+                    showPhotoPicker = true
+                },
+                onFile: {
+                    showActions = false
+                    showFileNote = true
+                }
+            )
+            .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder
+    private var checklistOverlay: some View {
+        if showChecklist {
+            ZStack(alignment: .topTrailing) {
+                Color.black.opacity(0.12).ignoresSafeArea()
+                    .onTapGesture { showChecklist = false }
+                ChecklistSheet(onClose: { showChecklist = false })
+                    .environmentObject(checklist)
+                    .theme(theme)
+                    .padding(.top, 52)
+                    .padding(.trailing, 8)
             }
+            .transition(.opacity)
         }
-        .sheet(isPresented: $showVideoPicker) {
+    }
+
+    private func chatMedia<V: View>(_ content: V) -> some View {
+        content
+            .sheet(isPresented: $showVideoPicker) {
             // v1.6.0 — VideoPickerSheet handles PHPicker + 720p H.264
             // compress + 30s trim. Returns ready-to-encrypt bytes; we hand
             // them straight to ChatService.sendVideo (mirror of sendPhoto).
@@ -321,46 +313,82 @@ struct ChatView: View {
             )
             .theme(theme)
         }
-        // v1.6.5 — checklist as a compact top-right panel (~1/4 screen), not
-        // a full sheet. Dim backdrop taps to close.
-        .overlay {
-            if showChecklist {
-                ZStack(alignment: .topTrailing) {
-                    Color.black.opacity(0.12).ignoresSafeArea()
-                        .onTapGesture { showChecklist = false }
-                    ChecklistSheet(onClose: { showChecklist = false })
-                        .environmentObject(checklist)
-                        .theme(theme)
-                        .padding(.top, 52)
-                        .padding(.trailing, 8)
+    }
+
+    private func chatNotes<V: View>(_ content: V) -> some View {
+        content
+            .alert("檔案", isPresented: $showFileNote) {
+            Button("知道", role: .cancel) {}
+        } message: {
+            Text("檔案同圖、片一樣 48 小時後刪除，而且會端對端加密。檔案選擇器未接上。")
+        }
+        .alert("AI", isPresented: $showAITextNote) {
+            Button("知道", role: .cancel) {}
+        } message: {
+            Text("AI 只處理你打嘅字同記憶空間項目，唔讀附件。")
+        }
+        .sheet(isPresented: $showCheer) {
+            CheerSheet(mood: kk.dailyMood.today(), onClose: { showCheer = false })
+                .theme(theme)
+        }
+    }
+
+    /// Split out of `pairedBody` so the type checker does not give up on one
+    /// expression. The previous chat body needed the same split.
+    private var composerArea: some View {
+        VStack(spacing: 0) {
+            if let replyTo, !selecting {
+                replyPreview(replyTo)
+            }
+            if !selecting, !kk.kaomoji.quick.isEmpty {
+                ChatQuickKaomojiBar(items: kk.kaomoji.quick) { kao in
+                    input.append(kao)
+                    kk.kaomoji.pushRecent(kao)
                 }
-                .transition(.opacity)
+            }
+            if selecting {
+                ChatMultiSelectBar(
+                    count: selectedMessageIDs.count,
+                    onMemory: sendSelectionToMemory,
+                    onAI: sendSelectionToAI,
+                    onCancel: clearSelection
+                )
+            } else if voiceRecorder.isRecording {
+                recordingBar
+            } else {
+                Composer(
+                    input: $input,
+                    inputFocused: $inputFocused,
+                    onSend: send,
+                    onTapKaomoji: toggleKaomoji,
+                    onTapVideo: { showVideoPicker = true },
+                    onTapPlus: { withAnimation(.easeInOut(duration: 0.18)) { showActions.toggle() } },
+                    onTapCamera: { showCamera = true },
+                    onTapMic: { voiceRecorder.start() }
+                )
+            }
+            if showKaomoji {
+                KaomojiPicker(
+                    onPick: insertKaomoji,
+                    onClose: { withAnimation(.easeInOut(duration: 0.18)) { showKaomoji = false } }
+                )
+                .frame(minHeight: 300)
             }
         }
-        // v1.6.1 — Feature 6/7 overlays live in a ViewModifier so this body's
-        // modifier chain stays small enough for the Swift type-checker.
-        .modifier(ChatFeatureOverlays(
-            mood: mood,
-            meetups: meetups,
-            partnerName: partner.name,
-            showMoodPicker: $showMoodPicker,
-            cheerTarget: $cheerTarget,
-            received: $received,
-            showSetMeetup: $showSetMeetup,
-            selfieMeetup: $selfieMeetup,
-            handledDueId: $handledDueId,
-            onCheerComplete: { m in
-                guard case .signedIn(let uuid) = auth.state else { return }
-                // Flip the partner's mood to happy in the header right away.
-                mood.markPartnerCheered()
-                Task {
-                    await mood.sendCheerComplete(targetMood: m)
-                    // Post a visible line in the chat so the cheer shows up in
-                    // the conversation, not only in the live overlay.
-                    await chat.sendText(m.cheerDoneMessage, senderId: uuid)
-                }
-            }
-        ))
+    }
+
+    private func toggleKaomoji() {
+        if !showKaomoji {
+            inputFocused = false
+        }
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showKaomoji.toggle()
+        }
+    }
+
+    private func insertKaomoji(_ kao: String) {
+        input.append(kao)
+        kk.kaomoji.pushRecent(kao)
     }
 
     // MARK: - Header
@@ -391,36 +419,17 @@ struct ChatView: View {
 
             Spacer()
 
-            // v1.6.1 Feature 7 — partner's mood (tap to cheer) + my mood chip.
-            if let pm = mood.partnerMood {
-                Button {
-                    if pm.needsCheer || pm == .happy || pm == .love { cheerTarget = pm }
-                } label: {
-                    Text(pm.kao)
-                        .font(.system(size: 14, design: .monospaced))
-                        .foregroundStyle(theme.rose)
-                        .fixedSize()
-                        .lineLimit(1)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(theme.roseSoft, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("伴侶心情 \(pm.label)，撳一下\(pm.cheerVerb)")
-            }
-            Button { showMoodPicker = true } label: {
-                Text(mood.myMood?.kao ?? "(･_･)")
+            Button { showCheer = true } label: {
+                Text(kk.dailyMood.today()?.kao ?? "(･_･)")
                     .font(.system(size: 13, design: .monospaced))
                     .foregroundStyle(theme.inkSoft)
-                    .fixedSize()
                     .lineLimit(1)
-                    .opacity(mood.myMood == nil ? 0.45 : 1)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 5)
                     .background(theme.paperAlt, in: Capsule())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("設定我嘅心情")
+            .accessibilityLabel("今日心情 \(kk.dailyMood.today()?.label ?? "未揀")，打氣可選")
 
             // v1.6.5 Feature — shared quick checklist (short-term memory:
             // what to buy / do). Placed right behind the mood, replacing the
@@ -489,6 +498,57 @@ struct ChatView: View {
         return "\(hours / 24) 日前"
     }
 
+    private func beginSelection(_ message: Message) {
+        showKaomoji = false
+        selecting = true
+        selectedMessageIDs = [message.id]
+    }
+
+    private func toggleSelection(_ message: Message) {
+        if selectedMessageIDs.contains(message.id) {
+            selectedMessageIDs.remove(message.id)
+        } else {
+            selectedMessageIDs.insert(message.id)
+        }
+    }
+
+    private func clearSelection() {
+        selecting = false
+        selectedMessageIDs = []
+    }
+
+    private var selectedMessages: [Message] {
+        messages.filter { selectedMessageIDs.contains($0.id) }
+    }
+
+    private func sendSelectionToMemory() {
+        let picked = selectedMessages
+        guard !picked.isEmpty else { return }
+        kk.memory.stageFromChat(picked)
+        clearSelection()
+        kk.requestedTab = .memory
+    }
+
+    /// AI sees typed text only. Photo captions count as typed. Attachments do not.
+    private func sendSelectionToAI() {
+        let lines: [String] = selectedMessages.compactMap { message in
+            switch message.kind {
+            case .text, .kaomoji:
+                return message.text
+            case .photo:
+                return message.caption
+            case .voice, .video:
+                return nil
+            }
+        }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard !lines.isEmpty else {
+            showAITextNote = true
+            return
+        }
+        kk.aiRequest = AIExpandRequest(userText: lines.joined(separator: "\n"), memoryItemIds: [])
+        clearSelection()
+    }
+
     // MARK: - Message stream
 
     private var messageList: some View {
@@ -517,7 +577,11 @@ struct ChatView: View {
                             onUnsend: {
                                 guard let uuid = UUID(uuidString: m.id) else { return }
                                 Task { await chat.unsend(messageId: uuid) }
-                            }
+                            },
+                            isSelecting: selecting,
+                            isSelected: selectedMessageIDs.contains(m.id),
+                            onBeginMultiSelect: { beginSelection(m) },
+                            onToggleSelect: { toggleSelection(m) }
                         )
                         .id(m.id)
                         .padding(.horizontal, 14)
@@ -783,102 +847,6 @@ private enum HHmm {
     static func format(_ date: Date) -> String { formatter.string(from: date) }
 }
 
-// v1.6.1 — Feature 6 (meet-up) + Feature 7 (mood/cheer) overlays, factored
-// out of ChatView.pairedBody so the main body stays type-checkable.
-private struct ChatFeatureOverlays: ViewModifier {
-    @Environment(\.theme) private var theme
-    @ObservedObject var mood: MoodService
-    @ObservedObject var meetups: MeetupService
-    let partnerName: String
-    @Binding var showMoodPicker: Bool
-    @Binding var cheerTarget: Mood?
-    @Binding var received: MoodService.IncomingCheer?
-    @Binding var showSetMeetup: Bool
-    @Binding var selfieMeetup: Meetup?
-    @Binding var handledDueId: UUID?
-    /// Called when I finish cheering my partner — records the cheer AND posts
-    /// a visible line in the chat thread.
-    let onCheerComplete: (Mood) -> Void
-
-    func body(content: Content) -> some View {
-        content
-            .errorToast(Binding(get: { meetups.lastError },
-                                set: { meetups.lastError = $0 }))
-            .overlay { moodPicker }
-            .overlay { cheer }
-            .overlay { receivedCheer }
-            .overlay { setMeetup }
-            .onChange(of: mood.incomingCheer?.id) { _, _ in
-                if let inc = mood.incomingCheer {
-                    received = inc
-                    mood.incomingCheer = nil
-                }
-            }
-            .fullScreenCover(item: $selfieMeetup) { m in
-                SelfiePromptView(
-                    meetup: m,
-                    onCapture: { data in
-                        selfieMeetup = nil
-                        Task { await meetups.submitSelfie(meetupId: m.id, data: data) }
-                    },
-                    onLater: { handledDueId = m.id; selfieMeetup = nil }
-                )
-                .theme(theme)
-            }
-            .onChange(of: meetups.dueMeetup?.id) { _, id in
-                if let id, id != handledDueId, selfieMeetup == nil {
-                    selfieMeetup = meetups.dueMeetup
-                }
-            }
-            .onAppear {
-                if let due = meetups.dueMeetup, due.id != handledDueId, selfieMeetup == nil {
-                    selfieMeetup = due
-                }
-            }
-    }
-
-    @ViewBuilder private var moodPicker: some View {
-        if showMoodPicker {
-            MoodPickerSheet(
-                current: mood.myMood,
-                onPick: { m in Task { await mood.setMood(m) } },
-                onClose: { showMoodPicker = false }
-            )
-            .transition(.opacity)
-        }
-    }
-
-    @ViewBuilder private var cheer: some View {
-        if let target = cheerTarget {
-            CheerOverlay(
-                partnerName: partnerName,
-                mood: target,
-                onComplete: { onCheerComplete(target) },
-                onClose: { cheerTarget = nil }
-            )
-        }
-    }
-
-    @ViewBuilder private var receivedCheer: some View {
-        if let rc = received {
-            CheerReceivedOverlay(partnerName: partnerName, mood: rc.mood,
-                                 onClose: { received = nil })
-        }
-    }
-
-    @ViewBuilder private var setMeetup: some View {
-        if showSetMeetup {
-            SetMeetupSheet(
-                existing: meetups.upcoming,
-                onCreate: { iso, title in Task { await meetups.createMeetup(meetDate: iso, title: title) } },
-                onCancel: { id in if let id { Task { await meetups.cancelMeetup(id) } } },
-                onClose: { showSetMeetup = false }
-            )
-            .transition(.opacity)
-        }
-    }
-}
-
 #Preview {
     ChatView()
         .environmentObject(UserProfileStore())
@@ -889,5 +857,6 @@ private struct ChatFeatureOverlays: ViewModifier {
         .environmentObject(MoodService())
         .environmentObject(MeetupService(crypto: CryptoService()))
         .environmentObject(ChecklistService(crypto: CryptoService()))
+        .environmentObject(KKAppModel())
         .theme(.jbeam)
 }
