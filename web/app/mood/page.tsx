@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { errMsg } from "@/lib/errors";
 import {
   MOODS,
   getMoodForToday,
@@ -9,12 +10,11 @@ import {
   setMoodForToday,
   type MoodId,
 } from "@/lib/kk/api";
+import { moodGateMessage } from "@/lib/kk/mood-gate-copy";
 
 export default function MoodPage() {
   const router = useRouter();
   const [picked, setPicked] = useState<MoodId | null>(null);
-  const [cheerSkip, setCheerSkip] = useState(false);
-  const [doneMood, setDoneMood] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,42 +38,10 @@ export default function MoodPage() {
       await setMoodForToday(picked);
       router.replace("/chat");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "設定心情失敗");
+      setError(moodGateMessage(errMsg(e)));
       setBusy(false);
     }
   };
-
-  if (doneMood && !cheerSkip) {
-    return (
-      <main className="flex min-h-screen items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-3xl bg-surface p-8 text-center shadow-xl">
-          <p className="kao text-3xl">(づ｡◕‿‿◕｡)づ</p>
-          <h1 className="mt-3 text-xl">加把勁呀</h1>
-          <p className="mt-2 text-sm text-ink-soft">輕量打氣 · 可以略過</p>
-          <button
-            type="button"
-            onClick={() => void continueToApp()}
-            disabled={busy}
-            className="mt-6 w-full rounded-2xl bg-rose py-3 font-medium text-white disabled:opacity-50"
-          >
-            {busy ? "儲存緊…" : "入去 · Continue"}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => {
-              setCheerSkip(true);
-              void continueToApp();
-            }}
-            className="mt-3 w-full text-sm text-ink-soft disabled:opacity-50"
-          >
-            略過打氣
-          </button>
-          {error && <p className="mt-3 text-sm text-rose">{error}</p>}
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
@@ -87,7 +55,10 @@ export default function MoodPage() {
             <button
               key={m.id}
               type="button"
-              onClick={() => setPicked(m.id)}
+              onClick={() => {
+                setPicked(m.id);
+                setError(null);
+              }}
               className={`rounded-2xl border px-3 py-4 text-center transition ${
                 picked === m.id ? "border-rose bg-rose-soft" : "border-line bg-cream"
               }`}
@@ -100,12 +71,17 @@ export default function MoodPage() {
         </div>
         <button
           type="button"
-          disabled={!picked}
-          onClick={() => setDoneMood(true)}
+          disabled={!picked || busy}
+          onClick={() => void continueToApp()}
           className="mt-6 w-full rounded-2xl bg-rose py-3 font-medium text-white disabled:opacity-40"
         >
-          繼續 · Continue
+          {busy ? "儲存緊…" : error ? "再試" : "繼續 · Continue"}
         </button>
+        {error && (
+          <p className="mt-3 text-center text-sm text-rose" role="alert">
+            {error}
+          </p>
+        )}
       </div>
     </main>
   );
