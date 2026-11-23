@@ -756,24 +756,25 @@ struct ChatView: View {
         Task { await chat.sendVoice(data: data, durationSec: dur, senderId: uuid) }
     }
 
-    // v1.3.2/.3 — pinned diagnostic banner shown while crypto.chatKey is
-    // still nil. v1.3.3 adds the actual state values (partner pubkey
-    // length, last error, my-key status) so when the banner sticks we can
-    // see exactly which precondition is failing — earlier the banner just
-    // said "preparing..." with no signal.
+    /// Shown while the shared chat key is missing. The copy explains the
+    /// blocker in Cantonese. Raw field dumps (`partner.publicKey NIL`) stay
+    /// off the screen; 重試 republishes our key, re-reads the partner row,
+    /// and asks RootView to derive again.
     private var cryptoNotReadyBanner: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        let status = E2EEChannelStatus.resolve(
+            partnerKey: pairing.partnerKeyState,
+            ownKeyReady: ownKeyReady,
+            ownKeyOnServer: auth.ownPublicKeyOnServer,
+            prepareFailed: crypto.lastPrepareError != nil
+        )
+        return VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 ProgressView().tint(theme.rose)
-                Text("加密通道準備緊…")
+                Text(status.title)
                     .font(DSText.ui(theme, 12, weight: .semibold))
                     .foregroundStyle(theme.ink)
                 Spacer()
-                Button {
-                    if case .signedIn(let id) = auth.state {
-                        Task { await pairing.refresh(meId: id) }
-                    }
-                } label: {
+                Button(action: retryEncryptionChannel) {
                     Text("重試")
                         .font(DSText.mono(theme, 10).weight(.semibold))
                         .foregroundStyle(theme.rose)
@@ -785,17 +786,10 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text("• partner.publicKey: \(pairing.partner?.publicKey.map { "✓ \($0.count) chars" } ?? "❌ NIL")")
-                Text("• my key: \(myKeyDiagnostic)")
-                Text("• couple: \(pairing.couple != nil ? "✓" : "❌ NIL")")
-                if let err = crypto.lastPrepareError {
-                    Text("• last error: \(err)")
-                        .foregroundStyle(theme.rose)
-                }
-            }
-            .font(.system(size: 10, weight: .regular, design: .monospaced))
-            .foregroundStyle(theme.inkMuted)
+            Text(status.detail)
+                .font(DSText.ui(theme, 12))
+                .foregroundStyle(theme.inkSoft)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -805,6 +799,20 @@ struct ChatView: View {
             Rectangle().frame(height: 0.5).foregroundStyle(theme.line),
             alignment: .bottom
         )
+    }
+
+    private var ownKeyReady: Bool {
+        guard let key = try? KeyManager.shared.myPublicKeyBase64() else { return false }
+        return !key.isEmpty
+    }
+
+    private func retryEncryptionChannel() {
+        guard case .signedIn(let id) = auth.state else { return }
+        Task {
+            await auth.ensurePublicKeyUploaded(userId: id)
+            await pairing.refresh(meId: id)
+            pairing.requestChannelRetry()
+        }
     }
 
     private var vanishBanner: some View {
@@ -824,15 +832,6 @@ struct ChatView: View {
             Rectangle().frame(height: 0.5).foregroundStyle(theme.line),
             alignment: .bottom
         )
-    }
-
-    private var myKeyDiagnostic: String {
-        do {
-            let pk = try KeyManager.shared.myPublicKeyBase64()
-            return "✓ \(pk.count) chars"
-        } catch {
-            return "❌ \(String(describing: error))"
-        }
     }
 }
 
