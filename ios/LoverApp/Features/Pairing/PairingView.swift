@@ -51,6 +51,15 @@ struct PairingView: View {
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { d in
             now = d
         }
+        .onChange(of: pairing.activeCode?.code) { _, code in
+            // The generator used to sit on this screen until a force-quit.
+            // couples is not in the realtime publication, so poll instead.
+            guard let code, !code.isEmpty, case .signedIn(let id) = auth.state else {
+                pairing.stopWaitingForPartner()
+                return
+            }
+            pairing.startWaitingForPartner(meId: id)
+        }
     }
 
     // MARK: - Top bar (back + sign out)
@@ -202,7 +211,14 @@ struct PairingView: View {
             }
 
             Button {
-                Task { await pairing.createCode(anniversary: generateAnniversary) }
+                Task {
+                    guard case .signedIn(let id) = auth.state else { return }
+                    await auth.ensurePublicKeyUploaded(userId: id)
+                    await pairing.createCode(anniversary: generateAnniversary)
+                    // onChange misses a regenerated code that happens to be
+                    // the same six digits. Start the poll from here too.
+                    pairing.startWaitingForPartner(meId: id)
+                }
             } label: {
                 Group {
                     if pairing.isLoading {
@@ -241,6 +257,10 @@ struct PairingView: View {
 
                 codeDisplay(active.code)
                 expiryRow(active.expiresAt)
+                Text("對方輸入之後會自動入去，唔使關 App。")
+                    .font(DSText.ui(theme, 13))
+                    .foregroundStyle(theme.inkSoft)
+                    .multilineTextAlignment(.center)
 
                 VStack(spacing: 6) {
                     Text("對方要輸入嘅日子")
@@ -421,9 +441,10 @@ struct PairingView: View {
     private func submitRedemption() {
         guard case let .signedIn(meId) = auth.state else { return }
         Task {
+            await auth.ensurePublicKeyUploaded(userId: meId)
             let ok = await pairing.redeem(code: enteredCode, anniversary: enteredAnniversary, meId: meId)
             if ok {
-                // Refresh state — RootView will swap to MainTabView automatically.
+                // Refresh already ran inside redeem. isPaired flips the shell.
                 enteredCode = ""
             }
         }

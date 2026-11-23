@@ -1,4 +1,5 @@
 import Foundation
+import os
 import AuthenticationServices
 import CryptoKit
 import Supabase
@@ -15,6 +16,14 @@ import Supabase
 // upsert a row into public.users using the local UserProfile (collected during
 // onboarding). Phase 3b layers on the pairing flow.
 
+/// Result of `kk_set_public_key`. The RPC either writes the key or throws,
+/// so there is no separate "wrote but the select omitted it" state.
+enum PublicKeyPublish: Equatable {
+    case published
+    case writeFailed
+    case skipped
+}
+
 @MainActor
 final class AuthService: NSObject, ObservableObject {
 
@@ -30,7 +39,18 @@ final class AuthService: NSObject, ObservableObject {
     /// without entangling with the main `state` machine.
     @Published var emailLinkSent: String? = nil
 
+    /// Nil until `kk_set_public_key` has been attempted. `true` means the RPC
+    /// returned success (it writes the key or throws). A paired
+    /// `kk_couple_state` can still report a null `my_public_key`; the chat
+    /// banner treats that null as not ready.
+    @Published private(set) var ownPublicKeyOnServer: Bool?
+    /// Set when `kk_set_public_key` fails. The chat banner maps this to
+    /// Cantonese. Nil after a successful publish.
+    @Published private(set) var publicKeyFailure: RPCUserFacing.Failure?
+
     @Published private(set) var state: State = .unknown
+
+    private let authLog = Logger(subsystem: "michel.kit.us", category: "auth")
 
     /// Random nonce used for the current Sign-in-with-Apple request. Apple
     /// echoes it in the identityToken so we can detect replay attacks.
@@ -238,10 +258,40 @@ final class AuthService: NSObject, ObservableObject {
         }
     }
 
+    /// Publishes this device's X25519 public key via `kk_set_public_key`.
+    /// That RPC calls `kk_ensure_profile()` before the update, so a restored
+    /// session (which never re-ran the sign-in upsert) still gets a row.
+    /// A thrown `invalid_public_key` / `profile_missing` / `not_authenticated`
+    /// stays on `publicKeyFailure` for the Cantonese banner. Success does
+    /// not mean the partner key is ready.
+    @discardableResult
+    func ensurePublicKeyUploaded(userId: UUID) async -> PublicKeyPublish {
+        if UITesting.blocksNetwork { return .skipped }
+        if SB.client.auth.currentUser?.id != userId {
+            ownPublicKeyOnServer = false
+            publicKeyFailure = .notAuthenticated
+            return .writeFailed
+        }
+        do {
+            let publicKey = try KeyManager.shared.myPublicKeyBase64()
+            struct Args: Encodable { let p_public_key: String }
+            _ = try await SB.client
+                .rpc("kk_set_public_key", params: Args(p_public_key: publicKey))
+                .execute()
+            ownPublicKeyOnServer = true
+            publicKeyFailure = nil
+            return .published
+        } catch {
+            ownPublicKeyOnServer = false
+            publicKeyFailure = RPCUserFacing.failure(for: error)
+            authLog.error("kk_set_public_key failed: \(error.localizedDescription, privacy: .public)")
+            return .writeFailed
+        }
+    }
+
     /// Upserts the user row including the device's X25519 public key. The
-    /// private key never leaves the device. If a partner is already paired
-    /// before this device's public_key was uploaded, the partner's chat
-    /// derivation will fail until they refresh the partner row.
+    /// private key never leaves the device. Session restore does not call
+    /// this — `ensurePublicKeyUploaded` covers that path.
     private func upsertProfile(userId: UUID, profile: UserProfile) async throws {
         let publicKey = try KeyManager.shared.myPublicKeyBase64()
         let row = UserRow(
