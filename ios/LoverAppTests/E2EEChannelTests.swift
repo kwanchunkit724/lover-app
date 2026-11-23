@@ -91,6 +91,39 @@ final class E2EEChannelTests: XCTestCase {
         XCTAssertEqual(samples[6], .ownKeyUnavailable)
         XCTAssertEqual(samples[7], .serverOmittedKey)
 
+        XCTAssertEqual(
+            E2EEChannelStatus.resolve(
+                partnerKey: .nullKey, ownKeyReady: true, ownKeyOnServer: true,
+                publishFailure: .invalidPublicKey, prepareFailed: false
+            ),
+            .invalidPublicKey
+        )
+        XCTAssertEqual(
+            E2EEChannelStatus.resolve(
+                partnerKey: .present, ownKeyReady: true, ownKeyOnServer: false,
+                publishFailure: .profileMissing, prepareFailed: false
+            ),
+            .profileMissing
+        )
+        XCTAssertEqual(
+            E2EEChannelStatus.resolve(
+                partnerKey: .unknown, ownKeyReady: true, ownKeyOnServer: nil,
+                publishFailure: .notAuthenticated, prepareFailed: false
+            ),
+            .notAuthenticated
+        )
+        let extra: [E2EEChannelStatus] = [
+            .invalidPublicKey, .profileMissing, .partnerProfileMissing,
+            .notAuthenticated, .publishUnavailable,
+        ]
+        let bannedCodes = ["invalid_public_key", "profile_missing", "not_authenticated", "publicKey", "NIL"]
+        for status in extra {
+            let text = status.title + " " + status.detail
+            for token in bannedCodes {
+                XCTAssertFalse(text.localizedCaseInsensitiveContains(token), text)
+            }
+        }
+
         let banned = ["publicKey", "public_key", "NIL", "nil", "❌", "last error", "chars"]
         for status in samples {
             let text = status.title + " " + status.detail
@@ -103,6 +136,75 @@ final class E2EEChannelTests: XCTestCase {
             XCTAssertFalse(status.detail.isEmpty)
             XCTAssertTrue(status.title.contains("加密通道準備緊"))
         }
+    }
+
+    func test_coupleSnapshot_unpairedAndNullPartnerKeyAreNotReady() throws {
+        let unpaired = try JSONDecoder().decode(CoupleSnapshot.self, from: Data("{\"paired\": false}".utf8))
+        XCTAssertFalse(unpaired.paired)
+        XCTAssertNil(unpaired.partnerPublicKey)
+        XCTAssertEqual(unpaired.partnerKeyState, .unknown)
+
+        let missingKey = try decodeSnapshot("""
+        {
+          "paired": true,
+          "couple_id": "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC",
+          "my_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "partner_id": "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB",
+          "partner_public_key": null
+        }
+        """)
+        XCTAssertEqual(missingKey.partnerKeyState, .nullKey)
+        XCTAssertEqual(missingKey.myPublicKey, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+
+        let blank = try decodeSnapshot("""
+        {
+          "paired": true,
+          "couple_id": "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC",
+          "my_public_key": "   ",
+          "partner_id": "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB",
+          "partner_public_key": "  "
+        }
+        """)
+        XCTAssertNil(blank.myPublicKey)
+        XCTAssertNil(blank.partnerPublicKey)
+        XCTAssertEqual(blank.partnerKeyState, .nullKey)
+
+        let ready = try decodeSnapshot("""
+        {
+          "paired": true,
+          "couple_id": "CCCCCCCC-CCCC-CCCC-CCCC-CCCCCCCCCCCC",
+          "my_public_key": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+          "partner_id": "BBBBBBBB-BBBB-BBBB-BBBB-BBBBBBBBBBBB",
+          "partner_public_key": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+        }
+        """)
+        XCTAssertEqual(ready.partnerKeyState, .present)
+    }
+
+    func test_rpcCodes_mapToCantonese() {
+        let cases: [(String, RPCUserFacing.Failure)] = [
+            ("invalid_public_key", .invalidPublicKey),
+            ("{\"code\":\"P0001\",\"message\":\"profile_missing\"}", .profileMissing),
+            ("partner_profile_missing", .partnerProfileMissing),
+            ("not_authenticated", .notAuthenticated),
+        ]
+        let banned = ["invalid_public_key", "profile_missing", "not_authenticated", "publicKey", "NIL", "nil"]
+        for (raw, failure) in cases {
+            XCTAssertEqual(RPCUserFacing.failure(from: raw), failure)
+            let text = RPCUserFacing.cantonese(for: failure)
+            XCTAssertEqual(RPCUserFacing.knownMessage(from: raw), text)
+            for token in banned {
+                XCTAssertFalse(text.localizedCaseInsensitiveContains(token), "\(failure) contains \(token): \(text)")
+            }
+        }
+        let wrapped = NSError(domain: "Postgrest", code: 1, userInfo: ["message": "invalid_public_key"])
+        XCTAssertEqual(RPCUserFacing.failure(for: wrapped), .invalidPublicKey)
+        XCTAssertFalse(RPCUserFacing.cantonese(for: wrapped).contains("invalid_public_key"))
+        XCTAssertNil(RPCUserFacing.knownMessage(from: "anniversary_mismatch"))
+    }
+
+    private func decodeSnapshot(_ json: String) throws -> CoupleSnapshot {
+        try JSONDecoder().decode(CoupleSnapshot.self, from: Data(json.utf8))
     }
 
     private func decodePartner(_ json: String) throws -> PairingService.PartnerRow {

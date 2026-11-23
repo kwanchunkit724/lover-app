@@ -16,11 +16,11 @@ import Supabase
 // upsert a row into public.users using the local UserProfile (collected during
 // onboarding). Phase 3b layers on the pairing flow.
 
-/// Round-trip of this device's public key through `users.public_key`.
+/// Result of `kk_set_public_key`. The RPC either writes the key or throws,
+/// so there is no separate "wrote but the select omitted it" state.
 enum PublicKeyPublish: Equatable {
     case published
     case writeFailed
-    case notReturned
     case skipped
 }
 
@@ -39,10 +39,14 @@ final class AuthService: NSObject, ObservableObject {
     /// without entangling with the main `state` machine.
     @Published var emailLinkSent: String? = nil
 
-    /// Nil until we've tried to write `users.public_key` this session.
-    /// `false` means the write failed or the select did not return the key
-    /// we just stored — the channel must stay locked.
+    /// Nil until `kk_set_public_key` has been attempted. `true` means the RPC
+    /// returned success (it writes the key or throws). A paired
+    /// `kk_couple_state` can still report a null `my_public_key`; the chat
+    /// banner treats that null as not ready.
     @Published private(set) var ownPublicKeyOnServer: Bool?
+    /// Set when `kk_set_public_key` fails. The chat banner maps this to
+    /// Cantonese. Nil after a successful publish.
+    @Published private(set) var publicKeyFailure: RPCUserFacing.Failure?
 
     @Published private(set) var state: State = .unknown
 
@@ -254,41 +258,33 @@ final class AuthService: NSObject, ObservableObject {
         }
     }
 
-    /// Writes this device's X25519 public key to `users.public_key` and
-    /// reads it back. Sign-in upserts the key once, but a restored session
-    /// (`bootstrap`) never did — TestFlight updates left `public_key` null
-    /// until the next interactive sign-in, so the partner kept reading nil.
-    ///
-    /// `.notReturned` means the column was not written or not selected back.
-    /// Callers must not treat that as a ready channel.
+    /// Publishes this device's X25519 public key via `kk_set_public_key`.
+    /// That RPC calls `kk_ensure_profile()` before the update, so a restored
+    /// session (which never re-ran the sign-in upsert) still gets a row.
+    /// A thrown `invalid_public_key` / `profile_missing` / `not_authenticated`
+    /// stays on `publicKeyFailure` for the Cantonese banner. Success does
+    /// not mean the partner key is ready.
     @discardableResult
     func ensurePublicKeyUploaded(userId: UUID) async -> PublicKeyPublish {
         if UITesting.blocksNetwork { return .skipped }
+        if SB.client.auth.currentUser?.id != userId {
+            ownPublicKeyOnServer = false
+            publicKeyFailure = .notAuthenticated
+            return .writeFailed
+        }
         do {
             let publicKey = try KeyManager.shared.myPublicKeyBase64()
-            struct KeyPatch: Encodable { let public_key: String }
-            try await SB.client
-                .from("users")
-                .update(KeyPatch(public_key: publicKey))
-                .eq("id", value: userId)
+            struct Args: Encodable { let p_public_key: String }
+            _ = try await SB.client
+                .rpc("kk_set_public_key", params: Args(p_public_key: publicKey))
                 .execute()
-            struct KeyRow: Decodable { let public_key: String? }
-            let rows: [KeyRow] = try await SB.client
-                .from("users")
-                .select("public_key")
-                .eq("id", value: userId)
-                .execute()
-                .value
-            if rows.first?.public_key == publicKey {
-                ownPublicKeyOnServer = true
-                return .published
-            }
-            ownPublicKeyOnServer = false
-            authLog.error("users.public_key read-back did not match the key just written")
-            return .notReturned
+            ownPublicKeyOnServer = true
+            publicKeyFailure = nil
+            return .published
         } catch {
             ownPublicKeyOnServer = false
-            authLog.error("users.public_key upload failed: \(error.localizedDescription, privacy: .public)")
+            publicKeyFailure = RPCUserFacing.failure(for: error)
+            authLog.error("kk_set_public_key failed: \(error.localizedDescription, privacy: .public)")
             return .writeFailed
         }
     }

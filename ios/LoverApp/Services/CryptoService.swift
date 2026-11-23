@@ -26,6 +26,11 @@ enum E2EEChannelStatus: Equatable {
     case partnerUnreadable
     case ownKeyUnavailable
     case serverOmittedKey
+    case invalidPublicKey
+    case profileMissing
+    case partnerProfileMissing
+    case notAuthenticated
+    case publishUnavailable
     case keyRejected
 
     var title: String { "加密通道準備緊…" }
@@ -44,6 +49,16 @@ enum E2EEChannelStatus: Equatable {
             return "呢部機嘅加密鎖匙未準備好。撳重試再試。"
         case .serverOmittedKey:
             return "伺服器未交到你嘅加密鎖匙。檢查網絡再撳重試。"
+        case .invalidPublicKey:
+            return RPCUserFacing.cantonese(for: .invalidPublicKey)
+        case .profileMissing:
+            return RPCUserFacing.cantonese(for: .profileMissing)
+        case .partnerProfileMissing:
+            return RPCUserFacing.cantonese(for: .partnerProfileMissing)
+        case .notAuthenticated:
+            return RPCUserFacing.cantonese(for: .notAuthenticated)
+        case .publishUnavailable:
+            return RPCUserFacing.cantonese(for: .unavailable)
         case .keyRejected:
             return "對方嘅加密鎖匙用唔到。叫 TA 重新打開 App，再撳重試。"
         }
@@ -53,9 +68,19 @@ enum E2EEChannelStatus: Equatable {
         partnerKey: PairingService.PartnerKeyState,
         ownKeyReady: Bool,
         ownKeyOnServer: Bool?,
+        publishFailure: RPCUserFacing.Failure? = nil,
         prepareFailed: Bool
     ) -> E2EEChannelStatus {
         if !ownKeyReady { return .ownKeyUnavailable }
+        if let publishFailure {
+            switch publishFailure {
+            case .invalidPublicKey: return .invalidPublicKey
+            case .profileMissing: return .profileMissing
+            case .partnerProfileMissing: return .partnerProfileMissing
+            case .notAuthenticated: return .notAuthenticated
+            case .unavailable: return .publishUnavailable
+            }
+        }
         if ownKeyOnServer == false { return .serverOmittedKey }
         switch partnerKey {
         case .present:

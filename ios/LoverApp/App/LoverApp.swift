@@ -108,6 +108,7 @@ struct RootView: View {
                             kk.bind(userId: userId)
                             if UITesting.blocksNetwork { return }
                             await auth.ensurePublicKeyUploaded(userId: userId)
+                            pairing.startSessionWatch(meId: userId)
                             await pairing.refresh(meId: userId)
                             if pairing.isPaired {
                                 kickPrepare(meId: userId)
@@ -122,6 +123,7 @@ struct RootView: View {
                 if UITesting.blocksNetwork { return }
                 Task {
                     await auth.ensurePublicKeyUploaded(userId: id)
+                    pairing.startSessionWatch(meId: id)
                     await pairing.refresh(meId: id)
                     if pairing.isPaired {
                         kickPrepare(meId: id)
@@ -129,6 +131,7 @@ struct RootView: View {
                 }
             } else {
                 kk.clearSession()
+                pairing.stopSessionWatch()
                 // Sign-out / error: tear down per-couple services + chat key.
                 chat.stop()
                 anniversaries.stop()
@@ -166,12 +169,19 @@ struct RootView: View {
             guard pairing.isPaired, case .signedIn(let id) = auth.state else { return }
             kickPrepare(meId: id)
         }
+        // Realtime (or the fallback poll) can fill partner_public_key while
+        // a prepare loop is sleeping. Derive as soon as the key is non-empty.
+        .onChange(of: pairing.partner?.publicKey) { _, key in
+            if UITesting.blocksNetwork { return }
+            guard let key, !key.isEmpty, !crypto.isReady, pairing.isPaired,
+                  case .signedIn(let id) = auth.state else { return }
+            kickPrepare(meId: id)
+        }
         // v1.3.1 — chatKey often stayed nil after pairing because prepare ran
         // once before the partner had uploaded public_key. Foreground retries
-        // when we're still keyless, and also republishes OUR key: a restored
-        // session used to skip the sign-in upsert, so the partner read null
-        // forever. The generator's code screen has no realtime subscription
-        // on couples; if it's still up, start the wait poll again.
+        // when we're still keyless, republishes OUR key via kk_set_public_key,
+        // and restarts the pairing realtime channel if the subscribe failed.
+        // The code-screen poll is only the fallback for a missed event.
         .onChange(of: scenePhase) { _, phase in
             if UITesting.blocksNetwork { return }
             // Phase C — heartbeat must NOT fire while backgrounded. Pause on
@@ -184,6 +194,7 @@ struct RootView: View {
                 if case .signedIn(let id) = auth.state {
                     Task {
                         await auth.ensurePublicKeyUploaded(userId: id)
+                        pairing.startSessionWatch(meId: id)
                         if pairing.isPaired {
                             if !crypto.isReady {
                                 kickPrepare(meId: id)

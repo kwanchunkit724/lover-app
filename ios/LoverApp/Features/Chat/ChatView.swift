@@ -761,10 +761,13 @@ struct ChatView: View {
     /// off the screen; 重試 republishes our key, re-reads the partner row,
     /// and asks RootView to derive again.
     private var cryptoNotReadyBanner: some View {
+        let blockedPublish = auth.publicKeyFailure
+            ?? (pairing.partner?.publicKey == nil ? pairing.refreshFailure : nil)
         let status = E2EEChannelStatus.resolve(
             partnerKey: pairing.partnerKeyState,
             ownKeyReady: ownKeyReady,
-            ownKeyOnServer: auth.ownPublicKeyOnServer,
+            ownKeyOnServer: ownKeyOnServer,
+            publishFailure: blockedPublish,
             prepareFailed: crypto.lastPrepareError != nil
         )
         return VStack(alignment: .leading, spacing: 6) {
@@ -804,6 +807,16 @@ struct ChatView: View {
     private var ownKeyReady: Bool {
         guard let key = try? KeyManager.shared.myPublicKeyBase64() else { return false }
         return !key.isEmpty
+    }
+
+    /// Paired `kk_couple_state.my_public_key` wins over the local publish
+    /// flag. A null there is not a ready channel. Before that read lands,
+    /// trust the `kk_set_public_key` result.
+    private var ownKeyOnServer: Bool? {
+        if pairing.coupleStateLoaded && pairing.isPaired {
+            return pairing.myServerPublicKey != nil
+        }
+        return auth.ownPublicKeyOnServer
     }
 
     private func retryEncryptionChannel() {
