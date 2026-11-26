@@ -1,28 +1,27 @@
 import SwiftUI
 
-// 4-tab bottom bar — translation of TabBar in design-import/ui.jsx.
-// Tabs: 對話 / 時間 / 玩樂 / 我哋
+// KK tabs. Kaomoji is the icon. Time / Activities are not in the shell.
 
 enum AppTab: String, CaseIterable, Identifiable {
-    case chat, time, play, us
+    case chat, memory, want, us
 
     var id: String { rawValue }
 
     var label: String {
         switch self {
-        case .chat: return "對話"
-        case .time: return "時間"
-        case .play: return "玩樂"
-        case .us:   return "我哋"
+        case .chat:   return "對話"
+        case .memory: return "記憶空間"
+        case .want:   return "想你知道"
+        case .us:     return "我哋"
         }
     }
 
-    var icon: DSIconName {
+    var kao: String {
         switch self {
-        case .chat: return .chat
-        case .time: return .cal
-        case .play: return .play
-        case .us:   return .us
+        case .chat:   return "(｡•̀ᴗ-)✧"
+        case .memory: return "(´∀｀)♡"
+        case .want:   return "(´ε｀ )♡"
+        case .us:     return "(♡˙︶˙♡)"
         }
     }
 }
@@ -50,12 +49,11 @@ struct DSTabBar: View {
                     // label only shows on the ACTIVE tab inside a soft rose
                     // pill. Smaller footprint than the old always-on label.
                     HStack(spacing: 5) {
-                        DSIcon(
-                            name: tab.icon,
-                            size: 21,
-                            color: active ? theme.rose : theme.inkMuted,
-                            strokeWidth: active ? 2.0 : 1.5
-                        )
+                        Text(tab.kao)
+                            .font(.system(size: active ? 13 : 12, design: .monospaced))
+                            .foregroundStyle(active ? theme.rose : theme.inkMuted)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                         if active {
                             Text(tab.label)
                                 .font(.system(size: 11, weight: .semibold))
@@ -75,6 +73,14 @@ struct DSTabBar: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                // Combine the kaomoji and the optional title into one button.
+                // A container identifier on the bar hid these from XCUITest,
+                // so the id lives on the button itself. Inactive tabs still
+                // hide the visible title.
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(tab.label)
+                .accessibilityIdentifier("tab-\(tab.rawValue)")
+                .accessibilityAddTraits(.isButton)
             }
         }
         .padding(.horizontal, 10)

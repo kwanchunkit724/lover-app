@@ -21,7 +21,21 @@ final class UserProfileStore: ObservableObject {
 
     private let defaultsKey = "us.userProfile.v1"
 
-    init() { load() }
+    init() {
+        load()
+        // UI tests need a signed-out or shell screen, not the first-launch
+        // wizard. Keep the profile in memory so a Simulator run does not
+        // leave a fake onboarded user in UserDefaults.
+        if profile == nil, UITesting.isEnabled {
+            profile = UserProfile(
+                myName: "UI Preview",
+                partnerName: "UI Partner",
+                anniversaryISO: "2020-01-01",
+                themeId: "jbeam",
+                completedAt: Date(timeIntervalSince1970: 0)
+            )
+        }
+    }
 
     var isOnboarded: Bool { profile != nil }
 

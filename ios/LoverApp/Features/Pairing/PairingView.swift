@@ -51,6 +51,15 @@ struct PairingView: View {
         .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { d in
             now = d
         }
+        .onChange(of: pairing.activeCode?.code) { _, code in
+            // The generator used to sit on this screen until a force-quit.
+            // couples is not in the realtime publication, so poll instead.
+            guard let code, !code.isEmpty, case .signedIn(let id) = auth.state else {
+                pairing.stopWaitingForPartner()
+                return
+            }
+            pairing.startWaitingForPartner(meId: id)
+        }
     }
 
     // MARK: - Top bar (back + sign out)
@@ -92,7 +101,7 @@ struct PairingView: View {
             Text("配對")
                 .font(.system(size: 28, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
-            Text("揀其中一個方法 —\n兩部手機要輸入同一個紀念日先成功")
+            Text("揀其中一個方法 —\n而家嘅配對仍然對一次「你哋嘅日子」。伺服器未改到可留空。")
                 .font(DSText.ui(theme, 13))
                 .foregroundStyle(theme.inkSoft)
                 .multilineTextAlignment(.center)
@@ -108,7 +117,7 @@ struct PairingView: View {
             choiceCard(
                 icon: "keyboard",
                 title: "對方畀咗我配對碼",
-                subtitle: "輸入 TA 個 6 位數字 + 紀念日",
+                subtitle: "輸入 TA 個 6 位數字同日子",
                 action: { mode = .enter }
             )
 
@@ -171,11 +180,11 @@ struct PairingView: View {
     /// onboarding — explicit confirmation each time.
     private var generatePickAnniversary: some View {
         VStack(spacing: 16) {
-            Text("揀紀念日")
+            Text("你哋嘅日子")
                 .font(.system(size: 24, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
                 .padding(.top, 12)
-            Text("揀好之後生成配對碼。\n對方喺佢手機要輸入同一個日期，先至成功。")
+            Text("揀好之後生成 6 位配對碼。\n對方要輸入同一個日期。KK 之後可以留空，而家個伺服器仲未得。")
                 .font(DSText.ui(theme, 13))
                 .foregroundStyle(theme.inkSoft)
                 .multilineTextAlignment(.center)
@@ -202,7 +211,14 @@ struct PairingView: View {
             }
 
             Button {
-                Task { await pairing.createCode(anniversary: generateAnniversary) }
+                Task {
+                    guard case .signedIn(let id) = auth.state else { return }
+                    await auth.ensurePublicKeyUploaded(userId: id)
+                    await pairing.createCode(anniversary: generateAnniversary)
+                    // onChange misses a regenerated code that happens to be
+                    // the same six digits. Start the poll from here too.
+                    pairing.startWaitingForPartner(meId: id)
+                }
             } label: {
                 Group {
                     if pairing.isLoading {
@@ -233,7 +249,7 @@ struct PairingView: View {
                     .font(.system(size: 24, weight: .semibold, design: .serif))
                     .foregroundStyle(theme.ink)
                     .padding(.top, 12)
-                Text("TA 喺自己手機輸入呢個 code +\n下面個紀念日。")
+                Text("TA 喺自己手機輸入呢個 code +\n下面個日子。")
                     .font(DSText.ui(theme, 13))
                     .foregroundStyle(theme.inkSoft)
                     .multilineTextAlignment(.center)
@@ -241,9 +257,13 @@ struct PairingView: View {
 
                 codeDisplay(active.code)
                 expiryRow(active.expiresAt)
+                Text("對方輸入之後會自動入去，唔使關 App。")
+                    .font(DSText.ui(theme, 13))
+                    .foregroundStyle(theme.inkSoft)
+                    .multilineTextAlignment(.center)
 
                 VStack(spacing: 6) {
-                    Text("對方要輸入嘅紀念日")
+                    Text("對方要輸入嘅日子")
                         .font(DSText.mono(theme, 11))
                         .foregroundStyle(theme.inkMuted)
                     Text(DisplayDate.from(iso: active.anniversaryISO))
@@ -294,7 +314,7 @@ struct PairingView: View {
     }
 
     private func expiryRow(_ expiresAt: Date) -> some View {
-        let remaining = max(0, Int(expiresAt.timeIntervalSince(now)))
+        let remaining = PairingCode.secondsRemaining(until: expiresAt, now: now)
         let m = remaining / 60
         let s = remaining % 60
         return Text(remaining > 0 ? "仲有 \(m):\(String(format: "%02d", s)) 過期" : "已過期 — 換一個")
@@ -313,7 +333,7 @@ struct PairingView: View {
 
             digitsRow
 
-            Text("紀念日")
+            Text("你哋嘅日子")
                 .font(DSText.mono(theme, 12))
                 .foregroundStyle(theme.inkMuted)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -400,7 +420,7 @@ struct PairingView: View {
             // Hidden TextField focuses the keyboard onto the row.
             TextField("", text: Binding(
                 get: { enteredCode },
-                set: { v in enteredCode = String(v.filter(\.isNumber).prefix(6)) }
+                set: { v in enteredCode = PairingCode.sanitize(v) }
             ))
             .keyboardType(.numberPad)
             .focused($codeFieldFocused)
@@ -416,14 +436,15 @@ struct PairingView: View {
         DisplayDate.formatter.string(from: enteredAnniversary)
     }
 
-    private var canSubmit: Bool { enteredCode.count == 6 }
+    private var canSubmit: Bool { PairingCode.isValid(enteredCode) }
 
     private func submitRedemption() {
         guard case let .signedIn(meId) = auth.state else { return }
         Task {
+            await auth.ensurePublicKeyUploaded(userId: meId)
             let ok = await pairing.redeem(code: enteredCode, anniversary: enteredAnniversary, meId: meId)
             if ok {
-                // Refresh state — RootView will swap to MainTabView automatically.
+                // Refresh already ran inside redeem. isPaired flips the shell.
                 enteredCode = ""
             }
         }

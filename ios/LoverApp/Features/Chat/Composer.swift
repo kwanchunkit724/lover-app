@@ -46,6 +46,8 @@ struct Composer: View {
                         .frame(width: 30, height: 30)
                 }
                 .buttonStyle(.plain)
+                .accessibilityIdentifier("composer-kaomoji")
+                .accessibilityLabel("顏文字")
             }
             .background(theme.surface)
             .overlay(

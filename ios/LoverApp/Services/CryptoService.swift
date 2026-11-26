@@ -17,6 +17,86 @@ import CryptoKit
 // Plaintext is the JSON-encoded ChatPayload (versioned envelope so Phase
 // 4b can add photo/voice without a schema migration).
 
+/// Why the chat composer is still locked. Copy is user-facing Cantonese.
+/// Field names, nil dumps, and key material stay out of it.
+enum E2EEChannelStatus: Equatable {
+    case preparing
+    case waitingForPartnerKey
+    case partnerMissing
+    case partnerUnreadable
+    case ownKeyUnavailable
+    case serverOmittedKey
+    case invalidPublicKey
+    case profileMissing
+    case partnerProfileMissing
+    case notAuthenticated
+    case publishUnavailable
+    case keyRejected
+
+    var title: String { "加密通道準備緊…" }
+
+    var detail: String {
+        switch self {
+        case .preparing:
+            return "就快開通，等一陣。"
+        case .waitingForPartnerKey:
+            return "等緊對方嘅加密鎖匙。叫 TA 打開一次 App，然後撳重試。"
+        case .partnerMissing:
+            return "配對咗，但暫時搵唔到對方。撳重試再試。"
+        case .partnerUnreadable:
+            return "暫時讀唔到對方嘅加密鎖匙。檢查網絡再撳重試。"
+        case .ownKeyUnavailable:
+            return "呢部機嘅加密鎖匙未準備好。撳重試再試。"
+        case .serverOmittedKey:
+            return "伺服器未交到你嘅加密鎖匙。檢查網絡再撳重試。"
+        case .invalidPublicKey:
+            return RPCUserFacing.cantonese(for: .invalidPublicKey)
+        case .profileMissing:
+            return RPCUserFacing.cantonese(for: .profileMissing)
+        case .partnerProfileMissing:
+            return RPCUserFacing.cantonese(for: .partnerProfileMissing)
+        case .notAuthenticated:
+            return RPCUserFacing.cantonese(for: .notAuthenticated)
+        case .publishUnavailable:
+            return RPCUserFacing.cantonese(for: .unavailable)
+        case .keyRejected:
+            return "對方嘅加密鎖匙用唔到。叫 TA 重新打開 App，再撳重試。"
+        }
+    }
+
+    static func resolve(
+        partnerKey: PairingService.PartnerKeyState,
+        ownKeyReady: Bool,
+        ownKeyOnServer: Bool?,
+        publishFailure: RPCUserFacing.Failure? = nil,
+        prepareFailed: Bool
+    ) -> E2EEChannelStatus {
+        if !ownKeyReady { return .ownKeyUnavailable }
+        if let publishFailure {
+            switch publishFailure {
+            case .invalidPublicKey: return .invalidPublicKey
+            case .profileMissing: return .profileMissing
+            case .partnerProfileMissing: return .partnerProfileMissing
+            case .notAuthenticated: return .notAuthenticated
+            case .unavailable: return .publishUnavailable
+            }
+        }
+        if ownKeyOnServer == false { return .serverOmittedKey }
+        switch partnerKey {
+        case .present:
+            return prepareFailed ? .keyRejected : .preparing
+        case .nullKey:
+            return .waitingForPartnerKey
+        case .missingRow:
+            return .partnerMissing
+        case .unreadable:
+            return .partnerUnreadable
+        case .unknown:
+            return .preparing
+        }
+    }
+}
+
 struct ChatPayload: Codable, Equatable {
     var v: Int = 1
     var kind: Kind
@@ -73,8 +153,13 @@ final class CryptoService: ObservableObject {
             )
             isReady = true
             lastPrepareError = nil
+        } catch CryptoError.partnerKeyMissing {
+            lastPrepareError = E2EEChannelStatus.waitingForPartnerKey.detail
+            throw CryptoError.partnerKeyMissing
         } catch {
-            lastPrepareError = String(describing: error)
+            // Keep the user-facing string. The raw error (missing key,
+            // bad base64, keychain) is not something to put on screen.
+            lastPrepareError = E2EEChannelStatus.keyRejected.detail
             throw error
         }
     }

@@ -16,6 +16,7 @@ struct LoverApp: App {
     @StateObject private var mood = MoodService()
     @StateObject private var meetups: MeetupService
     @StateObject private var checklist: ChecklistService
+    @StateObject private var kk = KKAppModel()
 
     init() {
         let c = CryptoService()
@@ -50,6 +51,7 @@ struct LoverApp: App {
                 .environmentObject(mood)
                 .environmentObject(meetups)
                 .environmentObject(checklist)
+                .environmentObject(kk)
                 .theme(profileStore.theme)
                 .task { await auth.bootstrap() }
         }
@@ -87,6 +89,7 @@ struct RootView: View {
     @EnvironmentObject private var mood: MoodService
     @EnvironmentObject private var meetups: MeetupService
     @EnvironmentObject private var checklist: ChecklistService
+    @EnvironmentObject private var kk: KKAppModel
 
     var body: some View {
         Group {
@@ -100,11 +103,16 @@ struct RootView: View {
                 case .signedOut, .error:
                     SignInView()
                 case .signedIn(let userId):
-                    MainTabView()
+                    signedInShell()
                         .task {
+                            kk.bind(userId: userId)
+                            if UITesting.blocksNetwork { return }
+                            await auth.ensurePublicKeyUploaded(userId: userId)
+                            await publishLocalName()
+                            pairing.startSessionWatch(meId: userId)
                             await pairing.refresh(meId: userId)
                             if pairing.isPaired {
-                                await preparePaired(meId: userId)
+                                kickPrepare(meId: userId)
                             }
                         }
                 }
@@ -112,13 +120,20 @@ struct RootView: View {
         }
         .onChange(of: auth.state) { _, newState in
             if case .signedIn(let id) = newState {
+                kk.bind(userId: id)
+                if UITesting.blocksNetwork { return }
                 Task {
+                    await auth.ensurePublicKeyUploaded(userId: id)
+                    await publishLocalName()
+                    pairing.startSessionWatch(meId: id)
                     await pairing.refresh(meId: id)
                     if pairing.isPaired {
-                        await preparePaired(meId: id)
+                        kickPrepare(meId: id)
                     }
                 }
             } else {
+                kk.clearSession()
+                pairing.stopSessionWatch()
                 // Sign-out / error: tear down per-couple services + chat key.
                 chat.stop()
                 anniversaries.stop()
@@ -134,8 +149,9 @@ struct RootView: View {
         }
         .onChange(of: pairing.isPaired) { _, isPaired in
             if isPaired {
+                if UITesting.blocksNetwork { return }
                 if case .signedIn(let id) = auth.state {
-                    Task { await preparePaired(meId: id) }
+                    kickPrepare(meId: id)
                 }
             } else {
                 chat.stop()
@@ -150,34 +166,52 @@ struct RootView: View {
                 pairing.resetState()
             }
         }
-        // v1.3.1 — bug surfaced in v1.3.0 testing: chatKey often stayed nil
-        // after pairing because crypto.prepare ran ONCE before the partner
-        // had finished uploading their public key. Result: every subsequent
-        // entry / chat message / play history insert silently failed at the
-        // seal step (crypto.notReady), and existing rows showed
-        // "(無法解密)". Re-attempt prepare every time the app comes back to
-        // the foreground if we're paired but still keyless. This is cheap
-        // (one DB read + 1 HKDF) and idempotent.
+        .onChange(of: pairing.channelRetryNonce) { _, _ in
+            if UITesting.blocksNetwork { return }
+            guard pairing.isPaired, case .signedIn(let id) = auth.state else { return }
+            kickPrepare(meId: id)
+        }
+        // Realtime (or the fallback poll) can fill partner_public_key while
+        // a prepare loop is sleeping. Derive as soon as the key is non-empty.
+        .onChange(of: pairing.partner?.publicKey) { _, key in
+            if UITesting.blocksNetwork { return }
+            guard let key, !key.isEmpty, !crypto.isReady, pairing.isPaired,
+                  case .signedIn(let id) = auth.state else { return }
+            kickPrepare(meId: id)
+        }
+        // v1.3.1 — chatKey often stayed nil after pairing because prepare ran
+        // once before the partner had uploaded public_key. Foreground retries
+        // when we're still keyless, republishes OUR key via kk_set_public_key,
+        // and restarts the pairing realtime channel if the subscribe failed.
+        // The code-screen poll is only the fallback for a missed event.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active,
-               crypto.chatKey == nil,
-               pairing.isPaired,
-               case .signedIn(let id) = auth.state {
-                Task { await preparePaired(meId: id) }
-            }
+            if UITesting.blocksNetwork { return }
             // Phase C — heartbeat must NOT fire while backgrounded. Pause on
             // .background / .inactive, resume on .active.
             switch phase {
             case .background, .inactive:
                 presence.pause()
-                mood.pause()
-                meetups.pause()
                 checklist.pause()
             case .active:
+                if case .signedIn(let id) = auth.state {
+                    Task {
+                        await auth.ensurePublicKeyUploaded(userId: id)
+                        await publishLocalName()
+                        pairing.startSessionWatch(meId: id)
+                        // Refresh even when already paired so the partner's
+                        // saved my_name replaces the 「我」 default.
+                        await pairing.refresh(meId: id, quiet: true)
+                        if pairing.isPaired {
+                            if !crypto.isReady {
+                                kickPrepare(meId: id)
+                            }
+                        } else if pairing.activeCode != nil {
+                            pairing.startWaitingForPartner(meId: id)
+                        }
+                    }
+                }
                 if let coupleId = pairing.couple?.id {
                     presence.resume(coupleId: coupleId)
-                    mood.resume(coupleId: coupleId)
-                    meetups.resume(coupleId: coupleId)
                     checklist.resume(coupleId: coupleId)
                 }
             @unknown default:
@@ -186,53 +220,87 @@ struct RootView: View {
         }
     }
 
-    /// v1.3.2 — relentless prepare loop. v1.3.1's 16-second cap still wasn't
-    /// enough in the wild — partners on slow networks could take longer to
-    /// upload their public key, and once the loop exited the chat key
-    /// stayed nil. Now we keep retrying with backoff until either prepare
-    /// succeeds OR the user navigates away (state goes signedOut /
-    /// unpaired, observed by the .onChange handlers above which would
-    /// invalidate the next iteration's preconditions).
-    private func preparePaired(meId: UUID) async {
-        guard let couple = pairing.couple else { return }
+    @ViewBuilder
+    private func signedInShell() -> some View {
+        if UITesting.mode == .shell {
+            MainTabView()
+        } else if !kk.dailyMood.isReady {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if kk.dailyMood.needsGate() {
+            DailyMoodGateView()
+        } else {
+            MainTabView()
+        }
+    }
+
+    /// Writes the on-device name onto `users.my_name` when it is a real name.
+    /// Session restore does not re-run the sign-in upsert, and
+    /// `kk_ensure_profile()` will not replace the default 「我」.
+    private func publishLocalName() async {
+        guard let name = profileStore.profile?.myName else { return }
+        await auth.publishMyName(name)
+    }
+
+    /// Re-publish our key and derive the chat key. Keeps polling while the
+    /// partner row's `public_key` is empty: a null column is not success.
+    /// A newer attempt (retry, foreground, sign-out, unpair) bumps the
+    /// token on `PairingService` and this loop exits.
+    private func kickPrepare(meId: UUID) {
+        let generation = pairing.beginPrepareAttempt()
+        Task { await preparePaired(meId: meId, generation: generation) }
+    }
+
+    private func preparePaired(meId: UUID, generation: Int) async {
+        if UITesting.blocksNetwork { return }
+        guard pairing.prepareAttemptIsCurrent(generation) else { return }
+        _ = await auth.ensurePublicKeyUploaded(userId: meId)
+        guard pairing.prepareAttemptIsCurrent(generation) else { return }
         var delay: UInt64 = 1_000_000_000   // 1s, doubles up to 8s
-        for attempt in 0..<60 {             // ~5 minutes worst case
-            // Bail if state has changed under us.
+        var attempt = 0
+        while pairing.prepareAttemptIsCurrent(generation) {
             if !pairing.isPaired { return }
-            if crypto.isReady { return }    // another caller succeeded
-            // v1.6.1 (problem 1) — the caller (RootView.task / onChange) just
-            // ran pairing.refresh, so skip the redundant 2-query refresh here
-            // when the partner key is already loaded. Only re-fetch while the
-            // key is still missing (the retry path this loop exists for).
-            if pairing.partner?.publicKey?.isEmpty ?? true {
-                await pairing.refresh(meId: meId)
+            if crypto.isReady { return }
+            if case .signedIn = auth.state {} else { return }
+            // Re-write our key occasionally so a blip during the first
+            // upload still lands before the partner's next read.
+            if attempt > 0, attempt % 5 == 0, auth.ownPublicKeyOnServer != true {
+                _ = await auth.ensurePublicKeyUploaded(userId: meId)
             }
-            if let partner = pairing.partner,
+            if pairing.partner?.publicKey?.isEmpty ?? true {
+                await pairing.refresh(meId: meId, quiet: true)
+            }
+            if !pairing.prepareAttemptIsCurrent(generation) { return }
+            if let couple = pairing.couple,
+               let partner = pairing.partner,
                let pub = partner.publicKey, !pub.isEmpty {
                 do {
                     try crypto.prepare(coupleId: couple.id, partner: partner)
+                    guard pairing.isPaired, pairing.prepareAttemptIsCurrent(generation) else {
+                        crypto.reset()
+                        return
+                    }
                     startCoupleServices(coupleId: couple.id)
                     PushService.shared.bootstrap()
                     return
                 } catch {
-                    // crypto.lastPrepareError already set inside prepare();
-                    // keep looping — partner key may be malformed mid-upload
+                    // lastPrepareError is a Cantonese string. Keep polling —
+                    // the partner may still be replacing a bad upload.
                 }
             }
             try? await Task.sleep(nanoseconds: delay)
             if attempt >= 3, delay < 8_000_000_000 { delay *= 2 }
+            attempt += 1
         }
     }
 
-    /// Start every per-couple background service. Idempotent.
+    /// Chat, presence, and the short checklist still run.
+    /// Time, activities, anniversaries, and meetups are not started:
+    /// those screens are gone from the KK shell. The service objects stay
+    /// so sign-out can stop them, and so a later PR can delete the files.
     private func startCoupleServices(coupleId: UUID) {
         chat.start(coupleId: coupleId)
-        anniversaries.start(coupleId: coupleId)
-        entries.start(coupleId: coupleId)
-        playHistory.start(coupleId: coupleId)
         presence.start(coupleId: coupleId)
-        mood.start(coupleId: coupleId)
-        meetups.start(coupleId: coupleId)
         checklist.start(coupleId: coupleId)
     }
 }

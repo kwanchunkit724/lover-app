@@ -2,8 +2,8 @@
 // Plaintext = AnniversaryPayload JSON, sealed with the same chatKey.
 
 import type { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
-import dayjs from "dayjs";
 import { seal, open } from "@/lib/crypto/seal";
+import { computeDaysUntilNext } from "@/lib/anniversary-math";
 
 export interface AnniversaryPayload {
   v: 1;
@@ -30,24 +30,6 @@ export interface DecryptedAnniversary {
   payload: AnniversaryPayload | null;
   daysUntilNext: number | null;
 }
-
-const computeDaysUntilNext = (
-  baseDateISO: string,
-  recur: "yearly" | "monthly",
-): number | null => {
-  const base = dayjs(baseDateISO);
-  if (!base.isValid()) return null;
-  const today = dayjs().startOf("day");
-  let next = base;
-  if (recur === "yearly") {
-    next = base.year(today.year());
-    if (next.isBefore(today)) next = next.add(1, "year");
-  } else {
-    next = base.year(today.year()).month(today.month());
-    if (next.isBefore(today)) next = next.add(1, "month");
-  }
-  return next.diff(today, "day");
-};
 
 const decrypt = async (
   row: AnniversaryRow,

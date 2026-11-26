@@ -10,6 +10,13 @@ enum TimeFormatting {
         "七月", "八月", "九月", "十月", "十一月", "十二月"
     ]
 
+    /// Gregorian calendar pinned to Asia/Hong_Kong — must match `parseDate`.
+    static var calendar: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "Asia/Hong_Kong")!
+        return c
+    }
+
     /// "yyyy-MM-dd" → "M.d"
     static func mdString(_ iso: String) -> String {
         let parts = iso.split(separator: "-")
@@ -23,7 +30,7 @@ enum TimeFormatting {
     /// "yyyy-MM-dd" → "2026 · 五月 2 日 · 星期六"
     static func fullString(_ iso: String) -> String {
         guard let date = parseDate(iso) else { return iso }
-        let cal = Calendar(identifier: .gregorian)
+        let cal = calendar
         let y = cal.component(.year, from: date)
         let m = cal.component(.month, from: date)
         let d = cal.component(.day, from: date)
@@ -34,7 +41,7 @@ enum TimeFormatting {
     /// "yyyy-MM-dd" → weekday char ("日"/"一"/...)
     static func weekday(_ iso: String) -> String {
         guard let date = parseDate(iso) else { return "" }
-        let cal = Calendar(identifier: .gregorian)
+        let cal = calendar
         let w = cal.component(.weekday, from: date) - 1
         return weekdays[w]
     }
@@ -48,7 +55,6 @@ enum TimeFormatting {
 
     static func daysBetween(_ start: String, _ end: String) -> Int {
         guard let a = parseDate(start), let b = parseDate(end) else { return 0 }
-        let cal = Calendar(identifier: .gregorian)
-        return cal.dateComponents([.day], from: a, to: b).day ?? 0
+        return calendar.dateComponents([.day], from: a, to: b).day ?? 0
     }
 }

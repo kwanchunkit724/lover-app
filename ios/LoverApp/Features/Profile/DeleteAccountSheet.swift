@@ -41,8 +41,8 @@ struct DeleteAccountSheet: View {
                             bullet("刪除你嘅 Apple ID / Email 登入紀錄")
                             bullet("解除配對 — 對方會回到「未配對」狀態")
                             bullet("刪除你 send 過嘅所有訊息、相片、語音")
-                            bullet("刪除你加過嘅紀念日、時間表 entry")
-                            bullet("刪除你寫過嘅 18 區 / MTR / 玩樂卡記錄")
+                            bullet("刪除你嘅日子、記憶同想你知道")
+                            bullet("刪除舊版時間簿同玩樂記錄（如果仲喺帳戶度）")
                         }
                         .padding(14)
                     }

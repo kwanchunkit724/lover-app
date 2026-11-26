@@ -40,7 +40,8 @@ final class KeyManager {
     }
 
     /// Decode a partner's base64-encoded public key from the users table.
-    static func decodePublicKey(base64: String) throws -> Curve25519.KeyAgreement.PublicKey {
+    /// nonisolated: pure decode, no Keychain / actor state — safe from unit tests + background decrypt paths.
+    nonisolated static func decodePublicKey(base64: String) throws -> Curve25519.KeyAgreement.PublicKey {
         guard let data = Data(base64Encoded: base64) else {
             throw KeyError.invalidBase64
         }

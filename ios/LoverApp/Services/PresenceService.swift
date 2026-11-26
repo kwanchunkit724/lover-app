@@ -40,6 +40,7 @@ final class PresenceService: ObservableObject {
     /// Join the presence channel for this couple + start the heartbeat. If
     /// already started for the same couple this is a no-op.
     func start(coupleId: UUID) {
+        if UITesting.blocksNetwork { return }
         if self.coupleId == coupleId, channel != nil { return }
         stop()
         self.coupleId = coupleId

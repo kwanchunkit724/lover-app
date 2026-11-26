@@ -84,6 +84,7 @@ final class ChatService: ObservableObject {
     // MARK: - Lifecycle
 
     func start(coupleId: UUID) {
+        if UITesting.blocksNetwork { return }
         if self.coupleId == coupleId, realtimeTask != nil { return }
         self.coupleId = coupleId
         // v1.6.3 — instant cold open: paint the last cached messages from disk
@@ -123,6 +124,7 @@ final class ChatService: ObservableObject {
     /// Bumps the window by one page and refetches; cheap because the decrypt
     /// cache means only the newly-revealed older rows get decrypted.
     func loadOlder() async {
+        if UITesting.blocksNetwork { return }
         guard hasMore, !isFetching else { return }
         loadedLimit += pageSize
         await fetchOnce()
@@ -142,6 +144,7 @@ final class ChatService: ObservableObject {
     // MARK: - Send
 
     func sendText(_ text: String, senderId: UUID, replyToId: UUID? = nil) async {
+        if UITesting.blocksNetwork { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let coupleId else { return }
         do {
@@ -407,6 +410,7 @@ final class ChatService: ObservableObject {
     }
 
     private func fetchOnce() async {
+        if UITesting.blocksNetwork { return }
         guard let coupleId else { return }
         // Coalesce overlapping callers (5s poll + realtime burst): if one is
         // already running, mark that another pass is wanted and bail — the

@@ -1,8 +1,12 @@
 import Foundation
+import os
 import AuthenticationServices
 import CryptoKit
 import Supabase
 
+// KK auth is Sign in with Apple or email OTP only.
+// Do not add signInAnonymously or a guest path.
+//
 // Native Sign in with Apple → Supabase. Apple gives us an identityToken (a
 // signed JWT containing the user's stable Apple ID). We pass it to Supabase
 // Auth's signInWithIdToken, which validates the JWT against Apple's public
@@ -11,6 +15,14 @@ import Supabase
 // Phase 3a scope: just sign in. The first time a user signs in, we also
 // upsert a row into public.users using the local UserProfile (collected during
 // onboarding). Phase 3b layers on the pairing flow.
+
+/// Result of `kk_set_public_key`. The RPC either writes the key or throws,
+/// so there is no separate "wrote but the select omitted it" state.
+enum PublicKeyPublish: Equatable {
+    case published
+    case writeFailed
+    case skipped
+}
 
 @MainActor
 final class AuthService: NSObject, ObservableObject {
@@ -27,7 +39,18 @@ final class AuthService: NSObject, ObservableObject {
     /// without entangling with the main `state` machine.
     @Published var emailLinkSent: String? = nil
 
+    /// Nil until `kk_set_public_key` has been attempted. `true` means the RPC
+    /// returned success (it writes the key or throws). A paired
+    /// `kk_couple_state` can still report a null `my_public_key`; the chat
+    /// banner treats that null as not ready.
+    @Published private(set) var ownPublicKeyOnServer: Bool?
+    /// Set when `kk_set_public_key` fails. The chat banner maps this to
+    /// Cantonese. Nil after a successful publish.
+    @Published private(set) var publicKeyFailure: RPCUserFacing.Failure?
+
     @Published private(set) var state: State = .unknown
+
+    private let authLog = Logger(subsystem: "michel.kit.us", category: "auth")
 
     /// Random nonce used for the current Sign-in-with-Apple request. Apple
     /// echoes it in the identityToken so we can detect replay attacks.
@@ -38,6 +61,16 @@ final class AuthService: NSObject, ObservableObject {
     /// Called on app launch. If a previous session exists in the keychain,
     /// transition to .signedIn; otherwise .signedOut.
     func bootstrap() async {
+        switch UITesting.mode {
+        case .auth:
+            state = .signedOut
+            return
+        case .shell:
+            state = .signedIn(userId: UITesting.fixtureUserId)
+            return
+        case .off:
+            break
+        }
         do {
             let session = try await SB.client.auth.session
             state = .signedIn(userId: session.user.id)
@@ -61,42 +94,63 @@ final class AuthService: NSObject, ObservableObject {
 
     /// Handles the result returned by SignInWithAppleButton's `onCompletion`.
     /// On success: extracts identityToken, calls Supabase signInWithIdToken,
-    /// and (if first sign-in) upserts the public.users row from the local
-    /// UserProfile. On failure: surfaces an error string.
+    /// and writes `users.my_name` from the local profile (or the Apple given
+    /// name when the local name is still the 「我」 placeholder).
+    /// Returns the profile that should be saved on device. Nil on cancel or
+    /// when sign-in itself failed.
+    @discardableResult
     func handleAppleResult(_ result: Result<ASAuthorization, Error>,
-                           profile: UserProfile) async {
+                           profile: UserProfile) async -> UserProfile? {
+        if UITesting.blocksNetwork {
+            state = .error("UI test mode does not sign in.")
+            return nil
+        }
         switch result {
         case .failure(let error):
             // User cancelled is harmless; everything else surfaces.
-            if (error as? ASAuthorizationError)?.code == .canceled { return }
+            if (error as? ASAuthorizationError)?.code == .canceled { return nil }
             state = .error(error.localizedDescription)
+            return nil
 
         case .success(let auth):
             guard let nonce = currentNonce else {
                 state = .error("missing nonce")
-                return
+                return nil
             }
             guard let credential = auth.credential as? ASAuthorizationAppleIDCredential,
                   let tokenData = credential.identityToken,
                   let token = String(data: tokenData, encoding: .utf8) else {
                 state = .error("missing identity token")
-                return
+                return nil
             }
 
+            let named = CoupleNames.profile(
+                profile,
+                givenName: credential.fullName?.givenName,
+                familyName: credential.fullName?.familyName,
+                nickname: credential.fullName?.nickname
+            )
             do {
                 let session = try await SB.client.auth.signInWithIdToken(
                     credentials: .init(provider: .apple, idToken: token, nonce: nonce)
                 )
-                try await upsertProfile(userId: session.user.id, profile: profile)
+                await persistSignedInProfile(userId: session.user.id, profile: named)
                 state = .signedIn(userId: session.user.id)
+                return named
             } catch {
                 state = .error(error.localizedDescription)
+                return nil
             }
         }
     }
 
     /// Signs out, clears local Supabase session.
     func signOut() async {
+        if UITesting.blocksNetwork {
+            state = .signedOut
+            emailLinkSent = nil
+            return
+        }
         try? await SB.client.auth.signOut()
         state = .signedOut
         emailLinkSent = nil
@@ -114,6 +168,10 @@ final class AuthService: NSObject, ObservableObject {
     /// On success: signs out locally, returns true. Caller routes to
     /// onboarding/sign-in.
     func deleteAccount() async -> Bool {
+        if UITesting.blocksNetwork {
+            state = .error("UI test mode does not delete accounts.")
+            return false
+        }
         do {
             try await SB.client.rpc("delete_my_account").execute()
             // Even though the RPC nuked the auth row, our session is now
@@ -141,6 +199,10 @@ final class AuthService: NSObject, ObservableObject {
     /// Sends a one-time password email to the address. Returns true if the
     /// OTP was dispatched, false on error.
     func sendEmailOTP(to email: String) async -> Bool {
+        if UITesting.blocksNetwork {
+            state = .error("UI test mode does not send email codes.")
+            return false
+        }
         let trimmed = email.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, trimmed.contains("@") else {
             state = .error("唔似一個 email 地址喎")
@@ -162,6 +224,10 @@ final class AuthService: NSObject, ObservableObject {
     /// Verifies the 6-digit OTP code the user typed in (or that arrived via
     /// magic link). On success: same user-row upsert as the Apple flow.
     func verifyEmailOTP(email: String, code: String, profile: UserProfile) async {
+        if UITesting.blocksNetwork {
+            state = .error("UI test mode does not verify email codes.")
+            return
+        }
         let trimmedEmail = email.trimmingCharacters(in: .whitespaces)
         let trimmedCode  = code.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
@@ -170,7 +236,7 @@ final class AuthService: NSObject, ObservableObject {
                 token: trimmedCode,
                 type: .email
             )
-            try await upsertProfile(userId: session.user.id, profile: profile)
+            await persistSignedInProfile(userId: session.user.id, profile: profile)
             emailLinkSent = nil
             state = .signedIn(userId: session.user.id)
         } catch {
@@ -186,38 +252,90 @@ final class AuthService: NSObject, ObservableObject {
 
     // MARK: - Profile upsert
 
-    private struct UserRow: Codable {
-        let id: UUID
-        let myName: String
-        let partnerName: String
-        let anniversaryISO: String
-        let themeId: String
-        let publicKey: String
+    /// Writes the signed-in user's own `my_name`. A failed full-row upsert
+    /// (empty anniversary used to be sent as `""`, which a `date` column
+    /// rejects) must not drop the name: the column update still runs.
+    /// Session restore never re-enters sign-in, so launch and foreground
+    /// call `publishMyName` again with the name already stored on device.
+    private func persistSignedInProfile(userId: UUID, profile: UserProfile) async {
+        do {
+            try await upsertProfile(userId: userId, profile: profile)
+        } catch {
+            authLog.error("profile upsert failed: \(error.localizedDescription, privacy: .public)")
+        }
+        _ = await publishMyName(profile.myName)
+    }
 
-        enum CodingKeys: String, CodingKey {
-            case id
-            case myName        = "my_name"
-            case partnerName   = "partner_name"
-            case anniversaryISO = "anniversary_iso"
-            case themeId       = "theme_id"
-            case publicKey     = "public_key"
+    /// UPDATE `users.my_name` for the signed-in row only. RLS `users_update_self`
+    /// is `id = auth.uid()`. Placeholders 「我」 / 「對方」 are not written.
+    /// `kk_ensure_profile()` inserts those defaults when the row is missing
+    /// and does not change an existing name, so the UPDATE has to follow it.
+    @discardableResult
+    func publishMyName(_ raw: String) async -> Bool {
+        guard let name = CoupleNames.persistable(raw) else { return false }
+        if UITesting.blocksNetwork { return true }
+        guard let userId = SB.client.auth.currentUser?.id else { return false }
+        return await writeMyName(name, userId: userId)
+    }
+
+    private func writeMyName(_ name: String, userId: UUID) async -> Bool {
+        guard CoupleNames.persistable(name) != nil else { return false }
+        guard SB.client.auth.currentUser?.id == userId else { return false }
+        do {
+            _ = try await SB.client.rpc("kk_ensure_profile").execute()
+            struct Patch: Encodable {
+                let myName: String
+                enum CodingKeys: String, CodingKey { case myName = "my_name" }
+            }
+            try await SB.client
+                .from("users")
+                .update(Patch(myName: name))
+                .eq("id", value: userId)
+                .execute()
+            return true
+        } catch {
+            authLog.error("my_name update failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    /// Publishes this device's X25519 public key via `kk_set_public_key`.
+    /// That RPC calls `kk_ensure_profile()` before the update, so a restored
+    /// session (which never re-ran the sign-in upsert) still gets a row.
+    /// A thrown `invalid_public_key` / `profile_missing` / `not_authenticated`
+    /// stays on `publicKeyFailure` for the Cantonese banner. Success does
+    /// not mean the partner key is ready.
+    @discardableResult
+    func ensurePublicKeyUploaded(userId: UUID) async -> PublicKeyPublish {
+        if UITesting.blocksNetwork { return .skipped }
+        if SB.client.auth.currentUser?.id != userId {
+            ownPublicKeyOnServer = false
+            publicKeyFailure = .notAuthenticated
+            return .writeFailed
+        }
+        do {
+            let publicKey = try KeyManager.shared.myPublicKeyBase64()
+            struct Args: Encodable { let p_public_key: String }
+            _ = try await SB.client
+                .rpc("kk_set_public_key", params: Args(p_public_key: publicKey))
+                .execute()
+            ownPublicKeyOnServer = true
+            publicKeyFailure = nil
+            return .published
+        } catch {
+            ownPublicKeyOnServer = false
+            publicKeyFailure = RPCUserFacing.failure(for: error)
+            authLog.error("kk_set_public_key failed: \(error.localizedDescription, privacy: .public)")
+            return .writeFailed
         }
     }
 
     /// Upserts the user row including the device's X25519 public key. The
-    /// private key never leaves the device. If a partner is already paired
-    /// before this device's public_key was uploaded, the partner's chat
-    /// derivation will fail until they refresh the partner row.
+    /// private key never leaves the device. Session restore does not call
+    /// this — `ensurePublicKeyUploaded` covers that path.
     private func upsertProfile(userId: UUID, profile: UserProfile) async throws {
         let publicKey = try KeyManager.shared.myPublicKeyBase64()
-        let row = UserRow(
-            id: userId,
-            myName: profile.myName,
-            partnerName: profile.partnerName,
-            anniversaryISO: profile.anniversaryISO,
-            themeId: profile.themeId,
-            publicKey: publicKey
-        )
+        let row = UserProfileUpsert(userId: userId, profile: profile, publicKey: publicKey)
         try await SB.client
             .from("users")
             .upsert(row)
