@@ -1,7 +1,8 @@
 import SwiftUI
 
 // AI reads typed text and memory items only. This sheet has no field for
-// chat ciphertext. The consume call is local until `kk_ai_consume_and_run`.
+// chat ciphertext. `kk_ai_consume_and_run` is called, but a stub or
+// unavailable result is not a successful expand and does not lock the button.
 
 struct AIExpandSheet: View {
     @Environment(\.theme) private var theme
@@ -74,16 +75,26 @@ struct AIExpandSheet: View {
                         }
 
                         Button(action: run) {
-                            Text(didConsume ? "已扣 1 次" : "展開（扣 1 次）")
+                            Text(AIExpandMapping.Button.title(didConsume: didConsume))
                                 .font(DSText.ui(theme, 16, weight: .medium))
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 48)
-                                .background(didConsume || kk.ai.snapshot.isLocked ? theme.line : theme.rose)
+                                .background(
+                                    AIExpandMapping.Button.isDisabled(
+                                        didConsume: didConsume,
+                                        quotaLocked: kk.ai.snapshot.isLocked
+                                    ) ? theme.line : theme.rose
+                                )
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                         .buttonStyle(.plain)
-                        .disabled(didConsume || kk.ai.snapshot.isLocked)
+                        .disabled(
+                            AIExpandMapping.Button.isDisabled(
+                                didConsume: didConsume,
+                                quotaLocked: kk.ai.snapshot.isLocked
+                            )
+                        )
 
                         if let note = kk.ai.lastNote {
                             Text(note)
@@ -114,8 +125,7 @@ struct AIExpandSheet: View {
             }
         Task {
             let outcome = await kk.ai.consumeOnServer(userText: text, memories: memories)
-            guard outcome.ok else { return }
-            didConsume = true
+            didConsume = outcome.ok
             result = outcome.message
         }
     }

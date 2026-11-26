@@ -74,7 +74,9 @@ struct SignInView: View {
                 onCompletion: { result in
                     Task {
                         guard let p = profileStore.profile else { return }
-                        await auth.handleAppleResult(result, profile: p)
+                        if let saved = await auth.handleAppleResult(result, profile: p) {
+                            profileStore.save(saved)
+                        }
                     }
                 }
             )

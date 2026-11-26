@@ -7,7 +7,10 @@ import Supabase
 // TODO(kk-backend): schedule `kk_purge_expired_messages` on a 48h Edge/cron.
 // The client calls it opportunistically; that is not a substitute for the job.
 // TODO(kk-backend): 想你知道 09:00 HKT push is not wired. `remind` is stored only.
-// TODO(kk-backend): Gemini Edge is not deployed. `kk_ai_consume_and_run` returns status "stub".
+// TODO(kk-backend): Gemini Edge is not deployed. `kk_ai_consume_and_run`
+// returns ok:false and result.status "unavailable", and does not increment
+// ai_usage. The client counts a call only when ok is true and result.plan
+// (or result.text) is a real plan. See KK_IOS_BACKEND_CONTRACT.md.
 
 enum KKRPCError: Error {
     /// Refusing to send a mood whose third scalar is not U+6530. Do not substitute.
@@ -49,13 +52,18 @@ enum KKRPC {
     }
 
     struct AIConsumeResult: Decodable {
+        let ok: Bool?
         let period_ym: String?
         let used: Int?
         let remaining: Int?
-        let result: Stub?
-        struct Stub: Decodable {
+        let result: Body?
+        struct Body: Decodable {
             let status: String?
             let note: String?
+            /// User-facing plan. Preferred over `note`, which has carried
+            /// developer strings (`quota_consumed`, "wire Gemini Edge…").
+            let plan: String?
+            let text: String?
         }
     }
 
