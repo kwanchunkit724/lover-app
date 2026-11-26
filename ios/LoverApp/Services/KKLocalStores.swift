@@ -486,42 +486,50 @@ final class AIUsageStore: ObservableObject {
             lastNote = nil
             persist()
         } catch {
-            lastNote = error.localizedDescription
+            lastNote = AIExpandMapping.decision(forThrown: error).userMessage
         }
     }
 
-    /// Server is the quota source. Gemini Edge may still return status stub.
+    /// Asks the server to expand. A stub / unavailable payload is not a
+    /// success and does not change the local used-count. The local `consume`
+    /// helper is not used here: it increments before a plan exists.
     func consumeOnServer(userText: String, memories: [KKRPC.AIMemoryInput]) async -> ConsumeOutcome {
         let text = userText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty || !memories.isEmpty else {
-            lastNote = "AI 只處理你打嘅字同記憶空間項目。"
-            return ConsumeOutcome(ok: false, message: lastNote ?? "")
+            lastNote = nil
+            return ConsumeOutcome(ok: false, message: AIExpandMapping.emptyInputMessage)
         }
         do {
             let result = try await KKRPC.consumeAI(userText: text, memories: memories)
-            if let used = result.used {
-                snapshot = Snapshot(period: result.period_ym ?? snapshot.period, used: used)
-                persist()
-            }
-            pendingConsume = false
-            lastNote = nil
-            let stub = result.result?.status == "stub"
-            let note = result.result?.note ?? ""
-            let message = stub
-                ? "次數已扣。Gemini Edge 未接上。\(note)"
-                : (note.isEmpty ? "已提交。" : note)
-            return ConsumeOutcome(ok: true, message: message)
+            let decision = AIExpandMapping.decide(
+                ok: result.ok,
+                status: result.result?.status,
+                note: result.result?.note,
+                plan: result.result?.plan,
+                text: result.result?.text,
+                reportedUsed: result.used,
+                period: result.period_ym
+            )
+            return applyServer(decision)
         } catch {
-            let raw = error.localizedDescription
-            if raw.contains("ai_quota_exhausted") {
-                snapshot = Snapshot(period: snapshot.period, used: KKAIQuota.monthlyCap)
-                persist()
-                lastNote = "今個月 \(KKAIQuota.monthlyCap) 次用完。"
-            } else {
-                lastNote = raw
-            }
-            return ConsumeOutcome(ok: false, message: lastNote ?? raw)
+            return applyServer(AIExpandMapping.decision(forThrown: error))
         }
+    }
+
+    /// Applies a mapped RPC decision. Failures leave `snapshot.used` alone
+    /// unless the server rejected the call because the month is exhausted.
+    func applyServer(_ decision: AIExpandMapping.Decision) -> ConsumeOutcome {
+        let next = AIExpandMapping.applying(
+            decision,
+            to: AIExpandMapping.UsageSnapshot(period: snapshot.period, used: snapshot.used)
+        )
+        snapshot = Snapshot(period: next.period, used: next.used)
+        if decision.exhaustsQuota || decision.succeeded {
+            persist()
+        }
+        pendingConsume = false
+        lastNote = nil
+        return ConsumeOutcome(ok: decision.succeeded, message: decision.userMessage)
     }
 
     private func bindPeriod(now: Date) {

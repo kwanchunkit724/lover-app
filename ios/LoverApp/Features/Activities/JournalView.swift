@@ -220,8 +220,8 @@ struct JournalView: View {
     private func entryCard(_ entry: PlayHistoryService.DecryptedItem) -> some View {
         let mine = entry.senderId == meId
         let authorName = mine
-            ? (profileStore.profile?.myName ?? "你")
-            : (pairing.partner?.myName ?? profileStore.profile?.partnerName ?? "對方")
+            ? CoupleNames.display(preferred: profileStore.profile?.myName, fallback: nil)
+            : CoupleNames.display(preferred: pairing.partner?.myName, fallback: profileStore.profile?.partnerName)
         return HStack(alignment: .top, spacing: 12) {
             Circle()
                 .fill(mine ? theme.roseSoft : theme.sageSoft)

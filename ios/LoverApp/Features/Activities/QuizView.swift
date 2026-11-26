@@ -157,8 +157,8 @@ struct QuizView: View {
     private func statusRow(forMe: Bool) -> some View {
         let answered = forMe ? (myAnswer != nil) : (partnerAnswer != nil)
         let name = forMe
-            ? (profileStore.profile?.myName ?? "你")
-            : (pairing.partner?.myName ?? profileStore.profile?.partnerName ?? "對方")
+            ? CoupleNames.display(preferred: profileStore.profile?.myName, fallback: nil)
+            : CoupleNames.display(preferred: pairing.partner?.myName, fallback: profileStore.profile?.partnerName)
         let tint = forMe ? theme.rose : theme.sage
         let tintSoft = forMe ? theme.roseSoft : theme.sageSoft
 
@@ -253,7 +253,7 @@ struct QuizView: View {
 
             if let mine = myAnswer {
                 answerCard(
-                    name: profileStore.profile?.myName ?? "你",
+                    name: CoupleNames.display(preferred: profileStore.profile?.myName, fallback: nil),
                     answer: mine,
                     tint: theme.rose,
                     tintSoft: theme.roseSoft
@@ -261,7 +261,10 @@ struct QuizView: View {
             }
             if let theirs = partnerAnswer {
                 answerCard(
-                    name: pairing.partner?.myName ?? profileStore.profile?.partnerName ?? "對方",
+                    name: CoupleNames.display(
+                        preferred: pairing.partner?.myName,
+                        fallback: profileStore.profile?.partnerName
+                    ),
                     answer: theirs,
                     tint: theme.sage,
                     tintSoft: theme.sageSoft

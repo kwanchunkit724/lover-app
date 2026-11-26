@@ -30,13 +30,45 @@ The third mood is only `"\u{6709}\u{5572}" + String(UnicodeScalar(0x6530)!)`. UT
 | `kk_want_create` / `kk_want_mark_read` / `kk_want_soft_delete` | `WantYouKnowStore` |
 | `want_you_know` + `want_you_know_reads` select | same, via RLS |
 | `kk_ai_usage_get` | `AIUsageStore.refreshFromServer` |
-| `kk_ai_consume_and_run` | `AIUsageStore.consumeOnServer` — payload keys are only `user_text`, `memory_ids`, `memory_items` |
+| `kk_ai_consume_and_run` | `AIUsageStore.consumeOnServer` — payload keys are only `user_text`, `memory_ids`, `memory_items`. Counted only when the response is a real plan (below). |
+| `users.my_name` update | `AuthService.publishMyName` — `UPDATE` on the signed-in row only, after `kk_ensure_profile()`. Placeholders `我` / `對方` are not written. |
 | `kk_kaomoji_prefs_get` / `kk_kaomoji_prefs_set` | `KaomojiPrefsStore` (recent list stays on device) |
 | `kk_purge_expired_messages` | once per sign-in from `KKAppModel` |
 
+## Names
+
+`kk_ensure_profile()` inserts `my_name = 我` and `partner_name = 對方` when the row is missing, then returns the existing row without changing those columns. The iOS client therefore `UPDATE`s its own `users.my_name` when a real on-device or Apple given name exists, and again when the user saves 「我嘅名」 in Settings. It does not update the partner's row. The other phone reads that column as `pairing.partner.myName` on refresh.
+
+Do not display or store `我` / `對方` once a real name exists. An empty couple-day is sent as JSON `null` for `anniversary_iso` (a `date`), never `""`.
+
+## AI consume
+
+Gemini Edge is not wired. The live `kk_ai_consume_and_run` returns `ok: false`, `result.status = unavailable`, and does **not** increment `ai_usage`. The iOS client still calls it, so a later Gemini response on this same RPC works without an app release.
+
+The client treats a call as success only when `ok` is true and `result.plan` or `result.text` (or a non-developer `result.note`) is present. It then stores `used` and shows that plan. These are failures: the button stays 「展開（扣 1 次）」, the local used-count is left unchanged, and the sheet shows a short Cantonese sentence. Raw `note` text is never shown.
+
+- `ok: false`
+- `result.status` of `stub`, `unavailable`, `error`, `failed`, or `quota_consumed`
+- a note/plan containing `quota_consumed`, `wire Gemini Edge for real plan output`, `kk_ai_consume_and_run`, or other snake_case RPC tokens
+
+Success shape the client will count and display:
+
+```json
+{
+  "ok": true,
+  "period_ym": "2026-11",
+  "used": 1,
+  "remaining": 9,
+  "result": { "status": "ok", "plan": "user-facing plan text" }
+}
+```
+
+`used` must be the count **after** a real plan was produced. Do not increment `ai_usage` on `stub` / `unavailable`. If a deploy deducts before a plan exists, the next `kk_ai_usage_get` will surface that number; refund or move the increment to after the plan. The client will not present that response as 「已扣 1 次」.
+
+`ai_quota_exhausted` locks the month. Every other thrown code is mapped to Cantonese. The raw string stays off the screen.
+
 ## Still stubbed
 
-- Gemini Edge is not deployed. A successful consume returns `result.status = stub` and the quota is still consumed. The sheet shows that note.
 - 48h purge Edge/cron is not scheduled. The client call above is only opportunistic.
 - 想你知道 09:00 HKT push is not wired. The `remind` flag is saved; no push is sent.
 - `send-push` stays the existing device-token path. No new KK push job.

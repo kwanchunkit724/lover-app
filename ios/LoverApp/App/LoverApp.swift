@@ -108,6 +108,7 @@ struct RootView: View {
                             kk.bind(userId: userId)
                             if UITesting.blocksNetwork { return }
                             await auth.ensurePublicKeyUploaded(userId: userId)
+                            await publishLocalName()
                             pairing.startSessionWatch(meId: userId)
                             await pairing.refresh(meId: userId)
                             if pairing.isPaired {
@@ -123,6 +124,7 @@ struct RootView: View {
                 if UITesting.blocksNetwork { return }
                 Task {
                     await auth.ensurePublicKeyUploaded(userId: id)
+                    await publishLocalName()
                     pairing.startSessionWatch(meId: id)
                     await pairing.refresh(meId: id)
                     if pairing.isPaired {
@@ -194,18 +196,17 @@ struct RootView: View {
                 if case .signedIn(let id) = auth.state {
                     Task {
                         await auth.ensurePublicKeyUploaded(userId: id)
+                        await publishLocalName()
                         pairing.startSessionWatch(meId: id)
+                        // Refresh even when already paired so the partner's
+                        // saved my_name replaces the 「我」 default.
+                        await pairing.refresh(meId: id, quiet: true)
                         if pairing.isPaired {
                             if !crypto.isReady {
                                 kickPrepare(meId: id)
                             }
-                        } else {
-                            await pairing.refresh(meId: id, quiet: true)
-                            if pairing.isPaired {
-                                kickPrepare(meId: id)
-                            } else if pairing.activeCode != nil {
-                                pairing.startWaitingForPartner(meId: id)
-                            }
+                        } else if pairing.activeCode != nil {
+                            pairing.startWaitingForPartner(meId: id)
                         }
                     }
                 }
@@ -231,6 +232,14 @@ struct RootView: View {
         } else {
             MainTabView()
         }
+    }
+
+    /// Writes the on-device name onto `users.my_name` when it is a real name.
+    /// Session restore does not re-run the sign-in upsert, and
+    /// `kk_ensure_profile()` will not replace the default 「我」.
+    private func publishLocalName() async {
+        guard let name = profileStore.profile?.myName else { return }
+        await auth.publishMyName(name)
     }
 
     /// Re-publish our key and derive the chat key. Keeps polling while the

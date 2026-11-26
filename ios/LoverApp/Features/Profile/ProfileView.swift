@@ -28,19 +28,26 @@ struct ProfileView: View {
         return value
     }
 
-    // v1.5.1 — MockData identity fallbacks stripped. Show "…" placeholder
-    // when real data hasn't loaded so users never see 米雪 / Kit by mistake.
+    // Server defaults 「我」 / 「對方」 are not names. A real local name wins
+    // over those defaults; the partner's own my_name wins once they save one.
+    private var identity: CoupleNames.Identity {
+        CoupleNames.identity(
+            myName: profileStore.profile?.myName,
+            partnerMyName: pairing.partner?.myName,
+            localPartnerName: profileStore.profile?.partnerName
+        )
+    }
     private var me: Person {
-        let name = profileStore.profile?.myName ?? "…"
-        return Person(id: "me", name: name, initial: String(name.prefix(1)), tint: .rose)
+        Person(id: "me", name: identity.meName, initial: identity.meInitial, tint: .rose)
     }
     private var partner: Person {
-        // pairing.partner.myName is what the partner typed for THEMSELVES on
-        // their device — preferred over our local "what I think they're called".
-        let name = pairing.partner?.myName
-                ?? profileStore.profile?.partnerName
-                ?? "…"
-        return Person(id: "partner", name: name, initial: String(name.prefix(1)), tint: .sage)
+        Person(id: "partner", name: identity.partnerName, initial: identity.partnerInitial, tint: .sage)
+    }
+    private var myNameRowValue: String {
+        if let name = CoupleNames.persistable(profileStore.profile?.myName) {
+            return "\(name) →"
+        }
+        return "未設定 →"
     }
 
     private var anniversaryISO: String? {
@@ -126,9 +133,11 @@ struct ProfileView: View {
             Text("配對唔會解除，下次用同一個 Apple ID 登入返就見返一切。")
         }
         .task {
-            // Refresh partner data when this tab opens — picks up theme /
-            // name changes the partner made on their device.
+            // Push this phone's real name, then read the partner's my_name.
             if case .signedIn(let id) = auth.state {
+                if let name = profileStore.profile?.myName {
+                    await auth.publishMyName(name)
+                }
                 await pairing.refresh(meId: id)
             }
         }
@@ -190,7 +199,7 @@ struct ProfileView: View {
             }
             .padding(.bottom, 14)
 
-            Text("\(me.name) & \(partner.name)")
+            Text(identity.title)
                 .font(.system(size: 22, weight: .semibold, design: .serif))
                 .foregroundStyle(theme.ink)
 
@@ -250,6 +259,8 @@ struct ProfileView: View {
         // global "default reminder lead time" setting later, this is where
         // it goes.
         ProfileSection(title: "設定") {
+            ProfileRow(icon: .us, label: "我嘅名", value: myNameRowValue,
+                       onTap: { presented = .myName })
             ProfileRow(icon: .heart, label: "你哋嘅日子", value: "可選 →",
                        onTap: { presented = .coupleDay })
             ProfileRow(icon: .kao, label: "顏文字偏好", value: "快捷 \(kk.kaomoji.quick.count)/6 →",
@@ -291,6 +302,8 @@ struct ProfileView: View {
     @ViewBuilder
     private func sheetContent(for route: SettingsRoute) -> some View {
         switch route {
+        case .myName:
+            MyNameSettingsView(onClose: { presented = nil })
         case .coupleDay:
             CoupleDaySettingsView(onClose: { presented = nil })
         case .kao:
@@ -302,7 +315,7 @@ struct ProfileView: View {
         case .aiUsage:
             KKInfoSheet(
                 title: "AI",
-                bodyText: "今個月 \(kk.ai.snapshot.used)/\(KKAIQuota.monthlyCap) 次，兩個人共用。用盡會鎖。只處理你打嘅字同記憶空間項目。伺服器計數未接上。",
+                bodyText: "今個月 \(kk.ai.snapshot.used)/\(KKAIQuota.monthlyCap) 次，兩個人共用。用盡會鎖。只處理你打嘅字同記憶空間項目。",
                 kao: "(✧ω✧)",
                 onClose: { presented = nil }
             )
@@ -332,7 +345,7 @@ struct ProfileView: View {
 }
 
 enum SettingsRoute: String, Identifiable {
-    case coupleDay, kao, theme, deleteAccount, aiUsage, chatPolicy, language, removed
+    case myName, coupleDay, kao, theme, deleteAccount, aiUsage, chatPolicy, language, removed
     var id: String { rawValue }
 }
 

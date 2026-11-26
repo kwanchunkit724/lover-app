@@ -63,16 +63,19 @@ struct ChatView: View {
         if case .signedIn(let uuid) = auth.state { return uuid.uuidString }
         return ""
     }
+    private var chatIdentity: CoupleNames.Identity {
+        CoupleNames.identity(
+            myName: profileStore.profile?.myName,
+            partnerMyName: pairing.partner?.myName,
+            localPartnerName: profileStore.profile?.partnerName
+        )
+    }
     private var me: Person {
-        let name = profileStore.profile?.myName ?? "…"
-        return Person(id: meId, name: name, initial: String(name.prefix(1)), tint: .rose)
+        Person(id: meId, name: chatIdentity.meName, initial: chatIdentity.meInitial, tint: .rose)
     }
     private var partner: Person {
-        let name = pairing.partner?.myName
-                ?? profileStore.profile?.partnerName
-                ?? "…"
-        let id   = pairing.partner?.id.uuidString ?? ""
-        return Person(id: id, name: name, initial: String(name.prefix(1)), tint: .sage)
+        let id = pairing.partner?.id.uuidString ?? ""
+        return Person(id: id, name: chatIdentity.partnerName, initial: chatIdentity.partnerInitial, tint: .sage)
     }
 
     /// ChatService DecryptedMessage → Message adapter so MessageBubble code

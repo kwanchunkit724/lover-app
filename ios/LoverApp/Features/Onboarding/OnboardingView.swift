@@ -51,13 +51,13 @@ struct OnboardingView: View {
                     case .welcome:     welcomeStep
                     case .yourName:    nameStep(
                         title: "你叫咩？",
-                        hint: "暱稱、英文名、外號…乜都得",
+                        hint: "暱稱、英文名、外號…唔好填「我」",
                         placeholder: "你嘅暱稱",
                         text: $myName
                     )
                     case .partnerName: nameStep(
                         title: "你點稱呼對方？",
-                        hint: "你哋之間嗌嘅嗰個就得，唔使真名",
+                        hint: "你哋之間嗌嘅嗰個就得，唔好填「對方」",
                         placeholder: "TA 嘅暱稱",
                         text: $partnerName
                     )
@@ -115,6 +115,12 @@ struct OnboardingView: View {
             DSTextField(placeholder: placeholder, text: text)
                 .submitLabel(.next)
                 .onSubmit { advanceIfPossible() }
+
+            if CoupleNames.rejection(of: text.wrappedValue) == .placeholder {
+                Text(CoupleNames.message(for: .placeholder))
+                    .font(DSText.ui(theme, 13))
+                    .foregroundStyle(theme.rose)
+            }
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -185,8 +191,8 @@ struct OnboardingView: View {
     private var canAdvance: Bool {
         switch step {
         case .welcome:     return true
-        case .yourName:    return !myName.trimmingCharacters(in: .whitespaces).isEmpty
-        case .partnerName: return !partnerName.trimmingCharacters(in: .whitespaces).isEmpty
+        case .yourName:    return CoupleNames.persistable(myName) != nil
+        case .partnerName: return CoupleNames.persistable(partnerName) != nil
         case .theme:       return true
         }
     }
